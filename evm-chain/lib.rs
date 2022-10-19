@@ -96,16 +96,6 @@ mod evm_chain {
             Ok(())
         }
 
-        #[ink(message)]
-        pub fn get_native(&self) -> Option<AssetInfo> {
-            self.native.clone()
-        }
-
-        #[ink(message)]
-        pub fn get_stable(&self) -> Option<AssetInfo> {
-            self.stable.clone()
-        }
-
         /// Returns error if caller is not admin
         fn esure_admin(&self) -> Result<()> {
             let caller = self.env().caller();
@@ -132,9 +122,19 @@ mod evm_chain {
         }
     }
 
-    // impl Inspector for EvmChain {
+    impl Inspector for EvmChain {
+        /// Return set native asset of the chain
+        #[ink(message)]
+        fn native_asset(&self) -> Option<AssetInfo> {
+            self.native.clone()
+        }
 
-    // }
+        /// Return set stable asset of the chain
+        #[ink(message)]
+        fn stable_asset(&self) -> Option<AssetInfo> {
+            self.stable.clone()
+        }
+    }
 
     // impl BalanceFetcher for EvmChain {
 
