@@ -2,8 +2,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use traits::registry::{SignedTransaction, Signer};
 use scale::{Decode, Encode};
+use traits::registry::{SignedTransaction, Signer};
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]

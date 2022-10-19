@@ -15,8 +15,8 @@ mod evm_chain {
     use ink_lang as ink;
     use pink::PinkEnvironment;
     use traits::registry::{
-        AssetInfo, AssetsRegisry, BalanceFetcher, ChainType, Error as RegistryError, Inspector,
-        SignedTransaction,
+        AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType,
+        Error as RegistryError, SignedTransaction,
     };
 
     #[ink(storage)]
@@ -59,10 +59,10 @@ mod evm_chain {
     impl EvmChain {
         #[ink(constructor)]
         /// Create an Ethereum entity
-        pub fn new() -> Self {
+        pub fn new(chain: Vec<u8>) -> Self {
             EvmChain {
                 admin: Self::env().caller(),
-                chain: b"Ethereum".to_vec(),
+                chain: chain,
                 chain_type: ChainType::Evm,
                 assets: vec![],
                 native: None,
@@ -122,7 +122,25 @@ mod evm_chain {
         }
     }
 
-    impl Inspector for EvmChain {
+    impl ChainInspector for EvmChain {
+        /// Return admin of the chain
+        #[ink(message)]
+        fn owner(&self) -> AccountId {
+            self.admin
+        }
+
+        /// Return name of the chain
+        #[ink(message)]
+        fn chain_name(&self) -> Vec<u8> {
+            self.chain.clone()
+        }
+
+        /// Return set native asset of the chain
+        #[ink(message)]
+        fn chain_type(&self) -> ChainType {
+            self.chain_type.clone()
+        }
+
         /// Return set native asset of the chain
         #[ink(message)]
         fn native_asset(&self) -> Option<AssetInfo> {
@@ -143,4 +161,119 @@ mod evm_chain {
     // impl AssetsRegisry<(), Error> for EvmChain {
 
     // }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+        use ink_lang as ink;
+
+        type Event = <EvmChain as ink::reflect::ContractEventBase>::Type;
+
+        fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
+            ink_env::test::default_accounts::<PinkEnvironment>()
+        }
+
+        fn set_caller(sender: AccountId) {
+            ink_env::test::set_caller::<PinkEnvironment>(sender);
+        }
+
+        fn assert_events(mut expected: Vec<Event>) {
+            let mut actual: Vec<ink_env::test::EmittedEvent> =
+                ink_env::test::recorded_events().collect();
+
+            expected.reverse();
+
+            for evt in expected {
+                let next = actual.pop().expect("event expected");
+                // Compare event data
+                assert_eq!(
+                    next.data,
+                    <Event as scale::Encode>::encode(&evt),
+                    "Event don't match"
+                );
+            }
+        }
+
+        #[ink::test]
+        fn test_default_works() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let ethereum = EvmChain::new(b"Ethereum".to_vec());
+            assert_eq!(ethereum.owner(), accounts.alice);
+            assert_eq!(ethereum.chain_name(), b"Ethereum".to_vec());
+            assert_eq!(ethereum.chain_type(), ChainType::Evm);
+            assert_eq!(ethereum.native_asset(), None);
+            assert_eq!(ethereum.stable_asset(), None);
+        }
+
+        #[ink::test]
+        fn test_set_native_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let weth = AssetInfo {
+                name: b"Wrap Ether".to_vec(),
+                symbol: b"WETH".to_vec(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.set_native(weth.clone()), Ok(()));
+            assert_events(vec![NativeSet {
+                chain: b"Ethereum".to_vec(),
+                asset: Some(weth.clone()),
+            }
+            .into()]);
+            assert_eq!(ethereum.native_asset(), Some(weth));
+        }
+
+        #[ink::test]
+        fn test_set_native_without_permisssion_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let weth = AssetInfo {
+                name: b"Wrap Ether".to_vec(),
+                symbol: b"WETH".to_vec(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            set_caller(accounts.bob);
+            assert_eq!(ethereum.set_native(weth), Err(RegistryError::BadOrigin));
+        }
+
+        #[ink::test]
+        fn test_set_stable_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.set_stable(usdc.clone()), Ok(()));
+            assert_events(vec![StableSet {
+                chain: b"Ethereum".to_vec(),
+                asset: Some(usdc.clone()),
+            }
+            .into()]);
+            assert_eq!(ethereum.stable_asset(), Some(usdc));
+        }
+
+        #[ink::test]
+        fn test_set_stable_without_permisssion_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            set_caller(accounts.bob);
+            assert_eq!(ethereum.set_stable(usdc), Err(RegistryError::BadOrigin));
+        }
+    }
 }
