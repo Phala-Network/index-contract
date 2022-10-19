@@ -181,6 +181,7 @@ mod evm_chain {
             let mut actual: Vec<ink_env::test::EmittedEvent> =
                 ink_env::test::recorded_events().collect();
 
+            assert_eq!(actual.len(), expected.len(), "Event count don't match");
             expected.reverse();
 
             for evt in expected {
@@ -189,7 +190,7 @@ mod evm_chain {
                 assert_eq!(
                     next.data,
                     <Event as scale::Encode>::encode(&evt),
-                    "Event don't match"
+                    "Event data don't match"
                 );
             }
         }
