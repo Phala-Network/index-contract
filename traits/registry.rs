@@ -117,3 +117,224 @@ pub trait Inspector {
     #[ink(message)]
     fn stable_asset(&self) -> Option<AssetInfo>;
 }
+
+/// Asset informatios should be contained in the input graph
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct AssetGraph {
+    /// Chain name that asset belong to
+    chain: Vec<u8>,
+    /// Encoded asset MultiLocation
+    location: Vec<u8>,
+    /// Asset name
+    name: Vec<u8>,
+    /// Symbol of asset
+    symbol: Vec<u8>,
+    /// Decimal of asset
+    decimals: u8,
+}
+
+/// Trading pair informatios should be contained in the input graph
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct TradingPairGraph {
+    /// Indentification of the trading pair on dex
+    id: Vec<u8>,
+    /// Asset name of token0
+    token0: Vec<u8>,
+    /// Asset name of token1
+    token1: Vec<u8>,
+    /// Encoded asset0 MultiLocation
+    location0: Vec<u8>,
+    /// Encoded asset1 MultiLocation
+    location1: Vec<u8>,
+    /// Balance of asset0 in pool
+    reserve0: u128,
+    /// Balance of asset1 in pool
+    reserve1: u128,
+    /// Capability of trading pool, represented by USD
+    cap: u128,
+    /// Dex name that trading pair belong to
+    dex: Vec<u8>,
+    /// Chain name that trading pair belong to
+    chain: Vec<u8>,
+}
+
+/// Bridge informatios should be contained in the input graph
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct BridgeGraph {
+    /// Name of source chain
+    chain0: Vec<u8>,
+    /// Name of dest chain
+    chain1: Vec<u8>,
+    /// Name list of supported assets
+    assets: Vec<Vec<u8>>
+}
+
+/// Definition of the input graph
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct Graph {
+    /// All registered assets
+    assets: Vec<AssetGraph>,
+    /// All registered trading pairs
+    pairs: Vec<TradingPairGraph>,
+    /// All supported bridges
+    bridges: Vec<BridgeGraph>
+}
+
+/// Definition of source edge
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct SourceEdge {
+    /// asset/chain
+    to: Vec<u8>,
+    /// Capacity of the edge
+    cap: u128,
+    /// Flow of the edge
+    flow: u128,
+    /// Price impact after executing the edge
+    impact: u128
+}
+
+/// Definition of SINK edge
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct SinkEdge {
+    /// asset/chain
+    from: Vec<u8>,
+    /// Capacity of the edge
+    cap: u128,
+    /// Flow of the edge
+    flow: u128,
+    /// Price impact after executing the edge
+    impact: u128
+}
+
+/// Definition of swap operation edge
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct SwapEdge {
+    /// asset/chain
+    from: Vec<u8>,
+    /// asset/chain
+    to: Vec<u8>,
+    /// Chain name
+    chain: Vec<u8>,
+    /// Dex name
+    dex: Vec<u8>,
+    /// Capacity of the edge
+    cap: u128,
+    /// Flow of the edge
+    flow: u128,
+    /// Price impact after executing the edge
+    impact: u128
+}
+
+/// Definition of bridge operation edge
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    scale::Encode,
+    scale::Decode,
+    SpreadLayout,
+    PackedLayout,
+    SpreadAllocate,
+)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct BridgeEdge {
+    /// asset/chain
+    from: Vec<u8>,
+    /// asset/chain
+    to: Vec<u8>,
+    /// Capacity of the edge
+    cap: u128,
+    /// Flow of the edge
+    flow: u128,
+    /// Price impact after executing the edge
+    impact: u128
+}
+
+#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub enum SolutionEdge {
+    SourceEdge(SourceEdge),
+    SinkEdge(SinkEdge),
+    SwapEdge(SwapEdge),
+    BridgeEdge(BridgeEdge),
+}
+
+pub type Solution = Vec<SolutionEdge>;
