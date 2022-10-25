@@ -85,6 +85,10 @@ pub struct SwapEdge {
     flow: u128,
     /// Price impact after executing the edge
     impact: u128,
+    /// Original relayer account balance of spend asset
+    b0: Option<u128>,
+    /// Original relayer account balance of received asset
+    b1: Option<u128>,
 }
 
 /// Definition of bridge operation edge
@@ -111,6 +115,10 @@ pub struct BridgeEdge {
     flow: u128,
     /// Price impact after executing the edge
     impact: u128,
+    /// Original relayer account balance of asset on source chain
+    b0: Option<u128>,
+    /// Original relayer account balance of asset on dest chain
+    b1: Option<u128>,
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
