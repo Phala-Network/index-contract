@@ -155,11 +155,11 @@ pub struct Edge {
     /// Status of the edge, updated by executor
     status: EdgeStatus,
     /// Distributed relayer account for this edge
-    relayer: Vec<u8>,
+    relayer: Option<Vec<u8>>,
     /// Public key of the relayer
-    key: [u8; 32],
+    key: Option<[u8; 32]>,
     /// Nonce of the relayer on source chain of edge
-    nonce: u128,
+    nonce: Option<u128>,
 }
 
 #[derive(
