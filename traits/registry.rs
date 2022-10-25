@@ -199,7 +199,7 @@ pub struct BridgeGraph {
     /// Name of dest chain
     chain1: Vec<u8>,
     /// Name list of supported assets
-    assets: Vec<Vec<u8>>
+    assets: Vec<Vec<u8>>,
 }
 
 /// Definition of the input graph
@@ -221,120 +221,5 @@ pub struct Graph {
     /// All registered trading pairs
     pairs: Vec<TradingPairGraph>,
     /// All supported bridges
-    bridges: Vec<BridgeGraph>
+    bridges: Vec<BridgeGraph>,
 }
-
-/// Definition of source edge
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct SourceEdge {
-    /// asset/chain
-    to: Vec<u8>,
-    /// Capacity of the edge
-    cap: u128,
-    /// Flow of the edge
-    flow: u128,
-    /// Price impact after executing the edge
-    impact: u128
-}
-
-/// Definition of SINK edge
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct SinkEdge {
-    /// asset/chain
-    from: Vec<u8>,
-    /// Capacity of the edge
-    cap: u128,
-    /// Flow of the edge
-    flow: u128,
-    /// Price impact after executing the edge
-    impact: u128
-}
-
-/// Definition of swap operation edge
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct SwapEdge {
-    /// asset/chain
-    from: Vec<u8>,
-    /// asset/chain
-    to: Vec<u8>,
-    /// Chain name
-    chain: Vec<u8>,
-    /// Dex name
-    dex: Vec<u8>,
-    /// Capacity of the edge
-    cap: u128,
-    /// Flow of the edge
-    flow: u128,
-    /// Price impact after executing the edge
-    impact: u128
-}
-
-/// Definition of bridge operation edge
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct BridgeEdge {
-    /// asset/chain
-    from: Vec<u8>,
-    /// asset/chain
-    to: Vec<u8>,
-    /// Capacity of the edge
-    cap: u128,
-    /// Flow of the edge
-    flow: u128,
-    /// Price impact after executing the edge
-    impact: u128
-}
-
-#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub enum SolutionEdge {
-    SourceEdge(SourceEdge),
-    SinkEdge(SinkEdge),
-    SwapEdge(SwapEdge),
-    BridgeEdge(BridgeEdge),
-}
-
-pub type Solution = Vec<SolutionEdge>;
