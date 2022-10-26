@@ -18,20 +18,6 @@ pub enum Error {
     AssetNotFound,
 }
 
-#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum SignedTransaction {
-    /// Ethereum signed transaction
-    EthSignedTransaction,
-    /// Substrate-based chain signed transaction
-    SubSignedTransaction,
-}
-
-pub trait Signer {
-    /// Sign a transaction
-    fn sign_transaction(&self, unsigned_tx: Vec<u8>) -> SignedTransaction;
-}
-
 /// Query the account balance of an asset under a multichain scenario is a mess,
 /// not only because different chains have different account systems but also have
 /// different asset registry mechanism(e.g. Acala use Currency, Phala use pallet-assets
