@@ -1,22 +1,18 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-mod eth_signer;
-
 use pink_extension as pink;
 
 #[pink::contract(env = PinkEnvironment)]
 #[pink(inner=ink_lang::contract)]
 mod evm_chain {
     use super::pink;
-    use crate::eth_signer::EthSigner;
     use alloc::vec;
     use alloc::vec::Vec;
     use ink_lang as ink;
     use pink::PinkEnvironment;
     use traits::registry::{
-        AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType,
-        Error as RegistryError, SignedTransaction,
+        AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType, Error as RegistryError,
     };
 
     #[ink(storage)]
@@ -103,22 +99,6 @@ mod evm_chain {
                 return Err(RegistryError::BadOrigin);
             }
             Ok(())
-        }
-    }
-
-    /// Same as Signer trait
-    #[ink::trait_definition]
-    pub trait EthTx {
-        /// Sign a transaction
-        #[ink(message)]
-        fn sign_transaction(&self, signer: EthSigner, unsigned_tx: Vec<u8>) -> SignedTransaction;
-    }
-
-    impl EthTx for EvmChain {
-        #[ink(message)]
-        fn sign_transaction(&self, signer: EthSigner, unsigned_tx: Vec<u8>) -> SignedTransaction {
-            // TODO: sign with signer
-            SignedTransaction::EthSignedTransaction
         }
     }
 
