@@ -35,7 +35,7 @@ pub enum Error {
 pub trait BalanceFetcher {
     /// Return on-chain `asset` amount of `account`
     #[ink(message)]
-    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> u128;
+    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Option<u128>;
 }
 
 /// Beyond general properties like `name`, `symbol` and `decimals`,
@@ -74,16 +74,16 @@ pub trait AssetsRegisry {
 
     /// Return all registerd assets
     #[ink(message)]
-    fn registered_assets(&self, name: Vec<u8>) -> Vec<AssetInfo>;
+    fn registered_assets(&self) -> Vec<AssetInfo>;
 
     #[ink(message)]
     fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo>;
 
     #[ink(message)]
-    fn lookup_by_symbol(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo>;
 
     #[ink(message)]
-    fn lookup_by_location(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo>;
 }
 
 #[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
