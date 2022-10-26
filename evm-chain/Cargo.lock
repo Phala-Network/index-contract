@@ -538,6 +538,7 @@ dependencies = [
  "pink-extension",
  "scale-info",
  "traits",
+ "xcm",
 ]
 
 [[package]]

@@ -13,10 +13,15 @@ ink_lang = { version = "3.3.1", default-features = false }
 
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 
 pink-extension = { version = "0.1.0", default-features = false }
 
 traits = { path = "../traits", default-features = false}
+
+[profile.release]
+overflow-checks = false     # Disable integer overflow checks.
+lto = false                 # Enable full link-time optimization.
 
 [lib]
 name = "evm_chain"
@@ -37,6 +42,7 @@ std = [
     "ink_primitives/std",
     "scale/std",
     "scale-info/std",
+    "xcm/std",
     "pink-extension/std",
     "traits/std",
 ]

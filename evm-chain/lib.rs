@@ -11,9 +11,11 @@ mod evm_chain {
     use alloc::vec::Vec;
     use ink_lang as ink;
     use pink::PinkEnvironment;
+    use traits::ensure;
     use traits::registry::{
         AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType, Error as RegistryError,
     };
+    use xcm::latest::{AssetId, MultiLocation};
 
     #[ink(storage)]
     // #[derive(SpreadAllocate)]
@@ -32,7 +34,7 @@ mod evm_chain {
         stable: Option<AssetInfo>,
     }
 
-    /// Event emitted when a token transfer occurs.
+    /// Event emitted when native asset set.
     #[ink(event)]
     pub struct NativeSet {
         #[ink(topic)]
@@ -41,9 +43,27 @@ mod evm_chain {
         asset: Option<AssetInfo>,
     }
 
-    /// Event emitted when a token transfer occurs.
+    /// Event emitted when stable asset set.
     #[ink(event)]
     pub struct StableSet {
+        #[ink(topic)]
+        chain: Vec<u8>,
+        #[ink(topic)]
+        asset: Option<AssetInfo>,
+    }
+
+    /// Event emitted when asset registered.
+    #[ink(event)]
+    pub struct Registered {
+        #[ink(topic)]
+        chain: Vec<u8>,
+        #[ink(topic)]
+        asset: Option<AssetInfo>,
+    }
+
+    /// Event emitted when asset unregistered.
+    #[ink(event)]
+    pub struct Unregistered {
         #[ink(topic)]
         chain: Vec<u8>,
         #[ink(topic)]
@@ -134,13 +154,86 @@ mod evm_chain {
         }
     }
 
-    // impl BalanceFetcher for EvmChain {
+    impl BalanceFetcher for EvmChain {
+        #[ink(message)]
+        fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Option<u128> {
+            None
+        }
+    }
 
-    // }
+    impl AssetsRegisry for EvmChain {
+        /// Register the asset
+        /// Authorized method, only the contract owner can do
+        #[ink(message)]
+        fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+            self.esure_admin()?;
 
-    // impl AssetsRegisry<(), Error> for EvmChain {
+            ensure!(
+                self.assets
+                    .iter()
+                    .position(|a| a.location == asset.location)
+                    .is_none(),
+                RegistryError::AssetAlreadyRegistered
+            );
+            self.assets.push(asset.clone());
 
-    // }
+            Self::env().emit_event(Registered {
+                chain: self.chain.clone(),
+                asset: Some(asset),
+            });
+            Ok(())
+        }
+
+        /// Unregister the asset
+        /// Authorized method, only the contract owner can do
+        #[ink(message)]
+        fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+            self.esure_admin()?;
+
+            let index = self
+                .assets
+                .iter()
+                .position(|a| a.location == asset.location)
+                .ok_or(RegistryError::AssetNotFound)?;
+            self.assets.remove(index);
+
+            Self::env().emit_event(Unregistered {
+                chain: self.chain.clone(),
+                asset: Some(asset),
+            });
+            Ok(())
+        }
+
+        /// Return all registerd assets
+        #[ink(message)]
+        fn registered_assets(&self) -> Vec<AssetInfo> {
+            self.assets.clone()
+        }
+
+        #[ink(message)]
+        fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo> {
+            self.assets
+                .iter()
+                .position(|a| a.name == name)
+                .and_then(|idx| Some(self.assets[idx].clone()))
+        }
+
+        #[ink(message)]
+        fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo> {
+            self.assets
+                .iter()
+                .position(|a| a.symbol == symbol)
+                .and_then(|idx| Some(self.assets[idx].clone()))
+        }
+
+        #[ink(message)]
+        fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo> {
+            self.assets
+                .iter()
+                .position(|a| a.location == location)
+                .and_then(|idx| Some(self.assets[idx].clone()))
+        }
+    }
 
     #[cfg(test)]
     mod test {
@@ -255,6 +348,198 @@ mod evm_chain {
             };
             set_caller(accounts.bob);
             assert_eq!(ethereum.set_stable(usdc), Err(RegistryError::BadOrigin));
+        }
+
+        #[ink::test]
+        fn test_register_asset_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_events(vec![Registered {
+                chain: b"Ethereum".to_vec(),
+                asset: Some(usdc.clone()),
+            }
+            .into()]);
+        }
+
+        #[ink::test]
+        fn test_duplicated_register_asset_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_eq!(
+                ethereum.register(usdc),
+                Err(RegistryError::AssetAlreadyRegistered)
+            );
+        }
+
+        #[ink::test]
+        fn test_register_asset_without_permission_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            set_caller(accounts.bob);
+
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc), Err(RegistryError::BadOrigin));
+        }
+
+        #[ink::test]
+        fn test_unregister_asset_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_eq!(ethereum.unregister(usdc.clone()), Ok(()));
+
+            assert_events(vec![
+                Registered {
+                    chain: b"Ethereum".to_vec(),
+                    asset: Some(usdc.clone()),
+                }
+                .into(),
+                Unregistered {
+                    chain: b"Ethereum".to_vec(),
+                    asset: Some(usdc),
+                }
+                .into(),
+            ]);
+        }
+
+        #[ink::test]
+        fn test_unregister_unregistered_asset_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            // First time unregister
+            assert_eq!(
+                ethereum.unregister(usdc.clone()),
+                Err(RegistryError::AssetNotFound)
+            );
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_eq!(ethereum.unregister(usdc.clone()), Ok(()));
+            // Second time unregister
+            assert_eq!(ethereum.unregister(usdc), Err(RegistryError::AssetNotFound));
+        }
+
+        #[ink::test]
+        fn test_unregister_asset_without_permission_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            // Register by owner: alice
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            set_caller(accounts.bob);
+            // Bob trying to unregister
+            assert_eq!(ethereum.unregister(usdc), Err(RegistryError::BadOrigin));
+        }
+
+        #[ink::test]
+        fn test_unregister_asset_with_wrong_location_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            let wrong_usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"Wrong location on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_eq!(
+                ethereum.unregister(wrong_usdc),
+                Err(RegistryError::AssetNotFound)
+            );
+        }
+
+        #[ink::test]
+        fn test_query_funtions_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let usdc = AssetInfo {
+                name: b"USD Coin".to_vec(),
+                symbol: b"USDC".to_vec(),
+                decimals: 6,
+                location: b"+Somewhere on Ethereum".to_vec(),
+            };
+            let weth = AssetInfo {
+                name: b"Wrap Ether".to_vec(),
+                symbol: b"WETH".to_vec(),
+                decimals: 18,
+                location: b"-Somewhere on Ethereum".to_vec(),
+            };
+            assert_eq!(ethereum.register(usdc.clone()), Ok(()));
+            assert_eq!(ethereum.register(weth.clone()), Ok(()));
+            assert_eq!(
+                ethereum.registered_assets(),
+                vec![usdc.clone(), weth.clone()]
+            );
+            assert_eq!(
+                ethereum.lookup_by_name(weth.name.clone()),
+                Some(weth.clone())
+            );
+            assert_eq!(ethereum.lookup_by_name(b"Wrong Name".to_vec()), None);
+            assert_eq!(
+                ethereum.lookup_by_symbol(weth.symbol.clone()),
+                Some(weth.clone())
+            );
+            assert_eq!(ethereum.lookup_by_symbol(b"Wrong Symbol".to_vec()), None);
+            assert_eq!(
+                ethereum.lookup_by_location(weth.location.clone()),
+                Some(weth.clone())
+            );
+            assert_eq!(
+                ethereum.lookup_by_location(b"Wrong Location".to_vec()),
+                None
+            );
+            assert_eq!(ethereum.unregister(usdc), Ok(()));
+            assert_eq!(ethereum.registered_assets(), vec![weth.clone()]);
+            assert_eq!(ethereum.unregister(weth), Ok(()));
+            assert_eq!(ethereum.registered_assets(), vec![]);
         }
     }
 }
