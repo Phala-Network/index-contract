@@ -105,17 +105,7 @@ pub trait Inspector {
 }
 
 /// Asset informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
@@ -131,17 +121,7 @@ pub struct AssetGraph {
 }
 
 /// Trading pair informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct TradingPairGraph {
     /// Indentification of the trading pair on dex
@@ -167,17 +147,7 @@ pub struct TradingPairGraph {
 }
 
 /// Bridge informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct BridgeGraph {
     /// Name of source chain
@@ -189,17 +159,7 @@ pub struct BridgeGraph {
 }
 
 /// Definition of the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct Graph {
     /// All registered assets
