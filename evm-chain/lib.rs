@@ -10,7 +10,7 @@ mod evm_chain {
     use alloc::vec;
     use alloc::vec::Vec;
     use ink_lang as ink;
-    use pink::PinkEnvironment;
+    use pink::{http_get, PinkEnvironment};
     use traits::ensure;
     use traits::registry::{
         AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType, Error as RegistryError,
@@ -32,6 +32,8 @@ mod evm_chain {
         native: Option<AssetInfo>,
         /// Stable asset of chain
         stable: Option<AssetInfo>,
+        /// RPC endpoint of chain
+        endpoint: Vec<u8>,
     }
 
     /// Event emitted when native asset set.
@@ -50,6 +52,15 @@ mod evm_chain {
         chain: Vec<u8>,
         #[ink(topic)]
         asset: Option<AssetInfo>,
+    }
+
+    /// Event emitted when RPC endpoint asset set.
+    #[ink(event)]
+    pub struct EndpointSet {
+        #[ink(topic)]
+        chain: Vec<u8>,
+        #[ink(topic)]
+        endpoint: Vec<u8>,
     }
 
     /// Event emitted when asset registered.
@@ -75,14 +86,15 @@ mod evm_chain {
     impl EvmChain {
         #[ink(constructor)]
         /// Create an Ethereum entity
-        pub fn new(chain: Vec<u8>) -> Self {
+        pub fn new(chain: Vec<u8>, endpoint: Vec<u8>) -> Self {
             EvmChain {
                 admin: Self::env().caller(),
-                chain: chain,
+                chain,
                 chain_type: ChainType::Evm,
                 assets: vec![],
                 native: None,
                 stable: None,
+                endpoint,
             }
         }
 
@@ -108,6 +120,19 @@ mod evm_chain {
             Self::env().emit_event(StableSet {
                 chain: self.chain.clone(),
                 asset: Some(asset),
+            });
+            Ok(())
+        }
+
+        /// Set RPC endpoint
+        /// Authorized method, only the contract owner can do
+        #[ink(message)]
+        pub fn set_endpoint(&mut self, endpoint: Vec<u8>) -> Result<()> {
+            self.esure_admin()?;
+            self.endpoint = endpoint.clone();
+            Self::env().emit_event(EndpointSet {
+                chain: self.chain.clone(),
+                endpoint,
             });
             Ok(())
         }
@@ -151,6 +176,12 @@ mod evm_chain {
         #[ink(message)]
         fn stable_asset(&self) -> Option<AssetInfo> {
             self.stable.clone()
+        }
+
+        /// Return RPC endpoint of the chain
+        #[ink(message)]
+        fn endpoint(&self) -> Vec<u8> {
+            self.endpoint.clone()
         }
     }
 
@@ -272,19 +303,20 @@ mod evm_chain {
         fn test_default_works() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             assert_eq!(ethereum.owner(), accounts.alice);
             assert_eq!(ethereum.chain_name(), b"Ethereum".to_vec());
             assert_eq!(ethereum.chain_type(), ChainType::Evm);
             assert_eq!(ethereum.native_asset(), None);
             assert_eq!(ethereum.stable_asset(), None);
+            assert_eq!(ethereum.endpoint(), b"endpoint".to_vec());
         }
 
         #[ink::test]
         fn test_set_native_should_work() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let weth = AssetInfo {
                 name: b"Wrap Ether".to_vec(),
                 symbol: b"WETH".to_vec(),
@@ -304,7 +336,7 @@ mod evm_chain {
         fn test_set_native_without_permisssion_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let weth = AssetInfo {
                 name: b"Wrap Ether".to_vec(),
                 symbol: b"WETH".to_vec(),
@@ -319,7 +351,7 @@ mod evm_chain {
         fn test_set_stable_should_work() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -339,7 +371,7 @@ mod evm_chain {
         fn test_set_stable_without_permisssion_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -354,7 +386,7 @@ mod evm_chain {
         fn test_register_asset_should_work() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -370,10 +402,37 @@ mod evm_chain {
         }
 
         #[ink::test]
+        fn test_set_endpoint_should_work() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
+            assert_eq!(ethereum.set_endpoint(b"new endpoint".to_vec()), Ok(()));
+
+            assert_events(vec![EndpointSet {
+                chain: b"Ethereum".to_vec(),
+                endpoint: b"new endpoint".to_vec(),
+            }
+            .into()]);
+            assert_eq!(ethereum.endpoint(), b"new endpoint".to_vec());
+        }
+
+        #[ink::test]
+        fn test_set_endpoint_without_permisssion_should_fail() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
+            set_caller(accounts.bob);
+            assert_eq!(
+                ethereum.set_endpoint(b"new endpoint".to_vec()),
+                Err(RegistryError::BadOrigin)
+            );
+        }
+
+        #[ink::test]
         fn test_duplicated_register_asset_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -391,7 +450,7 @@ mod evm_chain {
         fn test_register_asset_without_permission_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             set_caller(accounts.bob);
 
             let usdc = AssetInfo {
@@ -407,7 +466,7 @@ mod evm_chain {
         fn test_unregister_asset_should_work() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -435,7 +494,7 @@ mod evm_chain {
         fn test_unregister_unregistered_asset_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -457,7 +516,7 @@ mod evm_chain {
         fn test_unregister_asset_without_permission_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -475,7 +534,7 @@ mod evm_chain {
         fn test_unregister_asset_with_wrong_location_should_fail() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
@@ -499,7 +558,7 @@ mod evm_chain {
         fn test_query_funtions_should_work() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
-            let mut ethereum = EvmChain::new(b"Ethereum".to_vec());
+            let mut ethereum = EvmChain::new(b"Ethereum".to_vec(), b"endpoint".to_vec());
             let usdc = AssetInfo {
                 name: b"USD Coin".to_vec(),
                 symbol: b"USDC".to_vec(),
