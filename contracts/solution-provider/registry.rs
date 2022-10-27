@@ -39,7 +39,7 @@ pub enum Error {
 pub trait BalanceFetcher {
     /// Return on-chain `asset` amount of `account`
     #[ink(message)]
-    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Option<u128>;
+    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Result<u128, Error>;
 }
 
 /// Beyond general properties like `name`, `symbol` and `decimals`,

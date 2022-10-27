@@ -5,6 +5,7 @@ authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+hex-literal = "0.3"
 ink_primitives = { version = "3.3.1", default-features = false }
 ink_metadata = { version = "3.3.1", default-features = false, features = ["derive"], optional = true }
 ink_env = { version = "3.3.1", default-features = false }
@@ -14,10 +15,18 @@ ink_lang = { version = "3.3.1", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
+phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
 
 pink-extension = { version = "0.1.0", default-features = false }
+pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
+pink-json = { version = "0.4.0", default-features = false }
 
 traits = { path = "../traits", default-features = false}
+
+[dev-dependencies]
+hex-literal = "0.3"
+pink-extension-runtime = "0.1.3"
+dotenv = "0.15.0"
 
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.
@@ -43,7 +52,9 @@ std = [
     "scale/std",
     "scale-info/std",
     "xcm/std",
+    "phala-pallet-common/std",
     "pink-extension/std",
+    "pink-web3/std",
     "traits/std",
 ]
 ink-as-dependency = []

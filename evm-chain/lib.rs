@@ -8,14 +8,20 @@ use pink_extension as pink;
 mod evm_chain {
     use super::pink;
     use alloc::vec;
-    use alloc::vec::Vec;
+    use alloc::{string::String, vec::Vec};
     use ink_lang as ink;
+    use phala_pallet_common::WrapSlice;
     use pink::{http_get, PinkEnvironment};
+    use pink_web3::api::{Eth, Namespace};
+    use pink_web3::contract::{Contract, Options};
+    use pink_web3::transports::{resolve_ready, PinkHttp};
+    use pink_web3::types::{Address, Res, H256};
+    use scale::{Decode, Encode};
     use traits::ensure;
     use traits::registry::{
         AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType, Error as RegistryError,
     };
-    use xcm::latest::{AssetId, MultiLocation};
+    use xcm::latest::{prelude::*, Fungibility::Fungible, MultiAsset, MultiLocation};
 
     #[ink(storage)]
     // #[derive(SpreadAllocate)]
@@ -145,6 +151,59 @@ mod evm_chain {
             }
             Ok(())
         }
+
+        /// An asset id represented by MultiLocation like:
+        /// (1, X4(Parachain(phala_id), GeneralKey(“phat"), GeneralKey(cluster_id), GeneralKey(erc20_address)))
+        fn extract_token(&self, asset: &AssetId) -> Option<Address> {
+            match asset {
+                Concrete(location) => {
+                    match (location.parents, &location.interior) {
+                        (
+                            1,
+                            Junctions::X4(
+                                Parachain(_id),
+                                GeneralKey(_phat_key),
+                                GeneralKey(_cluster_id),
+                                GeneralKey(erc20_address),
+                            ),
+                        ) => {
+                            // TODO.wf verify arguments
+                            if erc20_address.len() != 20 {
+                                return None;
+                            };
+                            let address: Address = Address::from_slice(&erc20_address);
+                            Some(address)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+
+        /// An account location represented by MultiLocation like:
+        /// (1, X4(Parachain(phala_id), GeneralKey(“phat"), GeneralKey(cluster_id), GeneralKey(account_address)))
+        fn extract_account(&self, location: &MultiLocation) -> Option<Address> {
+            match (location.parents, &location.interior) {
+                (
+                    1,
+                    Junctions::X4(
+                        Parachain(_id),
+                        GeneralKey(_phat_key),
+                        GeneralKey(_cluster_id),
+                        GeneralKey(account_address),
+                    ),
+                ) => {
+                    // TODO.wf verify arguments
+                    if account_address.len() != 20 {
+                        return None;
+                    };
+                    let address: Address = Address::from_slice(&account_address);
+                    Some(address)
+                }
+                _ => None,
+            }
+        }
     }
 
     impl ChainInspector for EvmChain {
@@ -187,8 +246,47 @@ mod evm_chain {
 
     impl BalanceFetcher for EvmChain {
         #[ink(message)]
-        fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Option<u128> {
-            None
+        fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Result<u128> {
+            // let eth = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.endpoint)));
+            let eth = Eth::new(PinkHttp::new(
+                "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b",
+            ));
+
+            // let abi_str = r#"[
+            //     {
+            //         "type": "function",
+            //         "name": "balanceOf",
+            //         "constant":true,
+            //         "stateMutability": "view",
+            //         "payable":false, "inputs": [
+            //           { "type": "address", "name": "owner"}
+            //         ],
+            //         "outputs": [
+            //           { "type": "uint256"}
+            //         ]
+            //       }
+            // ]"#;
+            // let abi =
+            //     pink_json::from_str(abi_str).map_err(|_| RegistryError::InvalidContractAbi)?;
+            // let abi = include_bytes!("./res/erc20-abi.json");
+            let token_address: Address = self
+                .extract_token(&asset)
+                .ok_or(RegistryError::ExtractLocationFailed)?;
+            let account: Address = self
+                .extract_account(&account)
+                .ok_or(RegistryError::ExtractLocationFailed)?;
+            let erc20 = Contract::from_json(
+                eth,
+                // PHA address
+                hex_literal::hex!["6c5bA91642F10282b576d91922Ae6448C9d52f4E"].into(),
+                include_bytes!("./res/erc20-abi.json"),
+            )
+            .map_err(|_| RegistryError::ConstructContractFailed)?;
+            // TODO.wf handle potential failure smoothly instead of unwrap directly
+            let result: String =
+                resolve_ready(erc20.query("balanceOf", account, None, Options::default(), None))
+                    .unwrap();
+            Ok(result.parse::<u128>().expect("U128 convert failed"))
         }
     }
 
@@ -196,7 +294,7 @@ mod evm_chain {
         /// Register the asset
         /// Authorized method, only the contract owner can do
         #[ink(message)]
-        fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+        fn register(&mut self, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             ensure!(
@@ -218,7 +316,7 @@ mod evm_chain {
         /// Unregister the asset
         /// Authorized method, only the contract owner can do
         #[ink(message)]
-        fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+        fn unregister(&mut self, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             let index = self
@@ -269,6 +367,7 @@ mod evm_chain {
     #[cfg(test)]
     mod test {
         use super::*;
+        use dotenv::dotenv;
         use ink_lang as ink;
 
         type Event = <EvmChain as ink::reflect::ContractEventBase>::Type;
@@ -599,6 +698,61 @@ mod evm_chain {
             assert_eq!(ethereum.registered_assets(), vec![weth.clone()]);
             assert_eq!(ethereum.unregister(weth), Ok(()));
             assert_eq!(ethereum.registered_assets(), vec![]);
+        }
+
+        #[ink::test]
+        fn test_query_balance_should_work() {
+            dotenv().ok();
+            use std::env;
+
+            pink_extension_runtime::mock_ext::mock_all_ext();
+
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut ethereum = EvmChain::new(
+                b"Ethereum".to_vec(),
+                b"https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b".to_vec(),
+            );
+            let pha_location = MultiLocation::new(
+                1,
+                X4(
+                    Parachain(2004),
+                    GeneralKey(WrapSlice(b"phat").into()),
+                    GeneralKey(WrapSlice(&[0; 32]).into()),
+                    GeneralKey(
+                        WrapSlice(&hex_literal::hex![
+                            "6c5bA91642F10282b576d91922Ae6448C9d52f4E"
+                        ])
+                        .into(),
+                    ),
+                ),
+            );
+            let account_location = MultiLocation::new(
+                1,
+                X4(
+                    Parachain(2004),
+                    GeneralKey(WrapSlice(b"phat").into()),
+                    GeneralKey(WrapSlice(&[0; 32]).into()),
+                    GeneralKey(
+                        WrapSlice(&hex_literal::hex![
+                            "e887376a93bDa91ed66D814528D7aeEfe59990a5"
+                        ])
+                        .into(),
+                    ),
+                ),
+            );
+            let pha = AssetInfo {
+                name: b"Phala Token".to_vec(),
+                symbol: b"PHA".to_vec(),
+                decimals: 18,
+                location: pha_location.clone().encode(),
+            };
+
+            assert_eq!(ethereum.register(pha.clone()), Ok(()));
+            assert_eq!(
+                ethereum.balance_of(AssetId::Concrete(pha_location), account_location),
+                Ok(35_000_000_000_000_000u128)
+            );
         }
     }
 }
