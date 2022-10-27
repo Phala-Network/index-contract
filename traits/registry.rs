@@ -102,6 +102,10 @@ pub trait Inspector {
     /// Return set stable asset of the chain
     #[ink(message)]
     fn stable_asset(&self) -> Option<AssetInfo>;
+
+    /// Return RPC endpoint of the chain
+    #[ink(message)]
+    fn endpoint(&self) -> Vec<u8>;
 }
 
 /// Asset informatios should be contained in the input graph
