@@ -1,5 +1,5 @@
-use super::evm_transactor::{self, EvmContractClient};
 use crate::v0::traits::{Address, Error, Executor};
+use crate::v0::transactors::EvmContractClient;
 use alloc::vec::Vec;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::Contract;
