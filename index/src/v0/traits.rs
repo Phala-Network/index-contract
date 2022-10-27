@@ -18,8 +18,6 @@ pub trait Executor {
         bridge_address: Address,
         abi_json: &[u8],
         rpc: &str,
-        src_chain: u8,
-        dst_chain: u8,
     ) -> core::result::Result<Self, Error>
     where
         Self: Sized;

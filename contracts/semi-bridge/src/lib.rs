@@ -111,8 +111,6 @@ mod semi_bridge {
         #[ink(message)]
         pub fn transfer(
             &self,
-            src_chain: u8,
-            dest_chain: u8,
             token_rid: H256,
             amount: U256,
         ) -> Result<()> {
@@ -125,8 +123,6 @@ mod semi_bridge {
                 Address::EthAddr(config.bridge_address.into()),
                 include_bytes!("../res/evm_contract.abi.json"),
                 &config.rpc,
-                src_chain,
-                dest_chain,
             )
             .or(Err(Error::FailedToCreateExecutor))?;
             _ = executor.transfer(self.key, token_rid, amount);
@@ -137,15 +133,51 @@ mod semi_bridge {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use dotenv::dotenv;
+        use hex_literal::hex;
         use ink_lang as ink;
 
-        // todo: add unit tests
         #[ink::test]
         fn it_works() {
+            dotenv().ok();
+
             pink_extension_runtime::mock_ext::mock_all_ext();
-            //pink_extension::chain_extension::mock::mock_derive_sr25519_key(|_| {
-            //    hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
-            //});
+            pink_extension::chain_extension::mock::mock_derive_sr25519_key(|_| {
+                hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
+            });
+
+            // Register contracts
+            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
+            ink_env::test::register_contract::<SemiBridge>(hash1.as_ref());
+
+            // Deploy Transactor(phat contract)
+            let mut bridge = SemiBridgeRef::default()
+                .code_hash(hash1)
+                .endowment(0)
+                .salt_bytes([0u8; 0])
+                .instantiate()
+                .expect("failed to deploy SemiBridge");
+
+            let rpc =
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2".to_string();
+            let bridge_contract_addr: H160 =
+                hex!("056c0e37d026f9639313c281250ca932c9dbe921").into();
+
+            bridge.config(rpc, bridge_contract_addr).unwrap();
+            let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY").unwrap().1;
+            let secret_bytes = hex::decode(secret_key).unwrap();
+            bridge.set_account(secret_bytes);
+
+            let token_rid: H256 =
+                hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
+            // 1 PHA
+            let amount = Uint::from(1_000_000_000_000_000_000_u128);
+
+            let tx_id = bridge.transfer(token_rid, amount).unwrap();
+
+            // an example result:
+            // https://goerli.etherscan.io/tx/0xc064af26458ca91b86af128ba86d9cdcee51397cebebc714df8fc182b298ab11
+            dbg!(tx_id);
         }
     }
 }

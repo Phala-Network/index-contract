@@ -25,13 +25,12 @@ impl EvmContractClient {
     pub fn deposit(
         &self,
         signer: KeyPair,
-        dest_chain_id: u8,
         token_rid: H256,
         amount: Uint,
         recipient_address: Bytes,
     ) -> core::result::Result<H256, Error> {
         let data = Self::compose_deposite_data(amount, recipient_address);
-        let params = (dest_chain_id, token_rid, data);
+        let params = (1u8, token_rid, data);
         // Estiamte gas before submission
         let gas = resolve_ready(self.contract.estimate_gas(
             "deposit",
