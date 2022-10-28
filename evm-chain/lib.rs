@@ -247,28 +247,7 @@ mod evm_chain {
     impl BalanceFetcher for EvmChain {
         #[ink(message)]
         fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Result<u128> {
-            // let eth = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.endpoint)));
-            let eth = Eth::new(PinkHttp::new(
-                "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b",
-            ));
-
-            // let abi_str = r#"[
-            //     {
-            //         "type": "function",
-            //         "name": "balanceOf",
-            //         "constant":true,
-            //         "stateMutability": "view",
-            //         "payable":false, "inputs": [
-            //           { "type": "address", "name": "owner"}
-            //         ],
-            //         "outputs": [
-            //           { "type": "uint256"}
-            //         ]
-            //       }
-            // ]"#;
-            // let abi =
-            //     pink_json::from_str(abi_str).map_err(|_| RegistryError::InvalidContractAbi)?;
-            // let abi = include_bytes!("./res/erc20-abi.json");
+            let transport = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.endpoint)));
             let token_address: Address = self
                 .extract_token(&asset)
                 .ok_or(RegistryError::ExtractLocationFailed)?;
@@ -276,17 +255,17 @@ mod evm_chain {
                 .extract_account(&account)
                 .ok_or(RegistryError::ExtractLocationFailed)?;
             let erc20 = Contract::from_json(
-                eth,
+                transport,
                 // PHA address
-                hex_literal::hex!["6c5bA91642F10282b576d91922Ae6448C9d52f4E"].into(),
+                token_address,
                 include_bytes!("./res/erc20-abi.json"),
             )
             .map_err(|_| RegistryError::ConstructContractFailed)?;
             // TODO.wf handle potential failure smoothly instead of unwrap directly
-            let result: String =
+            let result: u128 =
                 resolve_ready(erc20.query("balanceOf", account, None, Options::default(), None))
                     .unwrap();
-            Ok(result.parse::<u128>().expect("U128 convert failed"))
+            Ok(result)
         }
     }
 
@@ -749,6 +728,7 @@ mod evm_chain {
             };
 
             assert_eq!(ethereum.register(pha.clone()), Ok(()));
+            // If not equal, check the real balance first.
             assert_eq!(
                 ethereum.balance_of(AssetId::Concrete(pha_location), account_location),
                 Ok(35_000_000_000_000_000u128)

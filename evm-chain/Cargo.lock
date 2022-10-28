@@ -688,7 +688,6 @@ dependencies = [
  "phala-pallet-common",
  "pink-extension",
  "pink-extension-runtime",
- "pink-json",
  "pink-web3",
  "scale-info",
  "traits",

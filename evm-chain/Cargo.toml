@@ -19,7 +19,6 @@ phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain"
 
 pink-extension = { version = "0.1.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
-pink-json = { version = "0.4.0", default-features = false }
 
 traits = { path = "../traits", default-features = false}
 
