@@ -16,6 +16,10 @@ pub enum Error {
     BadOrigin,
     AssetAlreadyRegistered,
     AssetNotFound,
+    ExtractLocationFailed,
+    InvalidContractAbi,
+    ConstructContractFailed,
+    FetchDataFailed,
 }
 
 /// Query the account balance of an asset under a multichain scenario is a mess,
@@ -35,7 +39,7 @@ pub enum Error {
 pub trait BalanceFetcher {
     /// Return on-chain `asset` amount of `account`
     #[ink(message)]
-    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> u128;
+    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Result<u128, Error>;
 }
 
 /// Beyond general properties like `name`, `symbol` and `decimals`,
@@ -53,11 +57,11 @@ pub trait BalanceFetcher {
 )]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AssetInfo {
-    name: Vec<u8>,
-    symbol: Vec<u8>,
-    decimals: u8,
+    pub name: Vec<u8>,
+    pub symbol: Vec<u8>,
+    pub decimals: u8,
     /// Encoded asset MultiLocation
-    location: Vec<u8>,
+    pub location: Vec<u8>,
 }
 
 #[ink::trait_definition]
@@ -74,19 +78,19 @@ pub trait AssetsRegisry {
 
     /// Return all registerd assets
     #[ink(message)]
-    fn registered_assets(&self, name: Vec<u8>) -> Vec<AssetInfo>;
+    fn registered_assets(&self) -> Vec<AssetInfo>;
 
     #[ink(message)]
     fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo>;
 
     #[ink(message)]
-    fn lookup_by_symbol(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo>;
 
     #[ink(message)]
-    fn lookup_by_location(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo>;
 }
 
-#[derive(Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub enum ChainType {
     Evm,
@@ -94,7 +98,19 @@ pub enum ChainType {
 }
 
 #[ink::trait_definition]
-pub trait Inspector {
+pub trait ChainInspector {
+    /// Return admin of the chain
+    #[ink(message)]
+    fn owner(&self) -> ink_env::AccountId;
+
+    /// Return name of the chain
+    #[ink(message)]
+    fn chain_name(&self) -> Vec<u8>;
+
+    /// Return set native asset of the chain
+    #[ink(message)]
+    fn chain_type(&self) -> ChainType;
+
     /// Return set native asset of the chain
     #[ink(message)]
     fn native_asset(&self) -> Option<AssetInfo>;
@@ -102,20 +118,14 @@ pub trait Inspector {
     /// Return set stable asset of the chain
     #[ink(message)]
     fn stable_asset(&self) -> Option<AssetInfo>;
+
+    /// Return RPC endpoint of the chain
+    #[ink(message)]
+    fn endpoint(&self) -> Vec<u8>;
 }
 
 /// Asset informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
@@ -131,17 +141,7 @@ pub struct AssetGraph {
 }
 
 /// Trading pair informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct TradingPairGraph {
     /// Indentification of the trading pair on dex
@@ -167,17 +167,7 @@ pub struct TradingPairGraph {
 }
 
 /// Bridge informatios should be contained in the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct BridgeGraph {
     /// Name of source chain
@@ -189,17 +179,7 @@ pub struct BridgeGraph {
 }
 
 /// Definition of the input graph
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    scale::Encode,
-    scale::Decode,
-    SpreadLayout,
-    PackedLayout,
-    SpreadAllocate,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct Graph {
     /// All registered assets
