@@ -1,13 +1,14 @@
 use crate::v0::traits::Error;
 use alloc::string::String;
-use pink_web3::api::{Eth, Namespace};
-use pink_web3::contract::tokens::Tokenize;
-use pink_web3::contract::{Contract, Options};
-use pink_web3::ethabi::{Bytes, Token, Uint};
-use pink_web3::keys::pink::KeyPair;
-use pink_web3::signing::Key;
-use pink_web3::transports::{resolve_ready, PinkHttp};
-use pink_web3::types::{Res, H160, H256};
+use pink_web3::{
+    api::{Eth, Namespace},
+    contract::{tokens::Tokenize, Contract, Options},
+    ethabi::{Bytes, Token, Uint},
+    keys::pink::KeyPair,
+    signing::Key,
+    transports::{resolve_ready, PinkHttp},
+    types::{Res, H160, H256},
+};
 
 /// The client to submit transaction to the Evm evm_contract contract
 pub struct EvmContractClient {

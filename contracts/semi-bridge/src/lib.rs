@@ -6,14 +6,17 @@ use ink_lang as ink;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod semi_bridge {
-    use alloc::{string::String, string::ToString, vec::Vec};
-    use index::v0::prelude::*;
-    use index::v0::utils::ToArray;
+    use alloc::{
+        string::{String, ToString},
+        vec::Vec,
+    };
+    use index::v0::{prelude::*, utils::ToArray};
     use ink_storage::traits::{PackedLayout, SpreadLayout};
-    use pink_web3::ethabi::{Bytes, Uint};
-    use pink_web3::futures::executor;
-    use pink_web3::keys::pink::KeyPair;
-    use pink_web3::signing::Key;
+    use pink_web3::{
+        ethabi::{Bytes, Uint},
+        keys::pink::KeyPair,
+        signing::Key,
+    };
     use primitive_types::{H160, H256, U256};
     use scale::{Decode, Encode};
 
@@ -63,12 +66,14 @@ mod semi_bridge {
 
         /// Configures the bridge
         #[ink(message)]
-        pub fn config(&mut self, rpc: String, bridge_address: H160) -> Result<()> {
+        pub fn config(
+            &mut self,
+            rpc: String,
+            bridge_address: H160,
+        ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                rpc,
-                bridge_address: bridge_address.into(),
-            });
+            self.config =
+                Some(Config { rpc, bridge_address: bridge_address.into() });
             Ok(())
         }
 
@@ -109,11 +114,7 @@ mod semi_bridge {
         /// * `token_rid`: token resource id
         /// * `amount`: amount of token to be transferred
         #[ink(message)]
-        pub fn transfer(
-            &self,
-            token_rid: H256,
-            amount: U256,
-        ) -> Result<()> {
+        pub fn transfer(&self, token_rid: H256, amount: U256) -> Result<()> {
             let config = self
                 .config
                 .as_ref()
@@ -142,9 +143,11 @@ mod semi_bridge {
             dotenv().ok();
 
             pink_extension_runtime::mock_ext::mock_all_ext();
-            pink_extension::chain_extension::mock::mock_derive_sr25519_key(|_| {
-                hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
-            });
+            pink_extension::chain_extension::mock::mock_derive_sr25519_key(
+                |_| {
+                    hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
+                },
+            );
 
             // Register contracts
             let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
@@ -164,7 +167,8 @@ mod semi_bridge {
                 hex!("056c0e37d026f9639313c281250ca932c9dbe921").into();
 
             bridge.config(rpc, bridge_contract_addr).unwrap();
-            let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY").unwrap().1;
+            let secret_key =
+                std::env::vars().find(|x| x.0 == "SECRET_KEY").unwrap().1;
             let secret_bytes = hex::decode(secret_key).unwrap();
             bridge.set_account(secret_bytes);
 
