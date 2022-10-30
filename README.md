@@ -5,6 +5,10 @@
 If your are new for Ink! smart contract language, please head to [Parity Ink document](https://paritytech.github.io/ink/)
 or you can checkout our [PhatContract document](https://wiki.phala.network/en-us/build/general/intro/) for the details.
 
+## Initialize the project
+
+Run `make init` to initialize the project or make sure the project is properly configured.
+
 ## Compile contract
 
 This repo contains several contracts, each of them can be compiled and deployed individually, for example build `evm-chain`:
