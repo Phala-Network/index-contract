@@ -7,11 +7,10 @@ use ink_lang as ink;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod semi_bridge {
     use alloc::{string::String, string::ToString, vec::Vec};
-    use index::v0::prelude::*;
-    use index::v0::utils::ToArray;
+    use index::prelude::*;
+    use index::utils::ToArray;
     use ink_storage::traits::{PackedLayout, SpreadLayout};
     use pink_web3::ethabi::{Bytes, Uint};
-    use pink_web3::futures::executor;
     use pink_web3::keys::pink::KeyPair;
     use pink_web3::signing::Key;
     use primitive_types::{H160, H256, U256};
@@ -109,11 +108,7 @@ mod semi_bridge {
         /// * `token_rid`: token resource id
         /// * `amount`: amount of token to be transferred
         #[ink(message)]
-        pub fn transfer(
-            &self,
-            token_rid: H256,
-            amount: U256,
-        ) -> Result<()> {
+        pub fn transfer(&self, token_rid: H256, amount: U256) -> Result<()> {
             let config = self
                 .config
                 .as_ref()

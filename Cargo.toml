@@ -2,12 +2,11 @@
 resolver = "2"
 
 members = [
-    "index",
     "contracts/semi-bridge",
 ]
 
 exclude = [
-
+    "index"
 ]
 
 # Sneak peek of the new test engine!

@@ -1,4 +1,4 @@
-use crate::v0::traits::Error;
+use crate::traits::Error;
 use alloc::string::String;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::tokens::Tokenize;
@@ -55,12 +55,10 @@ impl EvmContractClient {
     ///
     /// The signature of the solidity `deposit` function is as follows:
     ///
-    /// ```
     /// function deposit(uint8 destinationChainID,
     ///     bytes32 resourceID,
     ///     bytes calldata data)
     /// external payable whenNotPaused;
-    /// ```
     ///  
     /// `Data` passed into the function should be constructed as follows:
     /// * `amount`                      uint256     bytes   0 - 32
