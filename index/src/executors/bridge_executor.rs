@@ -6,6 +6,9 @@ use pink_web3::contract::Contract;
 use pink_web3::keys::pink::KeyPair;
 use pink_web3::transports::{resolve_ready, PinkHttp};
 use primitive_types::{H160, H256, U256};
+use scale::Encode;
+use xcm::v0::NetworkId;
+use xcm::v1::{Junction, Junctions, MultiLocation};
 
 pub struct Evm2PhalaExecutor {
     bridge_contract: EvmContractClient,
@@ -34,17 +37,50 @@ impl Executor for Evm2PhalaExecutor {
         signer: [u8; 32],
         token_rid: H256,
         amount: U256,
+        recipient: Address,
     ) -> core::result::Result<(), Error> {
-        use hex_literal::hex;
         let signer = KeyPair::from(signer);
-        // todo: to derive the recipient address here
-        // FIXME: the recipient address have something to do with the subbridge
-        // for now we just concatenate `0x00010100` to a hardcoded one
-        let recipient_address: Vec<u8> =
+        match recipient {
+            Address::SubAddr(addr) => {
+                let dest = MultiLocation::new(
+                    0,
+                    Junctions::X1(Junction::AccountId32 {
+                        network: NetworkId::Any,
+                        id: addr.into(),
+                    }),
+                );
+                _ = self.bridge_contract.deposit(
+                    signer,
+                    token_rid,
+                    amount,
+                    dest.encode().into(),
+                )?;
+                Ok(())
+            }
+            _ => Err(Error::InvalidAddress),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use scale::Encode;
+    #[test]
+    fn it_works() {
+        use hex_literal::hex;
+        let recipient: Vec<u8> =
+            hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
+        let addr: H256 = H256::from_slice(&recipient);
+        let dest = MultiLocation::new(
+            0,
+            Junctions::X1(Junction::AccountId32 {
+                network: NetworkId::Any,
+                id: addr.into(),
+            }),
+        );
+        let expected: Vec<u8> =
             hex!("000101008eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
-        _ = self
-            .bridge_contract
-            .deposit(signer, token_rid, amount, recipient_address)?;
-        Ok(())
+        assert_eq!(dest.encode(), expected);
     }
 }

@@ -107,8 +107,9 @@ mod semi_bridge {
         /// * `dest_chain`: the recipient of the tokens
         /// * `token_rid`: token resource id
         /// * `amount`: amount of token to be transferred
+        /// * `recipient`: the account that receives the tokens on Phala chain
         #[ink(message)]
-        pub fn transfer(&self, token_rid: H256, amount: U256) -> Result<()> {
+        pub fn transfer(&self, token_rid: H256, amount: U256, recipient: H256) -> Result<()> {
             let config = self
                 .config
                 .as_ref()
@@ -120,7 +121,7 @@ mod semi_bridge {
                 &config.rpc,
             )
             .or(Err(Error::FailedToCreateExecutor))?;
-            _ = executor.transfer(self.key, token_rid, amount);
+            _ = executor.transfer(self.key, token_rid, amount, Address::SubAddr(recipient));
             Ok(())
         }
     }
@@ -168,7 +169,11 @@ mod semi_bridge {
             // 1 PHA
             let amount = Uint::from(1_000_000_000_000_000_000_u128);
 
-            let tx_id = bridge.transfer(token_rid, amount).unwrap();
+            let recipient: Vec<u8> =
+                hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
+            let recipient: H256 = H256::from_slice(&recipient);
+
+            let tx_id = bridge.transfer(token_rid, amount, recipient).unwrap();
 
             // an example result:
             // https://goerli.etherscan.io/tx/0xc064af26458ca91b86af128ba86d9cdcee51397cebebc714df8fc182b298ab11

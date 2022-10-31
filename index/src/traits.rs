@@ -26,5 +26,6 @@ pub trait Executor {
         signer: [u8; 32], // FIXME
         token_rid: H256,
         amount: U256,
+        recipient: Address,
     ) -> core::result::Result<(), Error>;
 }
