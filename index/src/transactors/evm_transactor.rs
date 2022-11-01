@@ -1,3 +1,4 @@
+use crate::constants::*;
 use crate::traits::Error;
 use alloc::string::String;
 use pink_web3::api::{Eth, Namespace};
@@ -30,7 +31,7 @@ impl ChainBridgeClient {
         recipient_address: Bytes,
     ) -> core::result::Result<H256, Error> {
         let data = Self::compose_deposite_data(amount, recipient_address);
-        let params = (1u8, token_rid, data);
+        let params = (CHAINBRIDGE_ID_PHALA, token_rid, data);
         // Estiamte gas before submission
         let gas = resolve_ready(self.contract.estimate_gas(
             "deposit",
