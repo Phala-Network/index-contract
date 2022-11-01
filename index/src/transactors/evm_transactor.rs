@@ -10,11 +10,11 @@ use pink_web3::transports::{resolve_ready, PinkHttp};
 use pink_web3::types::{Res, H160, H256};
 
 /// The client to submit transaction to the Evm evm_contract contract
-pub struct EvmContractClient {
+pub struct ChainBridgeClient {
     pub contract: Contract<PinkHttp>,
 }
 
-impl EvmContractClient {
+impl ChainBridgeClient {
     /// Calls the EVM contract `deposit` function
     ///
     /// # Arguments

@@ -1,5 +1,5 @@
 use crate::traits::{Address, Error, Executor};
-use crate::transactors::EvmContractClient;
+use crate::transactors::ChainBridgeClient;
 use alloc::vec::Vec;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::Contract;
@@ -11,7 +11,7 @@ use xcm::v0::NetworkId;
 use xcm::v1::{Junction, Junctions, MultiLocation};
 
 pub struct Evm2PhalaExecutor {
-    bridge_contract: EvmContractClient,
+    bridge_contract: ChainBridgeClient,
 }
 
 impl Executor for Evm2PhalaExecutor {
@@ -23,7 +23,7 @@ impl Executor for Evm2PhalaExecutor {
         let eth = Eth::new(PinkHttp::new(rpc));
         if let Address::EthAddr(address) = bridge_address {
             Ok(Self {
-                bridge_contract: EvmContractClient {
+                bridge_contract: ChainBridgeClient {
                     contract: Contract::from_json(eth, address, abi_json).or(Err(Error::BadAbi))?,
                 },
             })
