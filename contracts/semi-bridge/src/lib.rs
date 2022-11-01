@@ -163,7 +163,7 @@ mod semi_bridge {
             let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY").unwrap().1;
             let secret_bytes = hex::decode(secret_key).unwrap();
             bridge.set_account(secret_bytes);
-
+           // PHA ChainBridge resource id on Khala
             let token_rid: H256 =
                 hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
             // 1 PHA
