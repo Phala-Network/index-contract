@@ -1,6 +1,6 @@
-# Ethereum Transactor
+# A sample executor contract 
 
-A Phat contract that sends transactions to Ethereum Networks
+A sample Phat contract that provides interfaces for transferring assets
 
 ## Test
 
