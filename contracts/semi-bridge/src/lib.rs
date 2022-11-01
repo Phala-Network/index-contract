@@ -110,11 +110,7 @@ mod semi_bridge {
         /// * `recipient`: the account that receives the tokens on Phala chain
         #[ink(message)]
         pub fn transfer(&self, token_rid: H256, amount: U256, recipient: H256) -> Result<()> {
-            let config = self
-                .config
-                .as_ref()
-                .map(Ok)
-                .unwrap_or(Err(Error::NotConfigurated))?;
+            let config = self.config.as_ref().ok_or(Error::NotConfigurated)?;
             let executor = Evm2PhalaExecutor::new(
                 Address::EthAddr(config.bridge_address.into()),
                 include_bytes!("../res/evm_contract.abi.json"),
