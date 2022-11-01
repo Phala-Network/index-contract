@@ -1029,17 +1029,12 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "hex-literal",
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_prelude 3.4.0",
- "ink_primitives",
- "ink_storage",
  "parity-scale-codec",
  "pink-extension",
  "pink-web3",
  "primitive-types",
  "scale-info",
+ "sp-io",
  "xcm",
 ]
 
@@ -1769,22 +1764,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-utils"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7533ee491aa0c951c80e6e1344008545ff3007ffbe3a7970cc0666b9ec6a3284"
-dependencies = [
- "hex",
- "ink_env",
- "ink_lang",
- "ink_prelude 3.4.0",
- "ink_primitives",
- "ink_storage",
- "parity-scale-codec",
- "pink-extension",
-]
-
-[[package]]
 name = "pink-web3"
 version = "0.19.3"
 source = "git+https://github.com/Phala-Network/pink-web3.git?branch=pink#c018c04bab07383e3ffab15729ba7af400803ea7"
@@ -2258,7 +2237,6 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension",
  "pink-extension-runtime",
- "pink-utils",
  "pink-web3",
  "primitive-types",
  "scale-info",
