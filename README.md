@@ -7,10 +7,10 @@ or you can checkout our [PhatContract document](https://wiki.phala.network/en-us
 
 ## Compile contract
 
-This repo contains several contracts, each of them can be compiled and deployed individually, for example build `evm-chain`:
+This repo contains several contracts, each of them can be compiled and deployed individually, for example build `<target-contract>`:
 
 ```sh
- $ cd evm-chain
+ $ cd contracts/<target-contract>
  $ cargo contract build
 ```
 

@@ -1,0 +1,33 @@
+[package]
+name = "index"
+version = "0.1.0"
+authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
+primitive-types = { version = "0.11", default-features = false, features = ["codec", "scale-info"] }
+
+hex-literal = "0.3"
+hex = { version = "0.4.3", default-features = false }
+
+pink-extension = { version = "0.1", default-features = false, features = ["ink-as-dependency"] }
+pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
+
+[dependencies.sp-io]
+git = "https://github.com/paritytech/substrate"
+branch = "polkadot-v0.9.29"
+default-features = false
+features = ["disable_panic_handler", "disable_oom", "disable_allocator"]
+
+[features]
+default = ["std"]
+std = [
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+    "pink-web3/std",
+    "xcm/std",
+]
