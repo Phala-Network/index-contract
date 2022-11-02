@@ -1,4 +1,4 @@
-name: Build and Test (Gramine)
+name: Index regular tests
 
 on: [push, pull_request]
 
@@ -44,16 +44,3 @@ jobs:
         run: rustup component add rustfmt
       - name: Run cargo fmt
         run: cargo fmt --all -- --check
-
-  cargo-contract-build:
-    name: Run cargo contract check
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: "true"
-      - uses: ./.github/actions/install_toolchain
-      - name: Install cargo-contract
-        run: rustup component add rust-src && cargo install cargo-dylint && cargo install dylint-link && cargo install --force --locked cargo-contract
-      - name: Run cargo contract check for sample contracts
-        run: cd contracts/semi-bridge && cargo contract check
