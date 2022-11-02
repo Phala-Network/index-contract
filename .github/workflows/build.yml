@@ -16,7 +16,7 @@ jobs:
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests for index
         run: cargo test -vv -p index
-      - name: Run cargo tests for contract
+      - name: Run cargo tests for contracts
         run: cargo test -vv
 
   cargo-clippy:
@@ -29,8 +29,8 @@ jobs:
       - uses: ./.github/actions/install_toolchain
       - name: Install clippy
         run: rustup component add clippy
-      - name: Run cargo clippy
-        run: cargo clippy --tests -- -D warnings && cd standalone/pruntime && cargo clippy --tests -- -D warnings
+      - name: Run cargo clippy for index
+        run: cargo clippy -p index --all-targets -- -D warnings
 
   cargo-fmt:
     name: Run cargo fmt
