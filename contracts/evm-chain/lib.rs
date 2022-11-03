@@ -274,7 +274,7 @@ mod evm_chain {
             self.esure_admin()?;
 
             ensure!(
-                self.assets.iter().any(|a| a.location == asset.location),
+                !self.assets.iter().any(|a| a.location == asset.location),
                 RegistryError::AssetAlreadyRegistered
             );
             self.assets.push(asset.clone());
@@ -342,6 +342,7 @@ mod evm_chain {
         use super::*;
         use dotenv::dotenv;
         use ink_lang as ink;
+        use phala_pallet_common::WrapSlice;
         use scale::Encode;
 
         type Event = <EvmChain as ink::reflect::ContractEventBase>::Type;
