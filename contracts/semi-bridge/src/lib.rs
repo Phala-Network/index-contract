@@ -127,6 +127,7 @@ mod semi_bridge {
         use dotenv::dotenv;
         use hex_literal::hex;
         use ink_lang as ink;
+        use pink_web3::ethabi::Uint;
 
         #[ink::test]
         /// We are not going to mock in this sample,
