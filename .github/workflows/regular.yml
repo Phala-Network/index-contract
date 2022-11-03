@@ -30,7 +30,9 @@ jobs:
       - name: Install clippy
         run: rustup component add clippy
       - name: Run cargo clippy for index
-        run: cargo clippy -p index --all-targets -- -D warnings
+        run: cd index/ && cargo clippy --all-targets -- -D warnings
+      - name: Run cargo clippy for contracts
+        run: cargo clippy -- --allow clippy::let_unit_value
 
   cargo-fmt:
     name: Run cargo fmt
