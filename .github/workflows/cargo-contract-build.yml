@@ -24,9 +24,9 @@ jobs:
         run: "cd /tmp \
           && curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-linux.tar.gz \
           && tar xf binaryen-version_110-x86_64-linux.tar.gz \
-          && cp binaryen-version_110/bin/* /bin/ \
-          && cp binaryen-version_110/include/* /usr/include \
-          && cp binaryen-version_110/lib/* /lib/ \
+          && sudo cp binaryen-version_110/bin/* /bin/ \
+          && sudo cp binaryen-version_110/include/* /usr/include \
+          && sudo cp binaryen-version_110/lib/* /lib/ \
           && rm -rf binaryen-version_110"
       - name: Run cargo contract build for sample contracts
         run: cd contracts/semi-bridge && cargo contract build
