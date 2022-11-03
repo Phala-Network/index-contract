@@ -32,7 +32,7 @@ jobs:
       - name: Run cargo clippy for index
         run: cd index/ && cargo clippy --all-targets -- -D warnings
       - name: Run cargo clippy for contracts
-        run: cargo clippy -- --allow clippy::let_unit_value
+        run: cargo clippy -- --allow clippy::let_unit_value --allow clippy::nonminimal_bool -D warnings
 
   cargo-fmt:
     name: Run cargo fmt
