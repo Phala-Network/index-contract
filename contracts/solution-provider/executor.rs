@@ -2,9 +2,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use ink_storage::traits::{
-    PackedLayout, SpreadLayout, StorageLayout,
-};
+use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 
 /// Definition of source edge
