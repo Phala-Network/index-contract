@@ -3,25 +3,22 @@ extern crate alloc;
 
 use pink_extension as pink;
 
+#[allow(clippy::large_enum_variant)]
 #[pink::contract(env = PinkEnvironment)]
-#[pink(inner=ink_lang::contract)]
 mod evm_chain {
     use super::pink;
     use alloc::vec;
     use alloc::{string::String, vec::Vec};
-    use ink_lang as ink;
-    use phala_pallet_common::WrapSlice;
-    use pink::{http_get, PinkEnvironment};
+    use pink::PinkEnvironment;
     use pink_web3::api::{Eth, Namespace};
     use pink_web3::contract::{Contract, Options};
     use pink_web3::transports::{resolve_ready, PinkHttp};
-    use pink_web3::types::{Address, Res, H256};
-    use scale::{Decode, Encode};
+    use pink_web3::types::Address;
     use traits::ensure;
     use traits::registry::{
         AssetInfo, AssetsRegisry, BalanceFetcher, ChainInspector, ChainType, Error as RegistryError,
     };
-    use xcm::latest::{prelude::*, Fungibility::Fungible, MultiAsset, MultiLocation};
+    use xcm::latest::{prelude::*, MultiLocation};
 
     #[ink(storage)]
     // #[derive(SpreadAllocate)]
@@ -171,7 +168,7 @@ mod evm_chain {
                             if erc20_address.len() != 20 {
                                 return None;
                             };
-                            let address: Address = Address::from_slice(&erc20_address);
+                            let address: Address = Address::from_slice(erc20_address);
                             Some(address)
                         }
                         _ => None,
@@ -198,7 +195,7 @@ mod evm_chain {
                     if account_address.len() != 20 {
                         return None;
                     };
-                    let address: Address = Address::from_slice(&account_address);
+                    let address: Address = Address::from_slice(account_address);
                     Some(address)
                 }
                 _ => None,
@@ -277,10 +274,7 @@ mod evm_chain {
             self.esure_admin()?;
 
             ensure!(
-                self.assets
-                    .iter()
-                    .position(|a| a.location == asset.location)
-                    .is_none(),
+                self.assets.iter().any(|a| a.location == asset.location),
                 RegistryError::AssetAlreadyRegistered
             );
             self.assets.push(asset.clone());
@@ -323,7 +317,7 @@ mod evm_chain {
             self.assets
                 .iter()
                 .position(|a| a.name == name)
-                .and_then(|idx| Some(self.assets[idx].clone()))
+                .map(|idx| self.assets[idx].clone())
         }
 
         #[ink(message)]
@@ -331,7 +325,7 @@ mod evm_chain {
             self.assets
                 .iter()
                 .position(|a| a.symbol == symbol)
-                .and_then(|idx| Some(self.assets[idx].clone()))
+                .map(|idx| self.assets[idx].clone())
         }
 
         #[ink(message)]
@@ -339,7 +333,7 @@ mod evm_chain {
             self.assets
                 .iter()
                 .position(|a| a.location == location)
-                .and_then(|idx| Some(self.assets[idx].clone()))
+                .map(|idx| self.assets[idx].clone())
         }
     }
 
@@ -348,6 +342,7 @@ mod evm_chain {
         use super::*;
         use dotenv::dotenv;
         use ink_lang as ink;
+        use scale::Encode;
 
         type Event = <EvmChain as ink::reflect::ContractEventBase>::Type;
 
@@ -371,7 +366,7 @@ mod evm_chain {
                 // Compare event data
                 assert_eq!(
                     next.data,
-                    <Event as scale::Encode>::encode(&evt),
+                    <Event as Encode>::encode(&evt),
                     "Event data don't match"
                 );
             }

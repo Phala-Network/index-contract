@@ -2,15 +2,13 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use ink_lang as ink;
 use ink_storage::traits::{
-    PackedAllocate, PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout,
+    PackedLayout, SpreadLayout, StorageLayout,
 };
 use scale::{Decode, Encode};
-use xcm::latest::{AssetId, MultiLocation};
 
 /// Definition of source edge
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct SourceEdge {
     /// asset/chain
@@ -24,7 +22,7 @@ pub struct SourceEdge {
 }
 
 /// Definition of SINK edge
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct SinkEdge {
     /// asset/chain
@@ -38,7 +36,7 @@ pub struct SinkEdge {
 }
 
 /// Definition of swap operation edge
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct SwapEdge {
     /// asset/chain
@@ -62,7 +60,7 @@ pub struct SwapEdge {
 }
 
 /// Definition of bridge operation edge
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct BridgeEdge {
     /// asset/chain
@@ -81,7 +79,7 @@ pub struct BridgeEdge {
     b1: Option<u128>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 enum EdgeStatus {
     /// Haven't started executing this edge yet, which is the default status.
@@ -96,7 +94,7 @@ enum EdgeStatus {
     Confirmed(u128),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub enum EdgeMeta {
     SourceEdge(SourceEdge),
@@ -105,7 +103,7 @@ pub enum EdgeMeta {
     BridgeEdge(BridgeEdge),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct Edge {
     /// Content of the edge
@@ -120,7 +118,7 @@ pub struct Edge {
     nonce: Option<u128>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct Solution {
     /// All edges to included in the solution

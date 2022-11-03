@@ -4,7 +4,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use ink_lang as ink;
 use ink_storage::traits::{
-    PackedAllocate, PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout,
+    PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout,
 };
 use scale::{Decode, Encode};
 use xcm::latest::{AssetId, MultiLocation};
