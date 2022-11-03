@@ -6,11 +6,10 @@ use ink_lang as ink;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod semi_bridge {
-    use alloc::{string::String, string::ToString, vec::Vec};
+    use alloc::{string::String, vec::Vec};
     use index::prelude::*;
     use index::utils::ToArray;
     use ink_storage::traits::{PackedLayout, SpreadLayout};
-    use pink_web3::ethabi::{Bytes, Uint};
     use pink_web3::keys::pink::KeyPair;
     use pink_web3::signing::Key;
     use primitive_types::{H160, H256, U256};
