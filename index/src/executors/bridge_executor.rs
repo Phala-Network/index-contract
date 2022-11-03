@@ -1,11 +1,10 @@
 use crate::traits::{Address, Error, Executor};
 use crate::transactors::ChainBridgeClient;
-use alloc::vec::Vec;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::Contract;
 use pink_web3::keys::pink::KeyPair;
-use pink_web3::transports::{resolve_ready, PinkHttp};
-use primitive_types::{H160, H256, U256};
+use pink_web3::transports::PinkHttp;
+use primitive_types::{H256, U256};
 use scale::Encode;
 use xcm::v0::NetworkId;
 use xcm::v1::{Junction, Junctions, MultiLocation};
@@ -49,12 +48,9 @@ impl Executor for Evm2PhalaExecutor {
                         id: addr.into(),
                     }),
                 );
-                _ = self.bridge_contract.deposit(
-                    signer,
-                    token_rid,
-                    amount,
-                    dest.encode().into(),
-                )?;
+                _ = self
+                    .bridge_contract
+                    .deposit(signer, token_rid, amount, dest.encode())?;
                 Ok(())
             }
             _ => Err(Error::InvalidAddress),

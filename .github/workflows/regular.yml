@@ -1,0 +1,48 @@
+name: Index regular tests
+
+on: [push, pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  cargo-tests:
+    name: Run cargo tests
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "true"
+      - uses: ./.github/actions/install_toolchain
+      - name: Run cargo tests for index
+        run: cargo test -vv -p index
+      - name: Run cargo tests for contracts
+        run: cargo test -vv
+
+  cargo-clippy:
+    name: Run cargo clippy
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "true"
+      - uses: ./.github/actions/install_toolchain
+      - name: Install clippy
+        run: rustup component add clippy
+      - name: Run cargo clippy for index
+        run: cd index/ && cargo clippy --all-targets -- -D warnings
+      - name: Run cargo clippy for contracts
+        run: cargo clippy -- --allow clippy::let_unit_value --allow clippy::nonminimal_bool -D warnings
+
+  cargo-fmt:
+    name: Run cargo fmt
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "true"
+      - uses: ./.github/actions/install_toolchain
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
