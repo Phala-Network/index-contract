@@ -22,6 +22,14 @@ mod index_registry {
         // Sub(SubChain),
     }
 
+    impl Chain {
+        pub fn as_evm(&self) -> Option<EvmChain> {
+            match self {
+                Self::Evm(evm_chain) => Some(evm_chain.clone()),
+            }
+        }
+    }
+
     #[ink(storage)]
     #[derive(SpreadAllocate)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -108,7 +116,7 @@ mod index_registry {
         }
 
         /// Register a chain
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn register_chain(&mut self, info: ChainInfo) -> Result<()> {
             self.esure_admin()?;
@@ -130,7 +138,7 @@ mod index_registry {
         }
 
         /// Unregister a chain
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn unregister_chain(&mut self, name: Vec<u8>) -> Result<()> {
             self.esure_admin()?;
@@ -142,7 +150,7 @@ mod index_registry {
         }
 
         /// Register an asset for a chain
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn register_asset(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
@@ -153,12 +161,14 @@ mod index_registry {
                     evm_chain.register(asset.clone())?;
                 }
             }
+            // Insert back
+            self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(AssetRegistered { chain, asset });
             Ok(())
         }
 
         /// Unregister an asset from a chain
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn unregister_asset(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
@@ -169,12 +179,14 @@ mod index_registry {
                     evm_chain.unregister(asset.clone())?;
                 }
             }
+            // Insert back
+            self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(AssetUnregistered { chain, asset });
             Ok(())
         }
 
         /// Set native asset
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn set_chain_native(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
@@ -185,12 +197,14 @@ mod index_registry {
                     evm_chain.set_native(asset.clone());
                 }
             }
+            // Insert back
+            self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainNativeSet { chain, asset });
             Ok(())
         }
 
         /// Set native asset
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn set_chain_stable(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
@@ -201,12 +215,14 @@ mod index_registry {
                     evm_chain.set_stable(asset.clone());
                 }
             }
+            // Insert back
+            self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainStableSet { chain, asset });
             Ok(())
         }
 
         /// Set RPC endpoint
-        /// Authorized method, only the contract owner can do
+        /// Authorized method, only the contract owner can call
         #[ink(message)]
         pub fn set_chain_endpoint(&mut self, chain: Vec<u8>, endpoint: Vec<u8>) -> Result<()> {
             self.esure_admin()?;
@@ -217,6 +233,8 @@ mod index_registry {
                     evm_chain.set_endpoint(endpoint.clone());
                 }
             }
+            // Insert back
+            self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainEndpointSet { chain, endpoint });
             Ok(())
         }
@@ -678,6 +696,10 @@ mod index_registry {
             );
 
             assert_events(vec![
+                ChainRegistered {
+                    chain: info.clone(),
+                }
+                .into(),
                 AssetRegistered {
                     chain: b"Ethereum".to_vec(),
                     asset: usdc.clone(),
@@ -861,9 +883,27 @@ mod index_registry {
                         None
                     );
                     assert_eq!(registry.unregister_asset(info.name.clone(), usdc), Ok(()));
-                    assert_eq!(evm_chain.registered_assets(), vec![weth.clone()]);
+                    assert_eq!(
+                        registry
+                            .chains
+                            .get(&info.name)
+                            .unwrap()
+                            .as_evm()
+                            .unwrap()
+                            .registered_assets(),
+                        vec![weth.clone()]
+                    );
                     assert_eq!(registry.unregister_asset(info.name.clone(), weth), Ok(()));
-                    assert_eq!(evm_chain.registered_assets(), vec![]);
+                    assert_eq!(
+                        registry
+                            .chains
+                            .get(&info.name)
+                            .unwrap()
+                            .as_evm()
+                            .unwrap()
+                            .registered_assets(),
+                        vec![]
+                    );
                 }
             }
         }
