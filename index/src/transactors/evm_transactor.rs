@@ -1,5 +1,5 @@
 use crate::constants::*;
-use crate::traits::Error;
+use crate::traits::common::Error;
 use pink_web3::contract::{Contract, Options};
 use pink_web3::ethabi::{Bytes, Uint};
 use pink_web3::keys::pink::KeyPair;

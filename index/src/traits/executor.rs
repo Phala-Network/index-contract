@@ -1,13 +1,33 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+
 extern crate alloc;
 
+use super::common::Address;
+use super::common::Error;
 use alloc::vec::Vec;
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use primitive_types::{H256, U256};
 use scale::{Decode, Encode};
 
+pub trait Executor {
+    fn new(
+        bridge_address: Address,
+        abi_json: &[u8],
+        rpc: &str,
+    ) -> core::result::Result<Self, Error>
+    where
+        Self: Sized;
+    fn transfer(
+        &self,
+        signer: [u8; 32], // FIXME
+        token_rid: H256,
+        amount: U256,
+        recipient: Address,
+    ) -> core::result::Result<(), Error>;
+}
+
 /// Definition of source edge
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct SourceEdge {
     /// asset/chain
     to: Vec<u8>,
@@ -20,8 +40,8 @@ pub struct SourceEdge {
 }
 
 /// Definition of SINK edge
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct SinkEdge {
     /// asset/chain
     from: Vec<u8>,
@@ -34,8 +54,8 @@ pub struct SinkEdge {
 }
 
 /// Definition of swap operation edge
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct SwapEdge {
     /// asset/chain
     from: Vec<u8>,
@@ -58,8 +78,8 @@ pub struct SwapEdge {
 }
 
 /// Definition of bridge operation edge
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct BridgeEdge {
     /// asset/chain
     from: Vec<u8>,
@@ -77,8 +97,8 @@ pub struct BridgeEdge {
     b1: Option<u128>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 enum EdgeStatus {
     /// Haven't started executing this edge yet, which is the default status.
     Inactive,
@@ -92,17 +112,17 @@ enum EdgeStatus {
     Confirmed(u128),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub enum EdgeMeta {
-    SourceEdge(SourceEdge),
-    SinkEdge(SinkEdge),
-    SwapEdge(SwapEdge),
-    BridgeEdge(BridgeEdge),
+    Source(SourceEdge),
+    Sink(SinkEdge),
+    Swap(SwapEdge),
+    Bridge(BridgeEdge),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct Edge {
     /// Content of the edge
     edge: EdgeMeta,
@@ -116,8 +136,8 @@ pub struct Edge {
     nonce: Option<u128>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct Solution {
     /// All edges to included in the solution
     edges: Vec<Edge>,

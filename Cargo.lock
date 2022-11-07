@@ -674,27 +674,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "evm_chain"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "hex-literal",
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_primitives",
- "ink_storage",
- "parity-scale-codec",
- "phala-pallet-common",
- "pink-extension",
- "pink-extension-runtime",
- "pink-web3",
- "scale-info",
- "traits",
- "xcm",
-]
-
-[[package]]
 name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1239,12 +1218,36 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "hex-literal",
+ "ink_metadata",
+ "ink_primitives",
+ "ink_storage",
  "parity-scale-codec",
  "pink-extension",
  "pink-web3",
  "primitive-types",
  "scale-info",
  "sp-io",
+ "xcm",
+]
+
+[[package]]
+name = "index_registry"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "hex-literal",
+ "index",
+ "ink_env",
+ "ink_lang",
+ "ink_metadata",
+ "ink_primitives",
+ "ink_storage",
+ "parity-scale-codec",
+ "phala-pallet-common",
+ "pink-extension",
+ "pink-extension-runtime",
+ "pink-web3",
+ "scale-info",
  "xcm",
 ]
 
@@ -3494,22 +3497,6 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
-]
-
-[[package]]
-name = "traits"
-version = "0.1.0"
-dependencies = [
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_primitives",
- "ink_storage",
- "parity-scale-codec",
- "pink-extension",
- "scale-info",
- "sp-io",
- "xcm",
 ]
 
 [[package]]

@@ -1,8 +1,11 @@
 [package]
 name = "index"
 version = "0.1.0"
-authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
+authors = ["Phala Network"]
 edition = "2021"
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/index-contract"
 
 [dependencies]
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
@@ -15,6 +18,9 @@ hex = { version = "0.4.3", default-features = false }
 pink-extension = { version = "0.1", default-features = false, features = ["ink-as-dependency"] }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
+ink_storage = { version = "3", default-features = false }
+ink_primitives = { version = "3.3.1", default-features = false }
+ink_metadata = { version = "3.3.1", default-features = false, features = ["derive"], optional = true }
 
 [dependencies.sp-io]
 git = "https://github.com/paritytech/substrate"
@@ -30,4 +36,8 @@ std = [
     "pink-extension/std",
     "pink-web3/std",
     "xcm/std",
+    "sp-io/std",
+    "ink_storage/std",
+    "ink_metadata/std",
+    "ink_primitives/std",
 ]
