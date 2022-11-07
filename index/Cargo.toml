@@ -16,11 +16,21 @@ pink-extension = { version = "0.1", default-features = false, features = ["ink-a
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 
+serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
+pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false }
+
+ss58-registry = { version = "1.33.0", default-features = false }
+base58 = { version = "0.2.0", default-features = false }
+blake2-rfc = { version = "0.2.18", default-features = false }
+
 [dependencies.sp-io]
 git = "https://github.com/paritytech/substrate"
 branch = "polkadot-v0.9.29"
 default-features = false
 features = ["disable_panic_handler", "disable_oom", "disable_allocator"]
+
+[dev-dependencies]
+pink-extension-runtime = "0.1.3"
 
 [features]
 default = ["std"]
@@ -30,4 +40,5 @@ std = [
     "pink-extension/std",
     "pink-web3/std",
     "xcm/std",
+    "pink-json/std",
 ]

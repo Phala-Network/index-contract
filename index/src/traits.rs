@@ -6,6 +6,9 @@ use scale::{Decode, Encode};
 pub enum Error {
     BadAbi,
     InvalidAddress,
+    InvalidBody,
+    SubRPCRequestFailed,
+    Ss58,
 }
 
 pub enum Address {
