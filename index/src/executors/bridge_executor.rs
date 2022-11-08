@@ -1,4 +1,7 @@
-use crate::traits::{Address, Error, Executor};
+use crate::traits::{
+    common::{Address, Error},
+    executor::Executor,
+};
 use crate::transactors::ChainBridgeClient;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::Contract;

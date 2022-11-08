@@ -876,6 +876,9 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "hex-literal",
+ "ink_metadata",
+ "ink_primitives",
+ "ink_storage",
  "parity-scale-codec",
  "pink-extension",
  "pink-web3",

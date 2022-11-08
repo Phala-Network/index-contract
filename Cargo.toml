@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "contracts/semi-bridge",
+    "contracts/registry",
 ]
 
 exclude = [
@@ -19,3 +20,5 @@ ink_lang = { git = "https://github.com/Phala-Network/ink.git", branch = "advtest
 ink_lang_codegen = { git = "https://github.com/Phala-Network/ink.git", branch = "advtest-3.4.0" }
 ink_lang_ir = { git = "https://github.com/Phala-Network/ink.git", branch = "advtest-3.4.0" }
 ink_lang_macro = { git = "https://github.com/Phala-Network/ink.git", branch = "advtest-3.4.0" }
+
+signature = { git = "https://github.com/RustCrypto/traits.git", tag = "signature-v1.3.1" }
