@@ -11,6 +11,7 @@ pub enum Error {
     Ss58,
     InvalidSignature,
     InvalidAmount,
+    InvalidMultilocation,
 }
 
 pub enum Address {

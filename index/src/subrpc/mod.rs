@@ -357,12 +357,12 @@ mod tests {
             ),
         );
 
-        let destWeight: std::option::Option<u64> = None;
+        let dest_weight: std::option::Option<u64> = None;
 
         let call_data = transaction::UnsignedExtrinsic {
             pallet_id: 0x52u8,
             call_id: 0x0u8,
-            call: (multi_asset, dest, destWeight),
+            call: (multi_asset, dest, dest_weight),
         };
 
         let mut bytes = Vec::new();

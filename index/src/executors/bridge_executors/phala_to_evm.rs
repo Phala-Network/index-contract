@@ -43,9 +43,16 @@ impl Executor for Phala2EvmExecutor {
                     let dest = MultiLocation::new(
                         0,
                         Junctions::X3(
-                            Junction::GeneralKey(b"cb".to_vec().try_into().unwrap()),
+                            Junction::GeneralKey(
+                                b"cb"
+                                    .to_vec()
+                                    .try_into()
+                                    .or(Err(Error::InvalidMultilocation))?,
+                            ),
                             Junction::GeneralIndex(0u128),
-                            Junction::GeneralKey(addr.try_into().unwrap()),
+                            Junction::GeneralKey(
+                                addr.try_into().or(Err(Error::InvalidMultilocation))?,
+                            ),
                         ),
                     );
 
@@ -59,8 +66,6 @@ impl Executor for Phala2EvmExecutor {
 
                     let mut bytes = Vec::new();
                     call_data.encode_to(&mut bytes);
-                    let expected: Vec<u8> = hex!("5200000000000f00d01306c21101000306086362050006508266b3183ccc58f3d145d7a4894547bd55d7739700").into();
-                    assert_eq!(bytes, expected);
 
                     let signed_tx = create_transaction(&signer, "phala", &self.rpc, call_data)?;
                     let _tx_id = send_transaction(&self.rpc, &signed_tx)?;
