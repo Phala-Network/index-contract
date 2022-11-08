@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+use super::chain_store::ChainStore;
 use crate::traits::{
     common::Error as RegistryError,
     registry::{AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate},
@@ -12,7 +13,6 @@ use pink_web3::contract::{Contract, Options};
 use pink_web3::transports::{resolve_ready, PinkHttp};
 use pink_web3::types::Address;
 use xcm::latest::{prelude::*, MultiLocation};
-use super::chain_store::ChainStore;
 
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
@@ -23,7 +23,9 @@ pub struct Chain {
 impl Chain {
     /// Create an Chain entity
     pub fn new(info: ChainInfo) -> Self {
-        Chain { store: ChainStore::new(info) }
+        Chain {
+            store: ChainStore::new(info),
+        }
     }
 }
 
@@ -76,8 +78,7 @@ impl AssetsRegisry for Chain {
     }
 }
 
-
-pub struct EvmBalance{
+pub struct EvmBalance {
     endpoint: Vec<u8>,
 }
 
@@ -171,7 +172,7 @@ impl BalanceFetcher for EvmBalance {
 // BalanceFetcher implementation for chain use pallet-assets as assets registry.
 // See https://github.com/paritytech/substrate/tree/master/frame/assets
 #[warn(dead_code)]
-pub struct SubAssetsBalance{
+pub struct SubAssetsBalance {
     _endpoint: Vec<u8>,
 }
 
@@ -195,7 +196,7 @@ impl BalanceFetcher for SubAssetsBalance {
 // BalanceFetcher implementation for chain use currency as assets registry.
 // See https://github.com/open-web3-stack/open-runtime-module-library/tree/master/currencies
 #[warn(dead_code)]
-pub struct SubCurrencyBalance{
+pub struct SubCurrencyBalance {
     _endpoint: Vec<u8>,
 }
 
