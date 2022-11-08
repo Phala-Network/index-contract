@@ -9,6 +9,7 @@ pub enum Error {
     InvalidBody,
     SubRPCRequestFailed,
     Ss58,
+    InvalidSignature,
 }
 
 pub enum Address {

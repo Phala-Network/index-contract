@@ -1,19 +1,31 @@
 //! Substrate json RPC module with limited functionalites
 
+use crate::{subrpc::transaction::Signature, utils::ToArray};
+
+use self::{
+    era::Era,
+    ss58::get_ss58addr_version,
+    transaction::{MultiAddress, UnsignedExtrinsic},
+};
+
 use super::traits::Error;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
+use pink_extension::chain_extension::{signing, SigType};
 use primitive_types::H256;
+use scale::{Compact, Encode};
 mod era;
 mod objects;
+mod transaction;
 use super::subrpc::objects::*;
 mod rpc;
 use pink_json as json;
 use rpc::call_rpc;
 use ss58_registry::Ss58AddressFormat;
 mod ss58;
+use crate::subrpc::transaction::MultiSignature;
 use ss58::Ss58Codec;
 
 /// Gets the next nonce of the target account
@@ -83,10 +95,122 @@ pub fn get_genesis_hash(rpc_node: &str) -> core::result::Result<GenesisHashOk, E
     Ok(genesis_hash_ok)
 }
 
+/// Creates an extrinsic
+///
+/// An extended version of `create_transaction`, fine-grain
+pub fn create_transaction_ext<T: Encode>(
+    signer: &[u8; 32],
+    public_key: &[u8; 32],
+    nonce: u64,
+    spec_version: u32,
+    transaction_version: u32,
+    genesis_hash: &[u8; 32],
+    call_data: UnsignedExtrinsic<T>,
+    era: Era,
+    tip: u128,
+) -> core::result::Result<Vec<u8>, Error> {
+    let additional_params = (
+        spec_version,
+        transaction_version,
+        genesis_hash,
+        genesis_hash,
+    );
+    let extra = (era, Compact(nonce), Compact(tip));
+
+    let mut bytes = Vec::new();
+    call_data.encode_to(&mut bytes);
+    extra.encode_to(&mut bytes);
+    additional_params.encode_to(&mut bytes);
+
+    let signature = if bytes.len() > 256 {
+        signing::sign(
+            &sp_core_hashing::blake2_256(&bytes),
+            signer,
+            SigType::Sr25519,
+        )
+    } else {
+        signing::sign(&bytes, signer, SigType::Sr25519)
+    };
+
+    let signature_type =
+        Signature::try_from(signature.as_slice()).or(Err(Error::InvalidSignature))?;
+    let multi_signature = MultiSignature::Sr25519(signature_type);
+
+    let src_account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(*public_key);
+
+    // Encode Extrinsic
+    let extrinsic = {
+        let mut encoded_inner = Vec::new();
+        // "is signed" + tx protocol v4
+        (0b10000000 + 4u8).encode_to(&mut encoded_inner);
+        // from address for signature
+        src_account_id.encode_to(&mut encoded_inner);
+        // the signature bytes
+        multi_signature.encode_to(&mut encoded_inner);
+        // attach custom extra params
+        extra.encode_to(&mut encoded_inner);
+        // and now, call data
+        call_data.encode_to(&mut encoded_inner);
+        // now, prefix byte length:
+        let len = Compact(
+            u32::try_from(encoded_inner.len()).expect("extrinsic size expected to be <4GB"),
+        );
+        let mut encoded = Vec::new();
+        len.encode_to(&mut encoded);
+        encoded.extend(encoded_inner);
+        encoded
+    };
+
+    Ok(extrinsic)
+}
+
+pub fn create_transaction<T: Encode>(
+    signer: &[u8; 32],
+    chain: &str,
+    rpc_node: &str,
+    call_data: UnsignedExtrinsic<T>,
+) -> core::result::Result<Vec<u8>, Error> {
+    let version = get_ss58addr_version(chain)?;
+    let public_key = signing::get_public_key(signer, SigType::Sr25519).to_array();
+    let addr = public_key.to_ss58check_with_version(version.prefix());
+    let nonce = get_next_nonce(rpc_node, &addr)?.next_nonce;
+    let runtime_version = get_runtime_version(rpc_node)?;
+    let genesis_hash = get_genesis_hash(rpc_node)?.genesis_hash.to_array();
+    let spec_version = runtime_version.spec_version;
+    let transaction_version = runtime_version.transaction_version;
+    let era = Era::Immortal;
+    let tip: u128 = 0;
+    create_transaction_ext(
+        signer,
+        &public_key,
+        nonce,
+        spec_version,
+        transaction_version,
+        &genesis_hash,
+        call_data,
+        era,
+        tip,
+    )
+}
+
+pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Result<Vec<u8>, Error> {
+    let tx_hex = hex::encode(signed_tx);
+    let data = format!(
+        r#"{{"id":1,"jsonrpc":"2.0","method":"author_submitExtrinsic","params":["{}"]}}"#,
+        tx_hex
+    )
+    .into_bytes();
+    let resp_body = call_rpc(&rpc_node, data)?;
+    let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
+    Ok(hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::subrpc::ss58::get_ss58addr_version;
+    use hex_literal::hex;
+    use scale::{Compact, Decode, Encode};
 
     /// Test data:
     ///
@@ -125,5 +249,81 @@ mod tests {
             hex::encode(genesis_hash.genesis_hash),
             "b0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe"
         );
+    }
+
+    #[test]
+    fn can_correctly_encode() {
+        let genesis_hash: [u8; 32] =
+            hex!("ccd5874826c67d06b979c08a14c006f938a2fef6cba3eec5f8ba38d98931209d").into();
+        let spec_version: u32 = 1;
+        let transaction_version: u32 = 1;
+        let era = Era::Immortal;
+        let tip: u128 = 0;
+        let nonce: u64 = 0;
+
+        let extra = (era, Compact(nonce), Compact(tip));
+        {
+            let mut bytes = Vec::new();
+            extra.encode_to(&mut bytes);
+            let expected: Vec<u8> = hex!("000000").into();
+            assert_eq!(bytes, expected);
+        }
+
+        let additional_params = (
+            spec_version,
+            transaction_version,
+            genesis_hash,
+            genesis_hash,
+        );
+        {
+            let mut bytes = Vec::new();
+            additional_params.encode_to(&mut bytes);
+            let expected: Vec<u8> = hex!("0100000001000000ccd5874826c67d06b979c08a14c006f938a2fef6cba3eec5f8ba38d98931209dccd5874826c67d06b979c08a14c006f938a2fef6cba3eec5f8ba38d98931209d").into();
+            assert_eq!(bytes, expected);
+        }
+
+        pink_extension_runtime::mock_ext::mock_all_ext();
+        let signer =
+            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").to_vec();
+        let public_key = signing::get_public_key(&signer, SigType::Sr25519).to_array();
+        let account_id: MultiAddress<[u8; 32], u32> = transaction::MultiAddress::Id(public_key);
+        {
+            let mut bytes = Vec::new();
+            account_id.encode_to(&mut bytes);
+            let expected =
+                hex!("008266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314").to_vec();
+            assert_eq!(bytes, expected);
+        }
+    }
+
+    /// Sends a remark extrinsic to khala
+    #[test]
+    fn can_send_remark() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+        let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
+        let signer: [u8; 32] =
+            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").into();
+        let remark = "Greetings from unit tests!".to_string();
+        let call_data = transaction::UnsignedExtrinsic {
+            pallet_id: 0u8,
+            call_id: 1u8,
+            call: transaction::Remark { remark },
+        };
+        let signed_tx = create_transaction(&signer, "khala", rpc_node, call_data);
+        if signed_tx.is_err() {
+            println!("failed to signed tx");
+            dbg!(signed_tx);
+            return ();
+        };
+        let signed_tx = signed_tx.unwrap();
+        let tx_id = send_transaction(rpc_node, &signed_tx);
+        if tx_id.is_err() {
+            println!("failed to send tx");
+            dbg!(tx_id);
+            return ();
+        }
+        let tx_id = tx_id.unwrap();
+        dbg!(hex::encode(&tx_id));
+        // https://khala.subscan.io/extrinsic/2676952-2
     }
 }

@@ -1038,6 +1038,7 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
+ "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.29)",
  "sp-io",
  "ss58-registry",
  "xcm",

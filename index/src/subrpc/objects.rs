@@ -58,6 +58,14 @@ pub struct GenesisHash<'a> {
     pub(crate) id: u32,
 }
 
+// TODO: handle the failure case
+#[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
+pub struct TransactionResponse<'a> {
+    pub(crate) jsonrpc: &'a str,
+    pub(crate) result: &'a str,
+    pub(crate) id: u32,
+}
+
 #[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct GenesisHashOk {

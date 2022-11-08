@@ -1,7 +1,7 @@
-use crate::era::Era;
-// TODO: remove ink deps
-use ink_env::AccountId;
-use ink_prelude::{string::String, vec::Vec};
+// TODO: simplify
+
+use super::era::Era;
+use alloc::{string::String, vec::Vec};
 use scale::{Compact, Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,7 @@ pub struct Remark {
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 struct Transfer {
-    dest: MultiAddress<AccountId, u32>,
+    dest: MultiAddress<[u8; 32], u32>,
     currency_id: CurrencyId,
     amount: Compact<u128>,
 }
