@@ -8,7 +8,7 @@ mod index_registry {
     use alloc::vec::Vec;
     use index::ensure;
     use index::prelude::*;
-    use index::registry::evm_chain::EvmChain;
+    use index::registry::{evm_chain::EvmChain, sub_chain::SubChain};
     use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
     use ink_storage::Mapping;
 
@@ -18,14 +18,21 @@ mod index_registry {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
     pub enum Chain {
         Evm(EvmChain),
-        // TODO.wf: support soon
-        // Sub(SubChain),
+        Sub(SubChain),
     }
 
     impl Chain {
         pub fn as_evm(&self) -> Option<EvmChain> {
             match self {
                 Self::Evm(evm_chain) => Some(evm_chain.clone()),
+                _ => None,
+            }
+        }
+
+        pub fn as_sub(&self) -> Option<SubChain> {
+            match self {
+                Self::Sub(sub_chain) => Some(sub_chain.clone()),
+                _ => None,
             }
         }
     }
@@ -130,7 +137,8 @@ mod index_registry {
                         .insert(&info.name, &Chain::Evm(EvmChain::new(info.clone())));
                 }
                 ChainType::Sub => {
-                    return Err(Error::Unimplemented);
+                    self.chains
+                        .insert(&info.name, &Chain::Sub(SubChain::new(info.clone())));
                 }
             };
             Self::env().emit_event(ChainRegistered { chain: info });
@@ -160,6 +168,9 @@ mod index_registry {
                 Chain::Evm(ref mut evm_chain) => {
                     evm_chain.register(asset.clone())?;
                 }
+                Chain::Sub(ref mut sub_chain) => {
+                    sub_chain.register(asset.clone())?;
+                }
             }
             // Insert back
             self.chains.insert(&chain, &chain_entity);
@@ -177,6 +188,9 @@ mod index_registry {
             match chain_entity {
                 Chain::Evm(ref mut evm_chain) => {
                     evm_chain.unregister(asset.clone())?;
+                }
+                Chain::Sub(ref mut sub_chain) => {
+                    sub_chain.unregister(asset.clone())?;
                 }
             }
             // Insert back
@@ -196,6 +210,9 @@ mod index_registry {
                 Chain::Evm(ref mut evm_chain) => {
                     evm_chain.set_native(asset.clone());
                 }
+                Chain::Sub(ref mut sub_chain) => {
+                    sub_chain.set_native(asset.clone());
+                }
             }
             // Insert back
             self.chains.insert(&chain, &chain_entity);
@@ -214,6 +231,9 @@ mod index_registry {
                 Chain::Evm(ref mut evm_chain) => {
                     evm_chain.set_stable(asset.clone());
                 }
+                Chain::Sub(ref mut sub_chain) => {
+                    sub_chain.set_stable(asset.clone());
+                }
             }
             // Insert back
             self.chains.insert(&chain, &chain_entity);
@@ -231,6 +251,9 @@ mod index_registry {
             match chain_entity {
                 Chain::Evm(ref mut evm_chain) => {
                     evm_chain.set_endpoint(endpoint.clone());
+                }
+                Chain::Sub(ref mut sub_chain) => {
+                    sub_chain.set_endpoint(endpoint.clone());
                 }
             }
             // Insert back
@@ -301,7 +324,7 @@ mod index_registry {
             set_caller(accounts.alice);
             let mut registry = Registry::new();
 
-            let info = ChainInfo {
+            let evmchain_info = ChainInfo {
                 name: b"Ethereum".to_vec(),
                 chain_type: ChainType::Evm,
                 native: None,
@@ -309,8 +332,26 @@ mod index_registry {
                 endpoint: b"endpoint".to_vec(),
                 network: None,
             };
-            assert_eq!(registry.register_chain(info.clone()), Ok(()));
-            assert_events(vec![ChainRegistered { chain: info }.into()]);
+            let subchain_info = ChainInfo {
+                name: b"Phala".to_vec(),
+                chain_type: ChainType::Sub,
+                native: None,
+                stable: None,
+                endpoint: b"endpoint".to_vec(),
+                network: None,
+            };
+            assert_eq!(registry.register_chain(evmchain_info.clone()), Ok(()));
+            assert_eq!(registry.register_chain(subchain_info.clone()), Ok(()));
+            assert_events(vec![
+                ChainRegistered {
+                    chain: evmchain_info,
+                }
+                .into(),
+                ChainRegistered {
+                    chain: subchain_info,
+                }
+                .into(),
+            ]);
         }
 
         #[ink::test]
@@ -401,6 +442,7 @@ mod index_registry {
                 Chain::Evm(evm_chain) => {
                     assert_eq!(evm_chain.get_info().native, Some(weth));
                 }
+                _ => panic!("Shouldn't be here"),
             }
         }
 
@@ -474,6 +516,7 @@ mod index_registry {
                 Chain::Evm(evm_chain) => {
                     assert_eq!(evm_chain.get_info().stable, Some(usdc));
                 }
+                _ => panic!("Shouldn't be here"),
             }
         }
 
@@ -541,6 +584,7 @@ mod index_registry {
                 Chain::Evm(evm_chain) => {
                     assert_eq!(evm_chain.get_info().endpoint, b"new endpoint".to_vec());
                 }
+                _ => panic!("Shouldn't be here"),
             }
         }
 
@@ -905,6 +949,7 @@ mod index_registry {
                         vec![]
                     );
                 }
+                _ => panic!("Shouldn't be here"),
             }
         }
 
@@ -977,6 +1022,7 @@ mod index_registry {
                         Ok(35_000_000_000_000_000u128)
                     );
                 }
+                _ => panic!("Shouldn't be here"),
             }
         }
     }
