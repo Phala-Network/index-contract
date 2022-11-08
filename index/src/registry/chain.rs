@@ -1,12 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-use crate::ensure;
+use super::chain_store::ChainStore;
 use crate::traits::{
     common::Error as RegistryError,
     registry::{AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate},
 };
-use alloc::vec;
 use alloc::{string::String, vec::Vec};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use pink_web3::api::{Eth, Namespace};
@@ -17,22 +16,75 @@ use xcm::latest::{prelude::*, MultiLocation};
 
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct EvmChain {
-    pub info: ChainInfo,
-    pub assets: Vec<AssetInfo>,
+pub struct Chain {
+    pub store: ChainStore,
 }
 
-impl EvmChain {
-    /// Create an EvmChain entity
+impl Chain {
+    /// Create an Chain entity
     pub fn new(info: ChainInfo) -> Self {
-        let mut assets: Vec<AssetInfo> = vec![];
-        if let Some(ref stable) = info.stable {
-            assets.push(stable.clone())
+        Chain {
+            store: ChainStore::new(info),
         }
-        if let Some(ref native) = info.native {
-            assets.push(native.clone())
-        }
-        EvmChain { info, assets }
+    }
+}
+
+impl ChainInspector for Chain {
+    fn get_info(&self) -> ChainInfo {
+        self.store.get_info()
+    }
+}
+
+impl ChainMutate for Chain {
+    fn set_native(&mut self, native: AssetInfo) {
+        self.store.set_native(native)
+    }
+
+    fn set_stable(&mut self, stable: AssetInfo) {
+        self.store.set_stable(stable)
+    }
+
+    fn set_endpoint(&mut self, endpoint: Vec<u8>) {
+        self.store.set_endpoint(endpoint)
+    }
+}
+
+impl AssetsRegisry for Chain {
+    /// Register the asset
+    fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+        self.store.register(asset)
+    }
+
+    /// Unregister the asset
+    fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
+        self.store.unregister(asset)
+    }
+
+    /// Return all registerd assets
+    fn registered_assets(&self) -> Vec<AssetInfo> {
+        self.store.registered_assets()
+    }
+
+    fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo> {
+        self.store.lookup_by_name(name)
+    }
+
+    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo> {
+        self.store.lookup_by_symbol(symbol)
+    }
+
+    fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo> {
+        self.store.lookup_by_location(location)
+    }
+}
+
+pub struct EvmBalance {
+    endpoint: Vec<u8>,
+}
+
+impl EvmBalance {
+    pub fn new(endpoint: Vec<u8>) -> Self {
+        EvmBalance { endpoint }
     }
 
     /// An asset id represented by MultiLocation like:
@@ -89,33 +141,13 @@ impl EvmChain {
     }
 }
 
-impl ChainInspector for EvmChain {
-    fn get_info(&self) -> ChainInfo {
-        self.info.clone()
-    }
-}
-
-impl ChainMutate for EvmChain {
-    fn set_native(&mut self, native: AssetInfo) {
-        self.info.native = Some(native);
-    }
-
-    fn set_stable(&mut self, stable: AssetInfo) {
-        self.info.stable = Some(stable);
-    }
-
-    fn set_endpoint(&mut self, endpoint: Vec<u8>) {
-        self.info.endpoint = endpoint;
-    }
-}
-
-impl BalanceFetcher for EvmChain {
+impl BalanceFetcher for EvmBalance {
     fn balance_of(
         &self,
         asset: AssetId,
         account: MultiLocation,
     ) -> core::result::Result<u128, RegistryError> {
-        let transport = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.info.endpoint)));
+        let transport = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.endpoint)));
         let token_address: Address = self
             .extract_token(&asset)
             .ok_or(RegistryError::ExtractLocationFailed)?;
@@ -137,51 +169,50 @@ impl BalanceFetcher for EvmChain {
     }
 }
 
-impl AssetsRegisry for EvmChain {
-    /// Register the asset
-    fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
-        ensure!(
-            !self.assets.iter().any(|a| a.location == asset.location),
-            RegistryError::AssetAlreadyRegistered
-        );
-        self.assets.push(asset);
-        Ok(())
-    }
+// BalanceFetcher implementation for chain use pallet-assets as assets registry.
+// See https://github.com/paritytech/substrate/tree/master/frame/assets
+#[warn(dead_code)]
+pub struct SubAssetsBalance {
+    _endpoint: Vec<u8>,
+}
 
-    /// Unregister the asset
-    fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
-        let index = self
-            .assets
-            .iter()
-            .position(|a| a.location == asset.location)
-            .ok_or(RegistryError::AssetNotFound)?;
-        self.assets.remove(index);
-        Ok(())
+impl SubAssetsBalance {
+    pub fn new(_endpoint: Vec<u8>) -> Self {
+        SubAssetsBalance { _endpoint }
     }
+}
 
-    /// Return all registerd assets
-    fn registered_assets(&self) -> Vec<AssetInfo> {
-        self.assets.clone()
+impl BalanceFetcher for SubAssetsBalance {
+    fn balance_of(
+        &self,
+        _asset: AssetId,
+        _account: MultiLocation,
+    ) -> core::result::Result<u128, RegistryError> {
+        // TODO.wf
+        Err(RegistryError::Unimplemented)
     }
+}
 
-    fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo> {
-        self.assets
-            .iter()
-            .position(|a| a.name == name)
-            .map(|idx| self.assets[idx].clone())
+// BalanceFetcher implementation for chain use currency as assets registry.
+// See https://github.com/open-web3-stack/open-runtime-module-library/tree/master/currencies
+#[warn(dead_code)]
+pub struct SubCurrencyBalance {
+    _endpoint: Vec<u8>,
+}
+
+impl SubCurrencyBalance {
+    pub fn new(_endpoint: Vec<u8>) -> Self {
+        SubCurrencyBalance { _endpoint }
     }
+}
 
-    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo> {
-        self.assets
-            .iter()
-            .position(|a| a.symbol == symbol)
-            .map(|idx| self.assets[idx].clone())
-    }
-
-    fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo> {
-        self.assets
-            .iter()
-            .position(|a| a.location == location)
-            .map(|idx| self.assets[idx].clone())
+impl BalanceFetcher for SubCurrencyBalance {
+    fn balance_of(
+        &self,
+        _asset: AssetId,
+        _account: MultiLocation,
+    ) -> core::result::Result<u128, RegistryError> {
+        // TODO.wf
+        Err(RegistryError::Unimplemented)
     }
 }
