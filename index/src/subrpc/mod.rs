@@ -323,7 +323,70 @@ mod tests {
             return ();
         }
         let tx_id = tx_id.unwrap();
-        dbg!(hex::encode(&tx_id));
         // https://khala.subscan.io/extrinsic/2676952-2
+        dbg!(hex::encode(&tx_id));
+    }
+
+    /// Calls the xtransfer function
+    ///
+    /// this is very expensive so we don't test it often
+    #[test]
+    fn can_call_xtransfer() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+        use xcm::v1::MultiAsset;
+        use xcm::v1::{AssetId, Fungibility, Junction, Junctions, MultiLocation};
+
+        let rpc_node = "https://rhala-api.phala.network/api";
+        let signer: [u8; 32] =
+            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").into();
+        let recipient: Vec<u8> = hex!("8266b3183Ccc58f3D145D7a4894547bd55D77397").into();
+        let amount: u128 = 301_000_000_000_000;
+
+        let multi_asset = MultiAsset {
+            id: AssetId::Concrete(Junctions::Here.into()),
+            fun: Fungibility::Fungible(amount),
+        };
+
+        let dest = MultiLocation::new(
+            0,
+            Junctions::X3(
+                Junction::GeneralKey(b"cb".to_vec().try_into().unwrap()),
+                Junction::GeneralIndex(0u128),
+                Junction::GeneralKey(recipient.try_into().unwrap()),
+            ),
+        );
+
+        let destWeight: std::option::Option<u64> = None;
+
+        let call_data = transaction::UnsignedExtrinsic {
+            pallet_id: 0x52u8,
+            call_id: 0x0u8,
+            call: (multi_asset, dest, destWeight),
+        };
+
+        let mut bytes = Vec::new();
+        call_data.encode_to(&mut bytes);
+        let expected: Vec<u8> = hex!("5200000000000f00d01306c21101000306086362050006508266b3183ccc58f3d145d7a4894547bd55d7739700").into();
+        assert_eq!(bytes, expected);
+
+        let signed_tx = create_transaction(&signer, "khala", rpc_node, call_data);
+        if signed_tx.is_err() {
+            println!("failed to signed tx");
+            dbg!(signed_tx);
+            return ();
+        };
+        let signed_tx = signed_tx.unwrap();
+        let tx_id = send_transaction(rpc_node, &signed_tx);
+        if tx_id.is_err() {
+            println!("failed to send tx");
+            dbg!(tx_id);
+            return ();
+        }
+        let tx_id = tx_id.unwrap();
+        // example output:
+        //  tx id: 95d107457ab905d8187b70fac146b68a9ce87c5a3c2e10f93cf0732ffe400d20
+        //  block: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frhala-api.phala.network%2Fws#/explorer/query/0x0586620d60fd5ec5d92a75ca5a095ac8a0cb66bcb4d2ff147d93e532d4d67e95
+        //     or: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frhala-api.phala.network%2Fws#/explorer/query/0xa4188ef17ad0a170e5c0054191013e202cc2437f0462523e9a13989ef7829517
+        dbg!(hex::encode(&tx_id));
     }
 }

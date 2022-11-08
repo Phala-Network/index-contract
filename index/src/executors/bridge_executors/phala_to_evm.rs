@@ -23,5 +23,6 @@ impl Executor for Phala2EvmExecutor {
         amount: primitive_types::U256,
         recipient: crate::traits::Address,
     ) -> core::result::Result<(), crate::traits::Error> {
+        
     }
 }
