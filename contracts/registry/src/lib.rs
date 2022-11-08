@@ -8,34 +8,9 @@ mod index_registry {
     use alloc::vec::Vec;
     use index::ensure;
     use index::prelude::*;
-    use index::registry::{evm_chain::EvmChain, sub_chain::SubChain};
-    use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
+    use index::registry::chain::Chain;
+    use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
-
-    #[derive(
-        Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-    )]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-    pub enum Chain {
-        Evm(EvmChain),
-        Sub(SubChain),
-    }
-
-    impl Chain {
-        pub fn as_evm(&self) -> Option<EvmChain> {
-            match self {
-                Self::Evm(evm_chain) => Some(evm_chain.clone()),
-                _ => None,
-            }
-        }
-
-        pub fn as_sub(&self) -> Option<SubChain> {
-            match self {
-                Self::Sub(sub_chain) => Some(sub_chain.clone()),
-                _ => None,
-            }
-        }
-    }
 
     #[ink(storage)]
     #[derive(SpreadAllocate)]
@@ -131,16 +106,7 @@ mod index_registry {
                 !self.chains.contains(&info.name),
                 Error::ChainAlreadyRegistered
             );
-            match info.chain_type {
-                ChainType::Evm => {
-                    self.chains
-                        .insert(&info.name, &Chain::Evm(EvmChain::new(info.clone())));
-                }
-                ChainType::Sub => {
-                    self.chains
-                        .insert(&info.name, &Chain::Sub(SubChain::new(info.clone())));
-                }
-            };
+            self.chains.insert(&info.name, &Chain::new(info.clone()));
             Self::env().emit_event(ChainRegistered { chain: info });
             Ok(())
         }
@@ -164,14 +130,7 @@ mod index_registry {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
-            match chain_entity {
-                Chain::Evm(ref mut evm_chain) => {
-                    evm_chain.register(asset.clone())?;
-                }
-                Chain::Sub(ref mut sub_chain) => {
-                    sub_chain.register(asset.clone())?;
-                }
-            }
+            chain_entity.register(asset.clone())?;
             // Insert back
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(AssetRegistered { chain, asset });
@@ -185,14 +144,7 @@ mod index_registry {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
-            match chain_entity {
-                Chain::Evm(ref mut evm_chain) => {
-                    evm_chain.unregister(asset.clone())?;
-                }
-                Chain::Sub(ref mut sub_chain) => {
-                    sub_chain.unregister(asset.clone())?;
-                }
-            }
+            chain_entity.unregister(asset.clone())?;
             // Insert back
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(AssetUnregistered { chain, asset });
@@ -206,14 +158,7 @@ mod index_registry {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
-            match chain_entity {
-                Chain::Evm(ref mut evm_chain) => {
-                    evm_chain.set_native(asset.clone());
-                }
-                Chain::Sub(ref mut sub_chain) => {
-                    sub_chain.set_native(asset.clone());
-                }
-            }
+            chain_entity.set_native(asset.clone());
             // Insert back
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainNativeSet { chain, asset });
@@ -227,14 +172,7 @@ mod index_registry {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
-            match chain_entity {
-                Chain::Evm(ref mut evm_chain) => {
-                    evm_chain.set_stable(asset.clone());
-                }
-                Chain::Sub(ref mut sub_chain) => {
-                    sub_chain.set_stable(asset.clone());
-                }
-            }
+            chain_entity.set_stable(asset.clone());
             // Insert back
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainStableSet { chain, asset });
@@ -248,14 +186,7 @@ mod index_registry {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
-            match chain_entity {
-                Chain::Evm(ref mut evm_chain) => {
-                    evm_chain.set_endpoint(endpoint.clone());
-                }
-                Chain::Sub(ref mut sub_chain) => {
-                    sub_chain.set_endpoint(endpoint.clone());
-                }
-            }
+            chain_entity.set_endpoint(endpoint.clone());
             // Insert back
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainEndpointSet { chain, endpoint });
@@ -276,6 +207,7 @@ mod index_registry {
     mod test {
         use super::*;
         use dotenv::dotenv;
+        use index::registry::chain::EvmBalance;
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
         use pink_extension::PinkEnvironment;
@@ -438,12 +370,7 @@ mod index_registry {
                 .into(),
             ]);
             let chain = registry.chains.get(info.name.clone()).unwrap();
-            match chain {
-                Chain::Evm(evm_chain) => {
-                    assert_eq!(evm_chain.get_info().native, Some(weth));
-                }
-                _ => panic!("Shouldn't be here"),
-            }
+            assert_eq!(chain.get_info().native, Some(weth));
         }
 
         #[ink::test]
@@ -512,12 +439,7 @@ mod index_registry {
                 .into(),
             ]);
             let chain = registry.chains.get(info.name.clone()).unwrap();
-            match chain {
-                Chain::Evm(evm_chain) => {
-                    assert_eq!(evm_chain.get_info().stable, Some(usdc));
-                }
-                _ => panic!("Shouldn't be here"),
-            }
+            assert_eq!(chain.get_info().stable, Some(usdc));
         }
 
         #[ink::test]
@@ -580,12 +502,7 @@ mod index_registry {
                 .into(),
             ]);
             let chain = registry.chains.get(info.name.clone()).unwrap();
-            match chain {
-                Chain::Evm(evm_chain) => {
-                    assert_eq!(evm_chain.get_info().endpoint, b"new endpoint".to_vec());
-                }
-                _ => panic!("Shouldn't be here"),
-            }
+            assert_eq!(chain.get_info().endpoint, b"new endpoint".to_vec());
         }
 
         #[ink::test]
@@ -902,55 +819,29 @@ mod index_registry {
                 Ok(())
             );
             let chain = registry.chains.get(&info.name).unwrap();
-            match chain {
-                Chain::Evm(evm_chain) => {
-                    assert_eq!(
-                        evm_chain.registered_assets(),
-                        vec![usdc.clone(), weth.clone()]
-                    );
-                    assert_eq!(
-                        evm_chain.lookup_by_name(weth.name.clone()),
-                        Some(weth.clone())
-                    );
-                    assert_eq!(evm_chain.lookup_by_name(b"Wrong Name".to_vec()), None);
-                    assert_eq!(
-                        evm_chain.lookup_by_symbol(weth.symbol.clone()),
-                        Some(weth.clone())
-                    );
-                    assert_eq!(evm_chain.lookup_by_symbol(b"Wrong Symbol".to_vec()), None);
-                    assert_eq!(
-                        evm_chain.lookup_by_location(weth.location.clone()),
-                        Some(weth.clone())
-                    );
-                    assert_eq!(
-                        evm_chain.lookup_by_location(b"Wrong Location".to_vec()),
-                        None
-                    );
-                    assert_eq!(registry.unregister_asset(info.name.clone(), usdc), Ok(()));
-                    assert_eq!(
-                        registry
-                            .chains
-                            .get(&info.name)
-                            .unwrap()
-                            .as_evm()
-                            .unwrap()
-                            .registered_assets(),
-                        vec![weth.clone()]
-                    );
-                    assert_eq!(registry.unregister_asset(info.name.clone(), weth), Ok(()));
-                    assert_eq!(
-                        registry
-                            .chains
-                            .get(&info.name)
-                            .unwrap()
-                            .as_evm()
-                            .unwrap()
-                            .registered_assets(),
-                        vec![]
-                    );
-                }
-                _ => panic!("Shouldn't be here"),
-            }
+            assert_eq!(chain.registered_assets(), vec![usdc.clone(), weth.clone()]);
+            assert_eq!(chain.lookup_by_name(weth.name.clone()), Some(weth.clone()));
+            assert_eq!(chain.lookup_by_name(b"Wrong Name".to_vec()), None);
+            assert_eq!(
+                chain.lookup_by_symbol(weth.symbol.clone()),
+                Some(weth.clone())
+            );
+            assert_eq!(chain.lookup_by_symbol(b"Wrong Symbol".to_vec()), None);
+            assert_eq!(
+                chain.lookup_by_location(weth.location.clone()),
+                Some(weth.clone())
+            );
+            assert_eq!(chain.lookup_by_location(b"Wrong Location".to_vec()), None);
+            assert_eq!(registry.unregister_asset(info.name.clone(), usdc), Ok(()));
+            assert_eq!(
+                registry.chains.get(&info.name).unwrap().registered_assets(),
+                vec![weth.clone()]
+            );
+            assert_eq!(registry.unregister_asset(info.name.clone(), weth), Ok(()));
+            assert_eq!(
+                registry.chains.get(&info.name).unwrap().registered_assets(),
+                vec![]
+            );
         }
 
         #[ink::test]
@@ -1014,16 +905,13 @@ mod index_registry {
                 Ok(())
             );
             let chain = registry.chains.get(&info.name).unwrap();
-            match chain {
-                Chain::Evm(evm_chain) => {
-                    // If not equal, check the real balance first.
-                    assert_eq!(
-                        evm_chain.balance_of(AssetId::Concrete(pha_location), account_location),
-                        Ok(35_000_000_000_000_000u128)
-                    );
-                }
-                _ => panic!("Shouldn't be here"),
-            }
+
+            // If not equal, check the real balance first.
+            assert_eq!(
+                EvmBalance::new(chain.get_info().endpoint)
+                    .balance_of(AssetId::Concrete(pha_location), account_location),
+                Ok(35_000_000_000_000_000u128)
+            );
         }
     }
 }

@@ -1,2 +1,3 @@
-pub mod evm_chain;
-pub mod sub_chain;
+mod chain_store;
+
+pub mod chain;
