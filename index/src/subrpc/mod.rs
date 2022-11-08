@@ -5,7 +5,7 @@ use crate::{subrpc::transaction::Signature, utils::ToArray};
 use self::{
     era::Era,
     ss58::get_ss58addr_version,
-    transaction::{MultiAddress, UnsignedExtrinsic},
+    transaction::{MultiAddress},
 };
 
 use super::traits::Error;
@@ -27,6 +27,7 @@ use ss58_registry::Ss58AddressFormat;
 mod ss58;
 use crate::subrpc::transaction::MultiSignature;
 use ss58::Ss58Codec;
+pub use transaction::UnsignedExtrinsic;
 
 /// Gets the next nonce of the target account
 ///
