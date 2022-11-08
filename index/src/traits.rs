@@ -10,11 +10,17 @@ pub enum Error {
     SubRPCRequestFailed,
     Ss58,
     InvalidSignature,
+    InvalidAmount,
 }
 
 pub enum Address {
     EthAddr(H160),
     SubAddr(H256),
+}
+
+pub enum Amount {
+    U256(U256),
+    U128(u128),
 }
 
 pub trait Executor {
@@ -29,7 +35,7 @@ pub trait Executor {
         &self,
         signer: [u8; 32], // FIXME
         token_rid: H256,
-        amount: U256,
+        amount: Amount,
         recipient: Address,
     ) -> core::result::Result<(), Error>;
 }

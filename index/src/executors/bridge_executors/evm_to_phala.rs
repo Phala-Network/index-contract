@@ -1,4 +1,4 @@
-use crate::traits::{Address, Error, Executor};
+use crate::traits::{Address, Amount, Error, Executor};
 use crate::transactors::ChainBridgeClient;
 use pink_web3::api::{Eth, Namespace};
 use pink_web3::contract::Contract;
@@ -35,7 +35,7 @@ impl Executor for Evm2PhalaExecutor {
         &self,
         signer: [u8; 32],
         token_rid: H256,
-        amount: U256,
+        amount: Amount,
         recipient: Address,
     ) -> core::result::Result<(), Error> {
         let signer = KeyPair::from(signer);
@@ -48,10 +48,19 @@ impl Executor for Evm2PhalaExecutor {
                         id: addr.into(),
                     }),
                 );
-                _ = self
-                    .bridge_contract
-                    .deposit(signer, token_rid, amount, dest.encode())?;
-                Ok(())
+                // TODO: these matches can be completeley replaced by generic Types
+                match amount {
+                    Amount::U256(amount) => {
+                        _ = self.bridge_contract.deposit(
+                            signer,
+                            token_rid,
+                            amount,
+                            dest.encode(),
+                        )?;
+                        Ok(())
+                    }
+                    _ => Err(Error::InvalidAmount),
+                }
             }
             _ => Err(Error::InvalidAddress),
         }
