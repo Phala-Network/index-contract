@@ -11,6 +11,9 @@ use index_registry::RegistryRef;
 
 /// Fetch actived tasks from blockchains.
 /// If the given chain is EVM based, fetch tasks from solidity-based smart contract storage through RPC request.
+/// For example, call RPC methods defined here:
+///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L70
+///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L74
 /// If the given chain is Substrate based, fetch tasks from pallet storage through RPC request.
 struct ActivedTaskFetcher {
     chain: ChainInfo,
@@ -56,6 +59,8 @@ impl TransactionChecker {
 }
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
+/// For example, call RPC method defined here:
+///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L63
 ///
 /// Return transaction hash if success.
 struct TaskClaimer;
