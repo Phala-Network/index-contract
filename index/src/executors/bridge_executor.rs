@@ -1,6 +1,6 @@
 use crate::traits::{
     common::{Address, Error},
-    executor::Executor,
+    executor::{BridgeExecutor, Executor},
 };
 use crate::transactors::ChainBridgeClient;
 use pink_web3::api::{Eth, Namespace};
@@ -11,6 +11,23 @@ use primitive_types::{H256, U256};
 use scale::Encode;
 use xcm::v0::NetworkId;
 use xcm::v1::{Junction, Junctions, MultiLocation};
+
+pub struct ChainBridgeEvm2Phala {
+    // (asset_location, resource_id)
+    pub assets: Vec<(Vec<u8>, [u8; 32])>
+}
+
+impl BridgeExecutor for ChainBridgeEvm2Phala {
+    fn new(assets: Vec<(Vec<u8>, [u8; 32])>) -> Self {
+        Self {
+            assets,
+        }
+    }
+
+    fn transfer(&self, signer: [u8; 32], asset: Vec<u8>, recipient: Vec<u8>, amount: u128) -> core::result::Result<Self, Error> {
+        Err(Error::Unimplemented)
+    }
+}
 
 pub struct Evm2PhalaExecutor {
     bridge_contract: ChainBridgeClient,

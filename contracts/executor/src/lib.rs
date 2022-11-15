@@ -58,14 +58,13 @@ mod index_executor {
             })
         }
 
-        /// Claim task from all supported blockchains. This is a query operation
+        /// Claim and execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         /// 
         /// 
-        /// 1) Perform spcific operations for the runing tasks.
+        /// 1) Perform spcific operations for the runing tasks according to current status.
         /// 2) Fetch new actived tasks from supported chains and append them to the local runing tasks queue.
         /// 
-        /// Note Only when task upload completed, we remove it from `claimed_tasks` queue.
         #[ink::message]
         pub fn execute(&self) -> Result<(), Error> {
             // Get the worker key that the contract deployed on
@@ -105,13 +104,14 @@ mod index_executor {
                         let result = TransactionChecker::check_transaction(task.chain, upload_tx_hash)?;
                         if result {
                             // Start to execute first step
-                            let hash = Step::execute_step(&task.edges[0])?;
+                            let signer = PrivateKey(task.worker);
+                            let hash = Step(self.registry)::execute_step(&signer, &task.edges[0])?;
                             task.status = TaskStatus::Executing(0, Some(hash));
                             self.update_task(&task);
                         }
                     },
                     TaskStatus::Executing(step_index, Some(execute_tx_hash)) => {
-                        let result = TransactionChecker::check_transaction(Step::source_chain(&task.edges[step_index]), execute_tx_hash)?;
+                        let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_hash)?;
                         if result {
                             // If all steps executed completed, set task status as Completed
                             if step_index == task.edges.len - 1 {
@@ -121,7 +121,8 @@ mod index_executor {
                                 // TODO: More validations
 
                                 // Start to execute next step
-                                let hash = Step::execute_step(&task.edges[step_index + 1])?;
+                                let signer = PrivateKey(task.worker);
+                                let hash = Step(self.registry)::execute_step(&signer, &task.edges[step_index + 1])?;
                                 task.status = TaskStatus::Executing(step_index + 1, Some(hash));
                                 self.update_task(&task);
                             }
@@ -131,18 +132,20 @@ mod index_executor {
                             // TODO: Retry
 
                             // TODO: Exceed retry limit, revert
-                            let hash = Step::revert_step(&task.edges[step_index])?;
+                            let signer = PrivateKey(task.worker);
+                            let hash = Step(self.registry)::revert_step(&signer, &task.edges[step_index])?;
                             task.status = TaskStatus::Reverting(step_index, Some(hash));
                             self.update_task(&task);
                         }
                     },
                     TaskStatus::Reverting(step_index, Some(revert_tx_hash)) => {
-                        let result = TransactionChecker::check_transaction(Step::dest_chain(&task.edges[step_index]), revert_tx_hash)?;
+                        let result = TransactionChecker::check_transaction(Step(self.registry)::dest_chain(&task.edges[step_index]), revert_tx_hash)?;
                         if result {
                                 // TODO: More validations
 
                                 // Start to execute next step
-                                let hash = Step::revert_step(&task.edges[step_index - 1])?;
+                                let signer = PrivateKey(task.worker);
+                                let hash = Step(self.registry)::revert_step(&signer, &task.edges[step_index - 1])?;
                                 task.status = TaskStatus::Reverting(step_index - 1, Some(hash));
                                 self.update_task(&task);
                         } eles {
@@ -155,6 +158,11 @@ mod index_executor {
                     },
                     TaskStatus::Completed => {
                         self.remove_task(&task)?;
+
+                        // TODO: update pallet-index
+                    },
+                    _ => {
+                        // Do nothing
                     }
                 }
             });

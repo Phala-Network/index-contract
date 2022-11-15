@@ -14,6 +14,7 @@ mod index_registry {
     use index::registry::dex::{Dex, DexPair};
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
+    use xcm::latest::{prelude::*, MultiLocation};
 
     #[ink(storage)]
     #[derive(SpreadAllocate)]
@@ -30,6 +31,9 @@ mod index_registry {
 
         pub supported_dexs: Vec<Vec<u8>>,
         pub dexs: Mapping<Vec<u8>, Dex>,
+
+        pub bridge_executors: Mapping<Vec<u8>, dyn BridgeExecutor>,
+        pub dex_executors: Mapping<Vec<u8>, dyn DexExecutor>,
     }
 
     impl Default for Registry {
@@ -105,6 +109,25 @@ mod index_registry {
         pub fn new() -> Self {
             ink_lang::utils::initialize_contract(|this: &mut Self| {
                 this.admin = Self::env().caller();
+
+                // Register bridge executors
+                let phala_chainbridge_rid: [u8; 32] = vec![];
+                this.bridge_executors.insert(
+                    [b"Ethereum", b"Phala"].concat(),
+                    ChainBridgeEvm2Phala::new((
+                        MultiLocation::new(1, X1(Parachain(2004))).encode(),
+                        phala_chainbridge_rid,
+                    )),
+                );
+
+                // Register dex executors
+                let uniswapv2_on_ethereum: Vec<u8> = vec![];
+                this.dex_executors
+                    .insert(b"Ethereum", UniswapV2Executor::new(uniswapv2_on_ethereum));
+                let beamswap_on_moonbeam: Vec<u8> = vec![];
+                this.dex_executors
+                    .insert(b"Moonbeam", UniswapV2Executor::new(beamswap_on_moonbeam));
+                // More executors
             })
         }
 

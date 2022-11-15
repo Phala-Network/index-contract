@@ -22,3 +22,15 @@ pub trait Executor {
         recipient: Address,
     ) -> core::result::Result<(), Error>;
 }
+
+pub trait BridgeExecutor: Sized + 'static {
+    fn new(assets: Vec<(Vec<u8>, [u8; 32])>) -> Self;
+
+    fn transfer(&self, signer: [u8; 32], asset: Vec<u8>, recipient: Vec<u8>, amount: u128) -> core::result::Result<Self, Error>;
+}
+
+pub trait DexExecutor: Sized + 'static {
+    fn new(router: Vec<u8>) -> Self;
+
+    fn swap(&self, signer: [u8; 32], asset0: Vec<u8>, asset1: Vec<u8>, spend: u128, recipient: Vec<u8>) -> core::result::Result<Self, Error>;
+}

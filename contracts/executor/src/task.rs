@@ -7,6 +7,7 @@ use pink_extension::EcdhPublicKey;
 use index::prelude::*;
 use index::prelude::ChainInfo;
 use pallet_index::types::{EdgeStatus, EdgeMeta, Edge, Task, TaskId};
+use index_registry::RegistryRef;
 
 /// Fetch actived tasks from blockchains.
 /// If the given chain is EVM based, fetch tasks from solidity-based smart contract storage through RPC request.
@@ -75,10 +76,10 @@ impl TaskUploader {
     }
 }
 
-struct Step;
+struct Step(RegistryRef);
 impl Step {
     /// Execute step according to edge type, return corresponding transaction hash if success.
-    pub fn execute_step(edge: &Edge) -> Result<Vec<u8>, Error> {
+    pub fn execute_step(signer: &[u8; 32], edge: &Edge) -> Result<Vec<u8>, Error> {
         match edge.edge {
             Source(source_edge) => {
                 // ingore
@@ -88,18 +89,28 @@ impl Step {
             },
             Swap(swap_edge) => {
                 let (chain, spend_asset, receive_asset, amount) = ParseArgs(swap_edge);
-                // index::DexExecutor::swap(...)?;
+                
+                // Get executor according to `chain` from registry
+                let executor = self.0.dex_executors.get(&chain).ok_or(Error::ExecuteFailed)?;
+
+                // Do swap operation
+                <executor as DexExecutor>::swap(...);
             },
             Bridge(bridge_edge) => {
                 let (src_chain, src_asset, dest_chain, dest_asset, amount) = ParseArgs(bridge_edge);
-                // index::BridgeExecutor::transfer(...)?;
+                
+                // Get executor according to `src_chain` and `des_chain`
+                let executor = self.0.bridge_executors.get(&[src_chain, dest_chain].concat()).ok_or(Error::ExecuteFailed)?;
+
+                // Do bridge transfer operation
+                <executor as BridgeExecutor>::transfer(...);
             }
         }
         Err(Error::Unimplemented)
     }
 
     /// Revert step according to edge type, return corresponding transaction hash if success.
-    pub fn revert_step(edge: &Edge) -> Result<Vec<u8>, Error> {
+    pub fn revert_step(signer: &[u8; 32], edge: &Edge) -> Result<Vec<u8>, Error> {
         match edge.edge {
             Source(source_edge) => {
 
