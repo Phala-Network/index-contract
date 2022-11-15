@@ -8,7 +8,10 @@ mod index_registry {
     use alloc::vec::Vec;
     use index::ensure;
     use index::prelude::*;
+    use index::prelude::{ChainInfo, Graph};
+    use index::registry::bridge::{AssetPair, Bridge};
     use index::registry::chain::Chain;
+    use index::registry::dex::{Dex, DexPair};
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
@@ -17,8 +20,16 @@ mod index_registry {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Registry {
         pub admin: AccountId,
+
+        pub supported_chains: Vec<Vec<u8>>,
         /// The registered chains. [chain_name, entity]
         pub chains: Mapping<Vec<u8>, Chain>,
+
+        pub supported_bridges: Vec<Vec<u8>>,
+        pub bridges: Mapping<Vec<u8>, Bridge>,
+
+        pub supported_dexs: Vec<Vec<u8>>,
+        pub dexs: Mapping<Vec<u8>, Dex>,
     }
 
     impl Default for Registry {
@@ -191,6 +202,66 @@ mod index_registry {
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainEndpointSet { chain, endpoint });
             Ok(())
+        }
+
+        #[ink(message)]
+        pub fn register_bridge(
+            &mut self,
+            _id: Vec<u8>,
+            _chain0: ChainInfo,
+            _chain1: ChainInfo,
+        ) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn unregister_bridge(&mut self, _bridge_id: Vec<u8>) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn add_bridge_asset(&mut self, _bridge_id: Vec<u8>, _pair: AssetPair) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn remove_bridge_asset(&mut self, _bridge_id: Vec<u8>, _pair: AssetPair) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn register_dex(
+            &mut self,
+            _name: Vec<u8>,
+            _id: Vec<u8>,
+            _chain: ChainInfo,
+        ) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn unregister_dex(&mut self, _dex_id: Vec<u8>) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn add_dex_pair(&mut self, _dex_id: Vec<u8>, _pair: DexPair) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn remove_dex_pair(&mut self, _dex_id: Vec<u8>, _pair: DexPair) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        #[ink(message)]
+        pub fn get_graph(&self) -> Graph {
+            // TODO
+            Graph {
+                assets: vec![],
+                pairs: vec![],
+                bridges: vec![],
+            }
         }
 
         /// Returns error if caller is not admin
