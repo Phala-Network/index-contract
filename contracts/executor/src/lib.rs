@@ -72,7 +72,7 @@ mod index_executor {
             let running_tasks = self.running_tasks()?;
             // 1) Check and execute runing tasks.
             running_tasks.iter().map(|id| {
-                let mut task = self.get_task().ok_or(Error::ExecuteFailed)?;
+                let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
                 match task.status {
                     TaskStatus::Initialized =>  {
                         // Claim task from source chain
