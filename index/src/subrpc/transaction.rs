@@ -1,6 +1,5 @@
 // TODO: simplify
 
-use super::era::Era;
 use alloc::{string::String, vec::Vec};
 use scale::{Compact, Decode, Encode};
 use serde::{Deserialize, Serialize};

@@ -1035,6 +1035,7 @@ dependencies = [
  "serde",
  "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "sp-io",
+ "sp-runtime",
  "ss58-registry",
  "xcm",
 ]

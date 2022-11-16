@@ -3,10 +3,11 @@
 use crate::{subrpc::transaction::Signature, utils::ToArray};
 
 use self::{
-    era::Era,
     ss58::get_ss58addr_version,
     transaction::{MultiAddress},
 };
+
+use sp_runtime::generic::Era;
 
 use super::traits::Error;
 use alloc::format;
@@ -16,7 +17,6 @@ use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
 use primitive_types::H256;
 use scale::{Compact, Encode};
-mod era;
 mod objects;
 mod transaction;
 use super::subrpc::objects::*;
@@ -329,9 +329,8 @@ mod tests {
     }
 
     /// Calls the xtransfer function
-    ///
-    /// this is very expensive so we don't test it often
     #[test]
+    #[ignore = "this is very expensive so we don't test it often"]
     fn can_call_xtransfer() {
         pink_extension_runtime::mock_ext::mock_all_ext();
         use xcm::v1::MultiAsset;
