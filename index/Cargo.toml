@@ -1,8 +1,11 @@
 [package]
 name = "index"
 version = "0.1.0"
-authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
+authors = ["Phala Network"]
 edition = "2021"
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/index-contract"
 
 [dependencies]
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
@@ -24,6 +27,9 @@ pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "
 ss58-registry = { version = "1.33.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
+ink_storage = { version = "3", default-features = false }
+ink_primitives = { version = "3.3.1", default-features = false }
+ink_metadata = { version = "3.3.1", default-features = false, features = ["derive"], optional = true }
 
 [dependencies.sp-io]
 git = "https://github.com/paritytech/substrate"
@@ -45,4 +51,8 @@ std = [
     "pink-json/std",
     "sp-core-hashing/std",
     "sp-runtime/std",
+    "sp-io/std",
+    "ink_storage/std",
+    "ink_metadata/std",
+    "ink_primitives/std",
 ]

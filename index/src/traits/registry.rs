@@ -1,26 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+use super::common::Error;
 use alloc::vec::Vec;
-use ink_lang as ink;
-use ink_storage::traits::{
-    PackedAllocate, PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout,
-};
-use scale::{Decode, Encode};
+use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
 use xcm::latest::{AssetId, MultiLocation};
-
-/// Errors that can occur upon registry module.
-#[derive(Debug, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum Error {
-    BadOrigin,
-    AssetAlreadyRegistered,
-    AssetNotFound,
-    ExtractLocationFailed,
-    InvalidContractAbi,
-    ConstructContractFailed,
-    FetchDataFailed,
-}
 
 /// Query the account balance of an asset under a multichain scenario is a mess,
 /// not only because different chains have different account systems but also have
@@ -35,11 +19,13 @@ pub enum Error {
 /// it with `MultiLocation::new(1, X3(Parachain(2004), GeneralIndex(0), GeneralKey(usdc_addr))`.
 ///
 /// Both `AssetId` and `MultiLocation` are primitives introduced by XCM format.
-#[ink::trait_definition]
 pub trait BalanceFetcher {
     /// Return on-chain `asset` amount of `account`
-    #[ink(message)]
-    fn balance_of(&self, asset: AssetId, account: MultiLocation) -> Result<u128, Error>;
+    fn balance_of(
+        &self,
+        asset: AssetId,
+        account: MultiLocation,
+    ) -> core::result::Result<u128, Error>;
 }
 
 /// Beyond general properties like `name`, `symbol` and `decimals`,
@@ -64,29 +50,22 @@ pub struct AssetInfo {
     pub location: Vec<u8>,
 }
 
-#[ink::trait_definition]
 pub trait AssetsRegisry {
     /// Register the asset
     /// Authorized method, only the contract owner can do
-    #[ink(message)]
     fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), Error>;
 
     /// Unregister the asset
     /// Authorized method, only the contract owner can do
-    #[ink(message)]
     fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), Error>;
 
     /// Return all registerd assets
-    #[ink(message)]
     fn registered_assets(&self) -> Vec<AssetInfo>;
 
-    #[ink(message)]
     fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo>;
 
-    #[ink(message)]
     fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo>;
 
-    #[ink(message)]
     fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo>;
 }
 
@@ -97,36 +76,31 @@ pub enum ChainType {
     Sub,
 }
 
-#[ink::trait_definition]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct ChainInfo {
+    pub name: Vec<u8>,
+    pub chain_type: ChainType,
+    pub native: Option<AssetInfo>,
+    pub stable: Option<AssetInfo>,
+    pub endpoint: Vec<u8>,
+    pub network: Option<u8>,
+}
+
 pub trait ChainInspector {
-    /// Return admin of the chain
-    #[ink(message)]
-    fn owner(&self) -> ink_env::AccountId;
+    /// Return information of the chain
+    fn get_info(&self) -> ChainInfo;
+}
 
-    /// Return name of the chain
-    #[ink(message)]
-    fn chain_name(&self) -> Vec<u8>;
-
-    /// Return set native asset of the chain
-    #[ink(message)]
-    fn chain_type(&self) -> ChainType;
-
-    /// Return set native asset of the chain
-    #[ink(message)]
-    fn native_asset(&self) -> Option<AssetInfo>;
-
-    /// Return set stable asset of the chain
-    #[ink(message)]
-    fn stable_asset(&self) -> Option<AssetInfo>;
-
-    /// Return RPC endpoint of the chain
-    #[ink(message)]
-    fn endpoint(&self) -> Vec<u8>;
+pub trait ChainMutate {
+    fn set_native(&mut self, native: AssetInfo);
+    fn set_stable(&mut self, stable: AssetInfo);
+    fn set_endpoint(&mut self, endpoint: Vec<u8>);
 }
 
 /// Asset informatios should be contained in the input graph
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
     chain: Vec<u8>,
@@ -141,8 +115,8 @@ pub struct AssetGraph {
 }
 
 /// Trading pair informatios should be contained in the input graph
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct TradingPairGraph {
     /// Indentification of the trading pair on dex
     id: Vec<u8>,
@@ -167,8 +141,8 @@ pub struct TradingPairGraph {
 }
 
 /// Bridge informatios should be contained in the input graph
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct BridgeGraph {
     /// Name of source chain
     chain0: Vec<u8>,
@@ -179,8 +153,8 @@ pub struct BridgeGraph {
 }
 
 /// Definition of the input graph
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct Graph {
     /// All registered assets
     assets: Vec<AssetGraph>,

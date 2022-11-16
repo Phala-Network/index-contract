@@ -6,6 +6,7 @@ mod constants;
 pub mod executors;
 pub mod prelude;
 pub mod subrpc;
+pub mod registry;
 mod traits;
 mod transactors;
 pub mod utils;
