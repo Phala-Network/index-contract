@@ -54,6 +54,7 @@ impl RuningTaskFetcher {
 struct TransactionChecker;
 impl TransactionChecker {
     pub fn check_transaction(chain: Vec<u8>, hash: Vec<u8>) -> Result<bool, Error> {
+        // Check transaction result according to different edge type
         Err(Error::Unimplemented)
     }
 }

@@ -20,7 +20,7 @@ mod index_executor {
     use ink_env::call::FromAccountId;
     use index_registry::{AccountInfo, AccountStatus, RegistryRef};
 
-    use task::{ActivedTaskFetcher, Step, TaskClaimer, TaskUploader};
+    use task::{ActivedTaskFetcher, RuningTaskFetcher, Step, TaskClaimer, TaskUploader};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -35,6 +35,7 @@ mod index_executor {
         pub admin: AccountId,
         pub registry: RegistryRef,
         pub worker_accounts: Vec<[u8; 32]>,
+        pub executor_account: [u8; 32],
     }
 
     impl Default for Executor {
@@ -69,7 +70,14 @@ mod index_executor {
         pub fn execute(&self) -> Result<(), Error> {
             // Get the worker key that the contract deployed on
             let worker = pink_extension::ext().worker_pubkey();
-            let running_tasks = self.running_tasks()?;
+            let mut running_tasks = self.running_tasks()?;
+
+            // Recover cache if `running_tasks` is empty
+            if running_tasks.len == 0 {
+                let onchain_tasks = RuningTaskFetcher::new(&Chain(b"phala").endpoint, &worker).fetch_tasks()?;
+                running_tasks = self.recover_cache(&onchain_tasks)?;
+            }
+
             // 1) Check and execute runing tasks.
             running_tasks.iter().map(|id| {
                 let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
@@ -81,7 +89,7 @@ mod index_executor {
                         self.update_task(&task);
                     },
                     TaskStatus::Claiming(Some(claim_tx_hash)) => {
-                        let result = TransactionChecker::check_transaction(task.chain, claim_tx_hash)?;
+                        let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_hash)?;
                         // If claimed successfully, allocate worker account and upload it to pallet-index
                         if result {
                             // Allocate worker account (account used to send trasnaction to blockchain) to each claimed task,
@@ -94,8 +102,10 @@ mod index_executor {
                             // Mark as allocated
                             self.allocate_worker(&free_accounts[0])?;
 
+                            // TODO: Check validity before upload
+
                             // Upload task to on-chain storage
-                            let hash = TaskUploader::upload_task(&worker, &local_claimed_tasks[index].task)?;
+                            let hash = TaskUploader::upload_task(self.executor_account, &worker, &local_claimed_tasks[index].task)?;
                             task.status = TaskStatus::Uploading(Some(hash));
                             self.update_task(&task);
                         }
@@ -111,6 +121,7 @@ mod index_executor {
                         }
                     },
                     TaskStatus::Executing(step_index, Some(execute_tx_hash)) => {
+                        // TODO: result should contains more information
                         let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_hash)?;
                         if result {
                             // If all steps executed completed, set task status as Completed
