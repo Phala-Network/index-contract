@@ -11,10 +11,8 @@ use sp_runtime::generic::Era;
 use super::traits::Error;
 use alloc::format;
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
-use primitive_types::H256;
 use scale::{Compact, Encode};
 mod objects;
 mod transaction;
@@ -22,7 +20,6 @@ use super::subrpc::objects::*;
 mod rpc;
 use pink_json as json;
 use rpc::call_rpc;
-use ss58_registry::Ss58AddressFormat;
 mod ss58;
 use crate::subrpc::transaction::MultiSignature;
 use ss58::Ss58Codec;
@@ -39,7 +36,7 @@ pub fn get_next_nonce(rpc_node: &str, ss58_addr: &str) -> core::result::Result<N
         ss58_addr
     )
     .into_bytes();
-    let resp_body = call_rpc(&rpc_node, data)?;
+    let resp_body = call_rpc(rpc_node, data)?;
 
     let next_nonce: NextNonce = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
 
@@ -55,7 +52,7 @@ pub fn get_runtime_version(rpc_node: &str) -> core::result::Result<RuntimeVersio
     let data = r#"{"id":1, "jsonrpc":"2.0", "method": "state_getRuntimeVersion"}"#
         .to_string()
         .into_bytes();
-    let resp_body = call_rpc(&rpc_node, data)?;
+    let resp_body = call_rpc(rpc_node, data)?;
 
     let runtime_version: RuntimeVersion =
         json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
@@ -67,14 +64,23 @@ pub fn get_runtime_version(rpc_node: &str) -> core::result::Result<RuntimeVersio
     }
 
     let runtime_version_ok = RuntimeVersionOk {
-        spec_name: runtime_version_result.specName.to_string().parse().unwrap(),
-        impl_name: runtime_version_result.implName.to_string().parse().unwrap(),
-        authoring_version: runtime_version_result.authoringVersion,
-        spec_version: runtime_version_result.specVersion,
-        impl_version: runtime_version_result.implVersion,
+        // TODO: replace the upwraps
+        spec_name: runtime_version_result
+            .spec_name
+            .to_string()
+            .parse()
+            .unwrap(),
+        impl_name: runtime_version_result
+            .impl_name
+            .to_string()
+            .parse()
+            .unwrap(),
+        authoring_version: runtime_version_result.authoring_version,
+        spec_version: runtime_version_result.spec_version,
+        impl_version: runtime_version_result.impl_version,
         apis: api_vec,
-        transaction_version: runtime_version_result.transactionVersion,
-        state_version: runtime_version_result.stateVersion,
+        transaction_version: runtime_version_result.transaction_version,
+        state_version: runtime_version_result.state_version,
     };
     Ok(runtime_version_ok)
 }
@@ -98,6 +104,7 @@ pub fn get_genesis_hash(rpc_node: &str) -> core::result::Result<GenesisHashOk, E
 /// Creates an extrinsic
 ///
 /// An extended version of `create_transaction`, fine-grain
+#[allow(clippy::too_many_arguments)]
 pub fn create_transaction_ext<T: Encode>(
     signer: &[u8; 32],
     public_key: &[u8; 32],
@@ -207,9 +214,9 @@ pub fn send_transaction(rpc_node: &str, signed_tx: &[u8]) -> core::result::Resul
         tx_hex
     )
     .into_bytes();
-    let resp_body = call_rpc(&rpc_node, data)?;
+    let resp_body = call_rpc(rpc_node, data)?;
     let resp: TransactionResponse = json::from_slice(&resp_body).or(Err(Error::InvalidBody))?;
-    Ok(hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))?)
+    hex::decode(&resp.result[2..]).or(Err(Error::InvalidBody))
 }
 
 #[cfg(test)]

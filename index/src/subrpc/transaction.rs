@@ -1,6 +1,5 @@
 use alloc::{string::String, vec::Vec};
 use scale::{Compact, Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -82,9 +81,9 @@ pub enum MultiSignature {
 #[derive(Encode, Decode, PartialEq, Eq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CurrencyId {
-    FREN,
-    GM,
-    GN,
+    Fren,
+    Gm,
+    Gn,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

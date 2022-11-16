@@ -4,8 +4,6 @@ use crate::{
     traits::{Amount, Error},
 };
 use alloc::string::{String, ToString};
-use hex_literal::hex;
-use scale::Encode;
 use xcm::v1::MultiAsset;
 use xcm::v1::{AssetId, Fungibility, Junction, Junctions, MultiLocation};
 
@@ -15,8 +13,8 @@ pub struct Phala2EvmExecutor {
 
 impl Executor for Phala2EvmExecutor {
     fn new(
-        bridge_address: crate::traits::Address,
-        abi_json: &[u8],
+        _bridge_address: crate::traits::Address,
+        _abi_json: &[u8],
         rpc: &str,
     ) -> core::result::Result<Self, crate::traits::Error>
     where
@@ -30,7 +28,7 @@ impl Executor for Phala2EvmExecutor {
     fn transfer(
         &self,
         signer: [u8; 32],
-        token_rid: primitive_types::H256, // TODO: this param is useless,  that means the interface need to be changed
+        _token_rid: primitive_types::H256, // TODO: this param is useless,  that means the interface need to be changed
         amount: Amount,
         recipient: Address,
     ) -> core::result::Result<(), Error> {
@@ -40,7 +38,7 @@ impl Executor for Phala2EvmExecutor {
                     let addr = addr.to_fixed_bytes().to_vec();
                     let multi_asset = MultiAsset {
                         id: AssetId::Concrete(Junctions::Here.into()),
-                        fun: Fungibility::Fungible(amount as u128),
+                        fun: Fungibility::Fungible(amount),
                     };
 
                     let dest = MultiLocation::new(
