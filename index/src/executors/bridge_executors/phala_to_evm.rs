@@ -1,8 +1,9 @@
 use crate::{
     prelude::{Address, Executor},
-    subrpc::{create_transaction, send_transaction, UnsignedExtrinsic},
+    subrpc::{create_transaction, send_transaction},
     traits::{Amount, Error},
 };
+use alloc::string::{String, ToString};
 use hex_literal::hex;
 use scale::Encode;
 use xcm::v1::MultiAsset;
@@ -21,7 +22,9 @@ impl Executor for Phala2EvmExecutor {
     where
         Self: Sized,
     {
-        Ok(Self { rpc: rpc.into() })
+        Ok(Self {
+            rpc: rpc.to_string(),
+        })
     }
 
     fn transfer(
@@ -56,20 +59,16 @@ impl Executor for Phala2EvmExecutor {
                         ),
                     );
 
-                    let dest_weight: std::option::Option<u64> = None;
-
-                    let call_data = UnsignedExtrinsic {
-                        pallet_id: 0x52u8,
-                        call_id: 0x0u8,
-                        call: (multi_asset, dest, dest_weight),
-                    };
-
-                    let mut bytes = Vec::new();
-                    call_data.encode_to(&mut bytes);
-
-                    let signed_tx = create_transaction(&signer, "phala", &self.rpc, call_data)?;
+                    let dest_weight: core::option::Option<u64> = None;
+                    let signed_tx = create_transaction(
+                        &signer,
+                        "phala",
+                        &self.rpc,
+                        0x52u8,
+                        0x0u8,
+                        (multi_asset, dest, dest_weight),
+                    )?;
                     let _tx_id = send_transaction(&self.rpc, &signed_tx)?;
-                    // TODO: return soemthing
                     Ok(())
                 }
                 _ => Err(Error::InvalidAmount),

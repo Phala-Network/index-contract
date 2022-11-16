@@ -1,5 +1,3 @@
-// TODO: simplify
-
 use alloc::{string::String, vec::Vec};
 use scale::{Compact, Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -27,8 +25,8 @@ struct Transfer {
 }
 
 /// A multi-format address wrapper for on-chain accounts.
-#[derive(Encode, Decode, PartialEq, Eq, Clone, Debug, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[derive(Encode, Decode, PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Hash, scale_info::TypeInfo))]
 pub enum MultiAddress<AccountId, AccountIndex> {
     /// It's an account ID (pubkey).
     Id(AccountId),
@@ -49,8 +47,8 @@ impl<AccountId, AccountIndex> From<AccountId> for MultiAddress<AccountId, Accoun
 }
 
 /// A signature (a 512-bit value).
-#[derive(Encode, Decode, Clone, Debug, scale_info::TypeInfo, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(Hash, scale_info::TypeInfo))]
 pub struct Signature(pub [u8; 64]);
 
 impl TryFrom<&[u8]> for Signature {
@@ -67,8 +65,8 @@ impl TryFrom<&[u8]> for Signature {
     }
 }
 
-#[derive(Encode, Decode, PartialEq, Eq, Clone, Debug, scale_info::TypeInfo)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[derive(Encode, Decode, PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "std", derive(Hash, scale_info::TypeInfo))]
 pub enum MultiSignature {
     /// An Ed25519 signature.
     #[codec(index = 0)]

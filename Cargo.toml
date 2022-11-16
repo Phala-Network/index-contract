@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
     "contracts/semi-bridge",
+    "contracts/system-remark",
 ]
 
 exclude = [

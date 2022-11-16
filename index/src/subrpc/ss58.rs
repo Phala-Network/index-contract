@@ -1,4 +1,6 @@
 use crate::traits::Error;
+use alloc::string::String;
+use alloc::vec;
 use base58::ToBase58;
 use ss58_registry::Ss58AddressFormat;
 

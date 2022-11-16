@@ -1,17 +1,16 @@
 //! Substrate json RPC module with limited functionalites
+//!
+//! TODO: need further polish
 
 use crate::{subrpc::transaction::Signature, utils::ToArray};
 
-use self::{
-    ss58::get_ss58addr_version,
-    transaction::{MultiAddress},
-};
+use self::{ss58::get_ss58addr_version, transaction::MultiAddress};
 
 use sp_runtime::generic::Era;
 
 use super::traits::Error;
 use alloc::format;
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use pink_extension::chain_extension::{signing, SigType};
@@ -169,7 +168,9 @@ pub fn create_transaction<T: Encode>(
     signer: &[u8; 32],
     chain: &str,
     rpc_node: &str,
-    call_data: UnsignedExtrinsic<T>,
+    pallet_id: u8,
+    call_id: u8,
+    data: T,
 ) -> core::result::Result<Vec<u8>, Error> {
     let version = get_ss58addr_version(chain)?;
     let public_key = signing::get_public_key(signer, SigType::Sr25519).to_array();
@@ -181,6 +182,11 @@ pub fn create_transaction<T: Encode>(
     let transaction_version = runtime_version.transaction_version;
     let era = Era::Immortal;
     let tip: u128 = 0;
+    let call_data = UnsignedExtrinsic {
+        pallet_id,
+        call_id,
+        call: data,
+    };
     create_transaction_ext(
         signer,
         &public_key,
@@ -308,9 +314,11 @@ mod tests {
         let call_data = transaction::UnsignedExtrinsic {
             pallet_id: 0u8,
             call_id: 1u8,
-            call: transaction::Remark { remark },
+            call: transaction::Remark {
+                remark: remark.clone(),
+            },
         };
-        let signed_tx = create_transaction(&signer, "khala", rpc_node, call_data);
+        let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
         if signed_tx.is_err() {
             println!("failed to signed tx");
             dbg!(signed_tx);
@@ -361,7 +369,7 @@ mod tests {
         let call_data = transaction::UnsignedExtrinsic {
             pallet_id: 0x52u8,
             call_id: 0x0u8,
-            call: (multi_asset, dest, dest_weight),
+            call: (multi_asset.clone(), dest.clone(), dest_weight.clone()),
         };
 
         let mut bytes = Vec::new();
@@ -369,7 +377,14 @@ mod tests {
         let expected: Vec<u8> = hex!("5200000000000f00d01306c21101000306086362050006508266b3183ccc58f3d145d7a4894547bd55d7739700").into();
         assert_eq!(bytes, expected);
 
-        let signed_tx = create_transaction(&signer, "khala", rpc_node, call_data);
+        let signed_tx = create_transaction(
+            &signer,
+            "khala",
+            rpc_node,
+            0x52u8,
+            0x0u8,
+            (multi_asset, dest, dest_weight),
+        );
         if signed_tx.is_err() {
             println!("failed to signed tx");
             dbg!(signed_tx);
