@@ -310,6 +310,7 @@ mod tests {
 
     /// Sends a remark extrinsic to khala
     #[test]
+    #[ignore = "only for demostration purposes"]
     fn can_send_remark() {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
