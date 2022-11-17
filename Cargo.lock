@@ -1216,6 +1216,8 @@ dependencies = [
 name = "index"
 version = "0.1.0"
 dependencies = [
+ "base58",
+ "blake2-rfc",
  "hex",
  "hex-literal",
  "ink_metadata",
@@ -1223,10 +1225,15 @@ dependencies = [
  "ink_storage",
  "parity-scale-codec",
  "pink-extension",
+ "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-web3",
  "primitive-types",
  "scale-info",
+ "serde",
+ "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.29)",
  "sp-io",
+ "sp-runtime",
+ "ss58-registry",
  "xcm",
 ]
 
@@ -2004,6 +2011,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pink-json"
+version = "0.4.0"
+source = "git+https://github.com/Phala-Network/pink-json.git?branch=pink#ff1be4b26ae409b8efeb08bf2e6df9e983bf7b3b"
+dependencies = [
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "pink-web3"
 version = "0.19.3"
 source = "git+https://github.com/Phala-Network/pink-web3.git?branch=pink#c018c04bab07383e3ffab15729ba7af400803ea7"
@@ -2018,7 +2034,7 @@ dependencies = [
  "pink-erased-serde",
  "pink-ethabi",
  "pink-extension",
- "pink-json",
+ "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rlp",
  "serde",
  "tiny-keccak",
@@ -3265,6 +3281,28 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
+]
+
+[[package]]
+name = "system_remark"
+version = "0.1.2"
+dependencies = [
+ "dotenv",
+ "hex",
+ "hex-literal",
+ "index",
+ "ink_env",
+ "ink_lang",
+ "ink_metadata",
+ "ink_prelude 3.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ink_primitives",
+ "ink_storage",
+ "parity-scale-codec",
+ "pink-extension",
+ "pink-extension-runtime",
+ "pink-web3",
+ "primitive-types",
+ "scale-info",
 ]
 
 [[package]]

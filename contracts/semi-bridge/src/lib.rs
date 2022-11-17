@@ -116,7 +116,12 @@ mod semi_bridge {
                 &config.rpc,
             )
             .or(Err(Error::FailedToCreateExecutor))?;
-            _ = executor.transfer(self.key, token_rid, amount, Address::SubAddr(recipient));
+            _ = executor.transfer(
+                self.key,
+                token_rid,
+                index::traits::common::Amount::U256(amount),
+                Address::SubAddr(recipient),
+            );
             Ok(())
         }
     }
