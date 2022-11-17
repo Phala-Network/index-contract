@@ -30,14 +30,21 @@ pub struct RuntimeVersion<'a> {
 #[derive(Deserialize, Encode, Clone, Debug, PartialEq)]
 #[serde(bound(deserialize = "alloc::vec::Vec<(&'a str, u32)>: Deserialize<'de>"))]
 pub struct RuntimeVersionResult<'a> {
+    #[serde(alias = "specName")]
     pub(crate) spec_name: &'a str,
+    #[serde(alias = "implName")]
     pub(crate) impl_name: &'a str,
+    #[serde(alias = "authoringVersion")]
     pub(crate) authoring_version: u32,
+    #[serde(alias = "specVersion")]
     pub(crate) spec_version: u32,
+    #[serde(alias = "implVersion")]
     pub(crate) impl_version: u32,
     #[serde(borrow)]
     pub(crate) apis: Vec<(&'a str, u32)>,
+    #[serde(alias = "transactionVersion")]
     pub(crate) transaction_version: u32,
+    #[serde(alias = "stateVersion")]
     pub(crate) state_version: u32,
 }
 
