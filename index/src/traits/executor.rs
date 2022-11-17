@@ -3,9 +3,10 @@
 extern crate alloc;
 
 use super::common::Address;
+use super::common::Amount;
 use super::common::Error;
 use alloc::vec::Vec;
-use primitive_types::{H256, U256};
+use primitive_types::H256;
 use scale::{Decode, Encode};
 
 pub trait Executor {
@@ -20,7 +21,7 @@ pub trait Executor {
         &self,
         signer: [u8; 32], // FIXME
         token_rid: H256,
-        amount: U256,
+        amount: Amount,
         recipient: Address,
     ) -> core::result::Result<(), Error>;
 }

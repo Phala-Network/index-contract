@@ -8,7 +8,7 @@ use self::{ss58::get_ss58addr_version, transaction::MultiAddress};
 
 use sp_runtime::generic::Era;
 
-use super::traits::Error;
+use super::traits::common::Error;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -224,7 +224,7 @@ mod tests {
     use super::*;
     use crate::subrpc::ss58::get_ss58addr_version;
     use hex_literal::hex;
-    use scale::{Compact, Decode, Encode};
+    use scale::{Compact, Encode};
 
     /// Test data:
     ///
@@ -241,11 +241,9 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let version = get_ss58addr_version("kusama").unwrap();
         let public_key: [u8; 32] =
-            hex_literal::hex!("8266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314")
-                .into();
+            hex_literal::hex!("8266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314");
         let addr = public_key.to_ss58check_with_version(version.prefix());
-        let next_nonce = get_next_nonce("https://kusama-rpc.polkadot.io", &addr).unwrap();
-        assert!(next_nonce.next_nonce >= 0);
+        let _next_nonce = get_next_nonce("https://kusama-rpc.polkadot.io", &addr).unwrap();
     }
 
     #[test]
@@ -268,7 +266,7 @@ mod tests {
     #[test]
     fn can_correctly_encode() {
         let genesis_hash: [u8; 32] =
-            hex!("ccd5874826c67d06b979c08a14c006f938a2fef6cba3eec5f8ba38d98931209d").into();
+            hex!("ccd5874826c67d06b979c08a14c006f938a2fef6cba3eec5f8ba38d98931209d");
         let spec_version: u32 = 1;
         let transaction_version: u32 = 1;
         let era = Era::Immortal;
@@ -316,31 +314,22 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
         let signer: [u8; 32] =
-            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").into();
+            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
         let remark = "Greetings from unit tests!".to_string();
-        let call_data = transaction::UnsignedExtrinsic {
-            pallet_id: 0u8,
-            call_id: 1u8,
-            call: transaction::Remark {
-                remark: remark.clone(),
-            },
-        };
         let signed_tx = create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark);
         if signed_tx.is_err() {
             println!("failed to signed tx");
-            dbg!(signed_tx);
-            return ();
+            return;
         };
         let signed_tx = signed_tx.unwrap();
         let tx_id = send_transaction(rpc_node, &signed_tx);
         if tx_id.is_err() {
             println!("failed to send tx");
-            dbg!(tx_id);
-            return ();
+            return;
         }
         let tx_id = tx_id.unwrap();
         // https://khala.subscan.io/extrinsic/2676952-2
-        dbg!(hex::encode(&tx_id));
+        dbg!(hex::encode(tx_id));
     }
 
     /// Calls the xtransfer function
@@ -353,8 +342,8 @@ mod tests {
 
         let rpc_node = "https://rhala-api.phala.network/api";
         let signer: [u8; 32] =
-            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").into();
-        let recipient: Vec<u8> = hex!("8266b3183Ccc58f3D145D7a4894547bd55D77397").into();
+            hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
+        let recipient: Vec<u8> = hex!("8266b3183Ccc58f3D145D7a4894547bd55D77397").to_vec();
         let amount: u128 = 301_000_000_000_000;
 
         let multi_asset = MultiAsset {
@@ -376,7 +365,7 @@ mod tests {
         let call_data = transaction::UnsignedExtrinsic {
             pallet_id: 0x52u8,
             call_id: 0x0u8,
-            call: (multi_asset.clone(), dest.clone(), dest_weight.clone()),
+            call: (multi_asset.clone(), dest.clone(), dest_weight),
         };
 
         let mut bytes = Vec::new();
@@ -394,21 +383,19 @@ mod tests {
         );
         if signed_tx.is_err() {
             println!("failed to signed tx");
-            dbg!(signed_tx);
-            return ();
+            return;
         };
         let signed_tx = signed_tx.unwrap();
         let tx_id = send_transaction(rpc_node, &signed_tx);
         if tx_id.is_err() {
             println!("failed to send tx");
-            dbg!(tx_id);
-            return ();
+            return;
         }
         let tx_id = tx_id.unwrap();
         // example output:
         //  tx id: 95d107457ab905d8187b70fac146b68a9ce87c5a3c2e10f93cf0732ffe400d20
         //  block: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frhala-api.phala.network%2Fws#/explorer/query/0x0586620d60fd5ec5d92a75ca5a095ac8a0cb66bcb4d2ff147d93e532d4d67e95
         //     or: https://polkadot.js.org/apps/?rpc=wss%3A%2F%2Frhala-api.phala.network%2Fws#/explorer/query/0xa4188ef17ad0a170e5c0054191013e202cc2437f0462523e9a13989ef7829517
-        dbg!(hex::encode(&tx_id));
+        dbg!(hex::encode(tx_id));
     }
 }

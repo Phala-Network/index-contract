@@ -1,4 +1,4 @@
-use crate::traits::Error;
+use crate::traits::common::Error;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec;

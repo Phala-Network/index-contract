@@ -1,5 +1,5 @@
 use crate::traits::{
-    common::{Address, Error},
+    common::{Address, Amount, Error},
     executor::Executor,
 };
 use crate::transactors::ChainBridgeClient;
@@ -51,7 +51,6 @@ impl Executor for Evm2PhalaExecutor {
                         id: addr.into(),
                     }),
                 );
-                // TODO: these matches can be completeley replaced by generic Types
                 match amount {
                     Amount::U256(amount) => {
                         _ = self.bridge_contract.deposit(

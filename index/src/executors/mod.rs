@@ -2,13 +2,8 @@ pub mod bridge_executors;
 
 #[cfg(test)]
 mod tests {
-    use crate::traits::{Address, Error, Executor};
-    use crate::transactors::ChainBridgeClient;
-    use pink_web3::api::{Eth, Namespace};
-    use pink_web3::contract::Contract;
-    use pink_web3::keys::pink::KeyPair;
-    use pink_web3::transports::PinkHttp;
-    use primitive_types::{H256, U256};
+
+    use primitive_types::H256;
     use scale::Encode;
     use xcm::v0::NetworkId;
     use xcm::v1::{Junction, Junctions, MultiLocation};

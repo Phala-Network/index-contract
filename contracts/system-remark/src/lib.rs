@@ -7,13 +7,7 @@ use ink_lang as ink;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod system_remark {
     use alloc::{string::String, vec::Vec};
-    use index::prelude::*;
     use index::subrpc::{create_transaction, send_transaction};
-    use index::utils::ToArray;
-    use ink_storage::traits::{PackedLayout, SpreadLayout};
-    use pink_web3::keys::pink::KeyPair;
-    use pink_web3::signing::Key;
-    use primitive_types::{H160, H256, U256};
     use scale::{Decode, Encode};
 
     #[ink(storage)]
@@ -38,7 +32,7 @@ mod system_remark {
             use hex_literal::hex;
             let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
             let signer: [u8; 32] =
-                hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69").into();
+                hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
             let signed_tx =
                 create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark).unwrap();
             let tx_id = send_transaction(rpc_node, &signed_tx).unwrap();
@@ -79,7 +73,9 @@ mod system_remark {
                 .instantiate()
                 .expect("failed to deploy SemiBridge");
 
-            let tx_id = remarker.remark("Greetings from Phat Contract!".to_string()).unwrap();
+            let tx_id = remarker
+                .remark("Greetings from Phat Contract!".to_string())
+                .unwrap();
             dbg!(hex::encode(&tx_id));
         }
     }

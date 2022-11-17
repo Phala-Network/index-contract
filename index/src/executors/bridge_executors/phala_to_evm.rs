@@ -1,7 +1,8 @@
 use crate::{
-    prelude::{Address, Executor},
+    prelude::Executor,
     subrpc::{create_transaction, send_transaction},
-    traits::{Amount, Error},
+    traits::common::Error,
+    traits::common::{Address, Amount},
 };
 use alloc::string::{String, ToString};
 use xcm::v1::MultiAsset;
@@ -13,10 +14,10 @@ pub struct Phala2EvmExecutor {
 
 impl Executor for Phala2EvmExecutor {
     fn new(
-        _bridge_address: crate::traits::Address,
+        _bridge_address: Address,
         _abi_json: &[u8],
         rpc: &str,
-    ) -> core::result::Result<Self, crate::traits::Error>
+    ) -> core::result::Result<Self, Error>
     where
         Self: Sized,
     {
