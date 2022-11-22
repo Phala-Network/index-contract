@@ -2,7 +2,7 @@ extern crate alloc;
 
 use crate::types::{AssetInfo, ChainInfo, Error as RegistryError};
 use alloc::vec;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use index::ensure;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 
@@ -38,7 +38,7 @@ impl ChainStore {
         self.info.stable = Some(stable);
     }
 
-    pub fn set_endpoint(&mut self, endpoint: Vec<u8>) {
+    pub fn set_endpoint(&mut self, endpoint: String) {
         self.info.endpoint = endpoint;
     }
 
@@ -68,14 +68,14 @@ impl ChainStore {
         self.assets.clone()
     }
 
-    pub fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo> {
+    pub fn lookup_by_name(&self, name: String) -> Option<AssetInfo> {
         self.assets
             .iter()
             .position(|a| a.name == name)
             .map(|idx| self.assets[idx].clone())
     }
 
-    pub fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo> {
+    pub fn lookup_by_symbol(&self, symbol: String) -> Option<AssetInfo> {
         self.assets
             .iter()
             .position(|a| a.symbol == symbol)

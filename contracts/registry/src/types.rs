@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
 use scale::{Decode, Encode};
 use xcm::latest::{AssetId, MultiLocation};
@@ -60,8 +60,8 @@ pub trait BalanceFetcher {
 )]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AssetInfo {
-    pub name: Vec<u8>,
-    pub symbol: Vec<u8>,
+    pub name: String,
+    pub symbol: String,
     pub decimals: u8,
     /// Encoded asset MultiLocation
     pub location: Vec<u8>,
@@ -79,9 +79,9 @@ pub trait AssetsRegisry {
     /// Return all registerd assets
     fn registered_assets(&self) -> Vec<AssetInfo>;
 
-    fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_name(&self, name: String) -> Option<AssetInfo>;
 
-    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_symbol(&self, symbol: String) -> Option<AssetInfo>;
 
     fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo>;
 }
@@ -96,11 +96,11 @@ pub enum ChainType {
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct ChainInfo {
-    pub name: Vec<u8>,
+    pub name: String,
     pub chain_type: ChainType,
     pub native: Option<AssetInfo>,
     pub stable: Option<AssetInfo>,
-    pub endpoint: Vec<u8>,
+    pub endpoint: String,
     pub network: Option<u8>,
 }
 
@@ -112,7 +112,7 @@ pub trait ChainInspector {
 pub trait ChainMutate {
     fn set_native(&mut self, native: AssetInfo);
     fn set_stable(&mut self, stable: AssetInfo);
-    fn set_endpoint(&mut self, endpoint: Vec<u8>);
+    fn set_endpoint(&mut self, endpoint: String);
 }
 
 /// Asset informatios should be contained in the input graph
@@ -120,13 +120,13 @@ pub trait ChainMutate {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
-    chain: Vec<u8>,
+    chain: String,
     /// Encoded asset MultiLocation
     location: Vec<u8>,
     /// Asset name
-    name: Vec<u8>,
+    name: String,
     /// Symbol of asset
-    symbol: Vec<u8>,
+    symbol: String,
     /// Decimal of asset
     decimals: u8,
 }
@@ -152,9 +152,9 @@ pub struct TradingPairGraph {
     /// Capability of trading pool, represented by USD
     cap: u128,
     /// Dex name that trading pair belong to
-    dex: Vec<u8>,
+    dex: String,
     /// Chain name that trading pair belong to
-    chain: Vec<u8>,
+    chain: String,
 }
 
 /// Bridge informatios should be contained in the input graph
@@ -162,9 +162,9 @@ pub struct TradingPairGraph {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct BridgeGraph {
     /// Name of source chain
-    chain0: Vec<u8>,
+    chain0: String,
     /// Name of dest chain
-    chain1: Vec<u8>,
+    chain1: String,
     /// Name list of supported assets
     assets: Vec<Vec<u8>>,
 }

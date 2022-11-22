@@ -27,9 +27,9 @@ mod index_registry {
     pub struct Registry {
         pub admin: AccountId,
 
-        pub supported_chains: Vec<Vec<u8>>,
+        pub supported_chains: Vec<String>,
         /// The registered chains. [chain_name, entity]
-        pub chains: Mapping<Vec<u8>, Chain>,
+        pub chains: Mapping<String, Chain>,
 
         pub supported_bridges: Vec<String>,
         pub bridges: Mapping<String, Bridge>,
@@ -52,53 +52,59 @@ mod index_registry {
     }
 
     /// Event emitted when chain unregistered.
+    /// args: [chain_name]
     #[ink(event)]
     pub struct ChainUnregistered {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
     }
 
     /// Event emitted when native asset set.
+    /// args: [chain_name, asset_info]
     #[ink(event)]
     pub struct ChainNativeSet {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
         #[ink(topic)]
         asset: AssetInfo,
     }
 
     /// Event emitted when stable asset set.
+    /// args: [chain_name, asset_info]
     #[ink(event)]
     pub struct ChainStableSet {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
         #[ink(topic)]
         asset: AssetInfo,
     }
 
     /// Event emitted when RPC endpoint asset set.
+    /// args: [chain_name, endpoint]
     #[ink(event)]
     pub struct ChainEndpointSet {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
         #[ink(topic)]
-        endpoint: Vec<u8>,
+        endpoint: String,
     }
 
     /// Event emitted when asset registered.
+    /// args: [chain_name, asset_info]
     #[ink(event)]
     pub struct AssetRegistered {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
         #[ink(topic)]
         asset: AssetInfo,
     }
 
     /// Event emitted when asset unregistered.
+    /// args: [chain_name, asset_info]
     #[ink(event)]
     pub struct AssetUnregistered {
         #[ink(topic)]
-        chain: Vec<u8>,
+        chain: String,
         #[ink(topic)]
         asset: AssetInfo,
     }
@@ -201,7 +207,7 @@ mod index_registry {
         /// Unregister a chain
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn unregister_chain(&mut self, name: Vec<u8>) -> Result<()> {
+        pub fn unregister_chain(&mut self, name: String) -> Result<()> {
             self.esure_admin()?;
 
             ensure!(self.chains.get(&name).is_some(), Error::ChainNotFound);
@@ -213,7 +219,7 @@ mod index_registry {
         /// Register an asset for a chain
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn register_asset(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
+        pub fn register_asset(&mut self, chain: String, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
@@ -227,7 +233,7 @@ mod index_registry {
         /// Unregister an asset from a chain
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn unregister_asset(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
+        pub fn unregister_asset(&mut self, chain: String, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
@@ -241,7 +247,7 @@ mod index_registry {
         /// Set native asset
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn set_chain_native(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
+        pub fn set_chain_native(&mut self, chain: String, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
@@ -255,7 +261,7 @@ mod index_registry {
         /// Set native asset
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn set_chain_stable(&mut self, chain: Vec<u8>, asset: AssetInfo) -> Result<()> {
+        pub fn set_chain_stable(&mut self, chain: String, asset: AssetInfo) -> Result<()> {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
@@ -269,7 +275,7 @@ mod index_registry {
         /// Set RPC endpoint
         /// Authorized method, only the contract owner can call
         #[ink(message)]
-        pub fn set_chain_endpoint(&mut self, chain: Vec<u8>, endpoint: Vec<u8>) -> Result<()> {
+        pub fn set_chain_endpoint(&mut self, chain: String, endpoint: String) -> Result<()> {
             self.esure_admin()?;
 
             let mut chain_entity = self.chains.get(&chain).ok_or(Error::ChainNotFound)?;
@@ -411,7 +417,7 @@ mod index_registry {
         }
 
         /// Return true if asset has been registered on the specific chain
-        fn asset_registered(&self, chain_name: &Vec<u8>, asset: &AssetInfo) -> bool {
+        fn asset_registered(&self, chain_name: &String, asset: &AssetInfo) -> bool {
             if let Some(chain_entity) = self.chains.get(chain_name) {
                 chain_entity
                     .lookup_by_location(asset.location.clone())
@@ -485,19 +491,19 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let evmchain_info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             let subchain_info = ChainInfo {
-                name: b"Phala".to_vec(),
+                name: "Phala".to_string(),
                 chain_type: ChainType::Sub,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(evmchain_info.clone()), Ok(()));
@@ -521,11 +527,11 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
@@ -542,11 +548,11 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
@@ -567,18 +573,18 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
 
             let weth = AssetInfo {
-                name: b"Wrap Ether".to_vec(),
-                symbol: b"WETH".to_vec(),
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
                 decimals: 18,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -592,7 +598,7 @@ mod index_registry {
                 }
                 .into(),
                 ChainNativeSet {
-                    chain: b"Ethereum".to_vec(),
+                    chain: "Ethereum".to_string(),
                     asset: weth.clone(),
                 }
                 .into(),
@@ -608,17 +614,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let weth = AssetInfo {
-                name: b"Wrap Ether".to_vec(),
-                symbol: b"WETH".to_vec(),
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
                 decimals: 18,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -636,18 +642,18 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
 
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -661,7 +667,7 @@ mod index_registry {
                 }
                 .into(),
                 ChainStableSet {
-                    chain: b"Ethereum".to_vec(),
+                    chain: "Ethereum".to_string(),
                     asset: usdc.clone(),
                 }
                 .into(),
@@ -677,17 +683,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -705,16 +711,16 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             assert_eq!(
-                registry.set_chain_endpoint(info.name.clone(), b"new endpoint".to_vec()),
+                registry.set_chain_endpoint(info.name.clone(), "new endpoint".to_string()),
                 Ok(())
             );
 
@@ -724,13 +730,13 @@ mod index_registry {
                 }
                 .into(),
                 ChainEndpointSet {
-                    chain: b"Ethereum".to_vec(),
-                    endpoint: b"new endpoint".to_vec(),
+                    chain: "Ethereum".to_string(),
+                    endpoint: "new endpoint".to_string(),
                 }
                 .into(),
             ]);
             let chain = registry.chains.get(info.name.clone()).unwrap();
-            assert_eq!(chain.get_info().endpoint, b"new endpoint".to_vec());
+            assert_eq!(chain.get_info().endpoint, "new endpoint".to_string());
         }
 
         #[ink::test]
@@ -740,17 +746,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             set_caller(accounts.bob);
             assert_eq!(
-                registry.set_chain_endpoint(info.name, b"new endpoint".to_vec()),
+                registry.set_chain_endpoint(info.name, "new endpoint".to_string()),
                 Err(Error::BadOrigin)
             );
         }
@@ -762,23 +768,23 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
 
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
             assert_eq!(
-                registry.register_asset(b"Ethereum".to_vec(), usdc.clone()),
+                registry.register_asset("Ethereum".to_string(), usdc.clone()),
                 Ok(())
             );
             assert_events(vec![
@@ -787,7 +793,7 @@ mod index_registry {
                 }
                 .into(),
                 AssetRegistered {
-                    chain: b"Ethereum".to_vec(),
+                    chain: "Ethereum".to_string(),
                     asset: usdc,
                 }
                 .into(),
@@ -801,17 +807,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -832,19 +838,19 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             set_caller(accounts.bob);
 
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -861,17 +867,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -890,12 +896,12 @@ mod index_registry {
                 }
                 .into(),
                 AssetRegistered {
-                    chain: b"Ethereum".to_vec(),
+                    chain: "Ethereum".to_string(),
                     asset: usdc.clone(),
                 }
                 .into(),
                 AssetUnregistered {
-                    chain: b"Ethereum".to_vec(),
+                    chain: "Ethereum".to_string(),
                     asset: usdc,
                 }
                 .into(),
@@ -909,17 +915,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -950,17 +956,17 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
@@ -984,23 +990,23 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
             let wrong_usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"Wrong location on Ethereum".to_vec(),
             };
@@ -1018,23 +1024,24 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b".to_vec(),
+                endpoint: "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
+                    .to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
             let usdc = AssetInfo {
-                name: b"USD Coin".to_vec(),
-                symbol: b"USDC".to_vec(),
+                name: "USD Coin".to_string(),
+                symbol: "USDC".to_string(),
                 decimals: 6,
                 location: b"+Somewhere on Ethereum".to_vec(),
             };
             let weth = AssetInfo {
-                name: b"Wrap Ether".to_vec(),
-                symbol: b"WETH".to_vec(),
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
                 decimals: 18,
                 location: b"-Somewhere on Ethereum".to_vec(),
             };
@@ -1049,12 +1056,12 @@ mod index_registry {
             let chain = registry.chains.get(&info.name).unwrap();
             assert_eq!(chain.registered_assets(), vec![usdc.clone(), weth.clone()]);
             assert_eq!(chain.lookup_by_name(weth.name.clone()), Some(weth.clone()));
-            assert_eq!(chain.lookup_by_name(b"Wrong Name".to_vec()), None);
+            assert_eq!(chain.lookup_by_name("Wrong Name".to_string()), None);
             assert_eq!(
                 chain.lookup_by_symbol(weth.symbol.clone()),
                 Some(weth.clone())
             );
-            assert_eq!(chain.lookup_by_symbol(b"Wrong Symbol".to_vec()), None);
+            assert_eq!(chain.lookup_by_symbol("Wrong Symbol".to_string()), None);
             assert_eq!(
                 chain.lookup_by_location(weth.location.clone()),
                 Some(weth.clone())
@@ -1084,11 +1091,12 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let info = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b".to_vec(),
+                endpoint: "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
+                    .to_string(),
                 network: None,
             };
             assert_eq!(registry.register_chain(info.clone()), Ok(()));
@@ -1122,8 +1130,8 @@ mod index_registry {
                 ),
             );
             let pha = AssetInfo {
-                name: b"Phala Token".to_vec(),
-                symbol: b"PHA".to_vec(),
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
                 decimals: 18,
                 location: pha_location.clone().encode(),
             };
@@ -1149,30 +1157,30 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let ethereum = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             let phala = ChainInfo {
-                name: b"Phala".to_vec(),
+                name: "Phala".to_string(),
                 chain_type: ChainType::Sub,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             let pha_on_ethereum = AssetInfo {
-                name: b"Phala Token".to_vec(),
-                symbol: b"PHA".to_vec(),
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
                 decimals: 18,
                 location: b"Somewhere on Ethereum".to_vec(),
             };
             let pha_on_phala = AssetInfo {
-                name: b"Phala Token".to_vec(),
-                symbol: b"PHA".to_vec(),
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
                 decimals: 12,
                 location: b"Somewhere on Phala".to_vec(),
             };
@@ -1258,22 +1266,22 @@ mod index_registry {
             let mut registry = Registry::new();
 
             let ethereum = ChainInfo {
-                name: b"Ethereum".to_vec(),
+                name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
                 native: None,
                 stable: None,
-                endpoint: b"endpoint".to_vec(),
+                endpoint: "endpoint".to_string(),
                 network: None,
             };
             let pha = AssetInfo {
-                name: b"Phala Token".to_vec(),
-                symbol: b"PHA".to_vec(),
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
                 decimals: 18,
                 location: b"Somewhere on Ethereum1".to_vec(),
             };
             let weth = AssetInfo {
-                name: b"Wrap Ether".to_vec(),
-                symbol: b"WETH".to_vec(),
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
                 decimals: 18,
                 location: b"Somewhere on Ethereum2".to_vec(),
             };
