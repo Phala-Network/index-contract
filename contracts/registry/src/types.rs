@@ -1,9 +1,27 @@
 extern crate alloc;
 
-use super::common::Error;
 use alloc::vec::Vec;
 use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
+use scale::{Decode, Encode};
 use xcm::latest::{AssetId, MultiLocation};
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum Error {
+    BadAbi,
+    BadOrigin,
+    AssetAlreadyRegistered,
+    AssetNotFound,
+    BridgeAlreadyRegistered,
+    BridgeNotFound,
+    ChainAlreadyRegistered,
+    ChainNotFound,
+    DexAlreadyRegistered,
+    DexNotFound,
+    ExtractLocationFailed,
+    ConstructContractFailed,
+    Unimplemented,
+}
 
 /// Query the account balance of an asset under a multichain scenario is a mess,
 /// not only because different chains have different account systems but also have

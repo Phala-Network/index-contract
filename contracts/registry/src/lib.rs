@@ -2,15 +2,22 @@
 extern crate alloc;
 use ink_lang as ink;
 
+mod bridge;
+mod chain;
+mod chain_store;
+mod dex;
+mod types;
+
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_registry {
+    use crate::bridge::{AssetPair, Bridge};
+    use crate::chain::Chain;
+    use crate::dex::{Dex, DexPair};
+    use crate::types::Error;
+    use crate::types::*;
     use alloc::{string::String, vec::Vec};
     use index::ensure;
-    use index::prelude::*;
-    use index::registry::bridge::{AssetPair, Bridge};
-    use index::registry::chain::Chain;
-    use index::registry::dex::{Dex, DexPair};
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
@@ -427,8 +434,8 @@ mod index_registry {
     #[cfg(test)]
     mod test {
         use super::*;
+        use crate::chain::EvmBalance;
         use dotenv::dotenv;
-        use index::registry::chain::EvmBalance;
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
         use pink_extension::PinkEnvironment;

@@ -1,12 +1,9 @@
 extern crate alloc;
 
-use crate::ensure;
-use crate::traits::{
-    common::Error as RegistryError,
-    registry::{AssetInfo, ChainInfo},
-};
+use crate::types::{AssetInfo, ChainInfo, Error as RegistryError};
 use alloc::vec;
 use alloc::{string::String, vec::Vec};
+use index::ensure;
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]

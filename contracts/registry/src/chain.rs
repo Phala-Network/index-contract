@@ -1,9 +1,9 @@
 extern crate alloc;
 
-use super::chain_store::ChainStore;
-use crate::traits::{
-    common::Error as RegistryError,
-    registry::{AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate},
+use crate::chain_store::ChainStore;
+use crate::types::{
+    AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate,
+    Error as RegistryError,
 };
 use alloc::{string::String, vec::Vec};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
@@ -82,7 +82,7 @@ pub struct EvmBalance {
 }
 
 impl EvmBalance {
-    pub fn new(endpoint: Vec<u8>) -> Self {
+    pub fn _new(endpoint: Vec<u8>) -> Self {
         EvmBalance { endpoint }
     }
 
@@ -157,7 +157,7 @@ impl BalanceFetcher for EvmBalance {
             transport,
             // PHA address
             token_address,
-            include_bytes!("./res/erc20-abi.json"),
+            include_bytes!("../../../index/src/abis/erc20-abi.json"),
         )
         .map_err(|_| RegistryError::ConstructContractFailed)?;
         // TODO.wf handle potential failure smoothly instead of unwrap directly
@@ -176,7 +176,7 @@ pub struct SubAssetsBalance {
 }
 
 impl SubAssetsBalance {
-    pub fn new(_endpoint: Vec<u8>) -> Self {
+    pub fn _new(_endpoint: Vec<u8>) -> Self {
         SubAssetsBalance { _endpoint }
     }
 }
@@ -200,7 +200,7 @@ pub struct SubCurrencyBalance {
 }
 
 impl SubCurrencyBalance {
-    pub fn new(_endpoint: Vec<u8>) -> Self {
+    pub fn _new(_endpoint: Vec<u8>) -> Self {
         SubCurrencyBalance { _endpoint }
     }
 }
