@@ -301,7 +301,7 @@ mod index_registry {
             ensure!(self.bridges.get(&name).is_some(), Error::BridgeNotFound);
             self.bridges.remove(&name);
             let mut supported_bridges = self.supported_bridges.clone();
-            supported_bridges.retain(|x| x == &name);
+            supported_bridges.retain(|x| x != &name);
             self.supported_bridges = supported_bridges;
             Self::env().emit_event(BridgeUnregistered { name });
             Ok(())
@@ -368,7 +368,7 @@ mod index_registry {
             ensure!(self.dexs.get(&name).is_some(), Error::DexNotFound);
             self.dexs.remove(&name);
             let mut supported_dexs = self.supported_dexs.clone();
-            supported_dexs.retain(|x| x == &name);
+            supported_dexs.retain(|x| x != &name);
             self.supported_dexs = supported_dexs;
             Self::env().emit_event(DexUnregistered { name });
             Ok(())
@@ -1132,6 +1132,199 @@ mod index_registry {
                 EvmBalance::new(chain.get_info().endpoint)
                     .balance_of(AssetId::Concrete(pha_location), account_location),
                 Ok(35_000_000_000_000_000u128)
+            );
+        }
+
+        #[ink::test]
+        fn bridge_registry_should_works() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut registry = Registry::new();
+
+            let ethereum = ChainInfo {
+                name: b"Ethereum".to_vec(),
+                chain_type: ChainType::Evm,
+                native: None,
+                stable: None,
+                endpoint: b"endpoint".to_vec(),
+                network: None,
+            };
+            let phala = ChainInfo {
+                name: b"Phala".to_vec(),
+                chain_type: ChainType::Sub,
+                native: None,
+                stable: None,
+                endpoint: b"endpoint".to_vec(),
+                network: None,
+            };
+            let pha_on_ethereum = AssetInfo {
+                name: b"Phala Token".to_vec(),
+                symbol: b"PHA".to_vec(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            let pha_on_phala = AssetInfo {
+                name: b"Phala Token".to_vec(),
+                symbol: b"PHA".to_vec(),
+                decimals: 12,
+                location: b"Somewhere on Phala".to_vec(),
+            };
+            let ethereum2phala_pha_pair = AssetPair {
+                asset0: pha_on_ethereum.clone(),
+                asset1: pha_on_phala.clone(),
+            };
+
+            assert_eq!(registry.register_chain(ethereum.clone()), Ok(()));
+            assert_eq!(
+                registry.register_asset(ethereum.name.clone(), pha_on_ethereum),
+                Ok(())
+            );
+            assert_eq!(registry.register_chain(phala.clone()), Ok(()));
+            assert_eq!(
+                registry.register_asset(phala.name.clone(), pha_on_phala),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_bridge(
+                    "Bridge_Phala2Ethereum".to_string(),
+                    phala.clone(),
+                    ethereum.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_bridge("Bridge_Ethereum2Phala".to_string(), ethereum, phala),
+                Ok(())
+            );
+            assert_eq!(
+                registry.supported_bridges,
+                vec![
+                    "Bridge_Phala2Ethereum".to_string(),
+                    "Bridge_Ethereum2Phala".to_string()
+                ]
+            );
+            assert_eq!(
+                registry.unregister_bridge("Bridge_Phala2Ethereum".to_string()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.supported_bridges,
+                vec!["Bridge_Ethereum2Phala".to_string()]
+            );
+
+            assert_eq!(
+                registry.add_bridge_asset(
+                    "Bridge_Ethereum2Phala".to_string(),
+                    ethereum2phala_pha_pair.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry
+                    .bridges
+                    .get(&"Bridge_Ethereum2Phala".to_string())
+                    .unwrap()
+                    .assets,
+                vec![ethereum2phala_pha_pair.clone()]
+            );
+            assert_eq!(
+                registry.remove_bridge_asset(
+                    "Bridge_Ethereum2Phala".to_string(),
+                    ethereum2phala_pha_pair
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry
+                    .bridges
+                    .get(&"Bridge_Ethereum2Phala".to_string())
+                    .unwrap()
+                    .assets,
+                vec![]
+            );
+        }
+
+        #[ink::test]
+        fn dex_registry_should_works() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut registry = Registry::new();
+
+            let ethereum = ChainInfo {
+                name: b"Ethereum".to_vec(),
+                chain_type: ChainType::Evm,
+                native: None,
+                stable: None,
+                endpoint: b"endpoint".to_vec(),
+                network: None,
+            };
+            let pha = AssetInfo {
+                name: b"Phala Token".to_vec(),
+                symbol: b"PHA".to_vec(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum1".to_vec(),
+            };
+            let weth = AssetInfo {
+                name: b"Wrap Ether".to_vec(),
+                symbol: b"WETH".to_vec(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum2".to_vec(),
+            };
+
+            let pha_weth_pair = DexPair {
+                id: b"pair_address".to_vec(),
+                asset0: pha.clone(),
+                asset1: weth.clone(),
+                swap_fee: Some(0),
+                dev_fee: Some(0),
+            };
+
+            assert_eq!(registry.register_chain(ethereum.clone()), Ok(()));
+            assert_eq!(
+                registry.register_asset(ethereum.name.clone(), pha.clone()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_asset(ethereum.name.clone(), weth.clone()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_dex(
+                    "UniswapV2".to_string(),
+                    b"UniswapV2 factory".to_vec(),
+                    ethereum.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_dex(
+                    "SushiSwap".to_string(),
+                    b"SushiSwap factory".to_vec(),
+                    ethereum.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.supported_dexs,
+                vec!["UniswapV2".to_string(), "SushiSwap".to_string()]
+            );
+            assert_eq!(registry.unregister_dex("SushiSwap".to_string()), Ok(()));
+            assert_eq!(registry.supported_dexs, vec!["UniswapV2".to_string()]);
+            assert_eq!(
+                registry.add_dex_pair("UniswapV2".to_string(), pha_weth_pair.clone()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.dexs.get(&"UniswapV2".to_string()).unwrap().pairs,
+                vec![pha_weth_pair.clone()]
+            );
+            assert_eq!(
+                registry.remove_dex_pair("UniswapV2".to_string(), pha_weth_pair),
+                Ok(())
+            );
+            assert_eq!(
+                registry.dexs.get(&"UniswapV2".to_string()).unwrap().pairs,
+                vec![]
             );
         }
     }
