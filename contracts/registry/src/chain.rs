@@ -81,7 +81,7 @@ pub struct EvmBalance {
     endpoint: String,
 }
 
-#[warn(dead_code)]
+#[allow(dead_code)]
 impl EvmBalance {
     pub fn new(endpoint: String) -> Self {
         EvmBalance { endpoint }
@@ -171,7 +171,7 @@ impl BalanceFetcher for EvmBalance {
 
 // BalanceFetcher implementation for chain use pallet-assets as assets registry.
 // See https://github.com/paritytech/substrate/tree/master/frame/assets
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub struct SubAssetsBalance {
     _endpoint: String,
 }
@@ -195,7 +195,7 @@ impl BalanceFetcher for SubAssetsBalance {
 
 // BalanceFetcher implementation for chain use currency as assets registry.
 // See https://github.com/open-web3-stack/open-runtime-module-library/tree/master/currencies
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub struct SubCurrencyBalance {
     _endpoint: String,
 }
