@@ -5,10 +5,12 @@ use ink_lang as ink;
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_registry {
-    use alloc::vec::Vec;
+    use alloc::{string::String, vec::Vec};
     use index::ensure;
     use index::prelude::*;
+    use index::registry::bridge::{AssetPair, Bridge};
     use index::registry::chain::Chain;
+    use index::registry::dex::{Dex, DexPair};
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
@@ -17,8 +19,16 @@ mod index_registry {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Registry {
         pub admin: AccountId,
+
+        pub supported_chains: Vec<Vec<u8>>,
         /// The registered chains. [chain_name, entity]
         pub chains: Mapping<Vec<u8>, Chain>,
+
+        pub supported_bridges: Vec<String>,
+        pub bridges: Mapping<String, Bridge>,
+
+        pub supported_dexs: Vec<String>,
+        pub dexs: Mapping<String, Dex>,
     }
 
     impl Default for Registry {
@@ -84,6 +94,76 @@ mod index_registry {
         chain: Vec<u8>,
         #[ink(topic)]
         asset: AssetInfo,
+    }
+
+    /// Event emitted when bridge registered.
+    /// args: [bridge_name]
+    #[ink(event)]
+    pub struct BridgeRegistered {
+        #[ink(topic)]
+        name: String,
+    }
+
+    /// Event emitted when bridge unregistered.
+    /// args: [bridge_name]
+    #[ink(event)]
+    pub struct BridgeUnregistered {
+        #[ink(topic)]
+        name: String,
+    }
+
+    /// Event emitted when bridge asset registered.
+    /// args: [bridge_name, asset_pair]
+    #[ink(event)]
+    pub struct BridgeAssetRegistered {
+        #[ink(topic)]
+        name: String,
+        pair: AssetPair,
+    }
+
+    /// Event emitted when bridge asset unregistered.
+    /// args: [bridge_name, asset_pair]
+    #[ink(event)]
+    pub struct BridgeAssetUnregistered {
+        #[ink(topic)]
+        name: String,
+        pair: AssetPair,
+    }
+
+    /// Event emitted when bridge registered.
+    /// args: [dex_id, dex_name]
+    #[ink(event)]
+    pub struct DexRegistered {
+        #[ink(topic)]
+        id: Vec<u8>,
+        #[ink(topic)]
+        name: String,
+    }
+
+    /// Event emitted when bridge unregistered.
+    /// args: [dex_id]
+    #[ink(event)]
+    pub struct DexUnregistered {
+        #[ink(topic)]
+        name: String,
+    }
+
+    /// Event emitted when dex trading pair registered.
+    /// args: [dex_id, trading_pair]
+    #[ink(event)]
+    pub struct DexPairRegistered {
+        #[ink(topic)]
+        id: Vec<u8>,
+        pair: DexPair,
+    }
+
+    /// Event emitted when dex trading pair unregistered.
+    /// args: [dex_id, trading_pair]
+    #[ink(event)]
+    pub struct DexPairUnregistered {
+        #[ink(topic)]
+        id: Vec<u8>,
+        pair: DexPair,
     }
 
     pub type Result<T> = core::result::Result<T, Error>;
@@ -191,6 +271,147 @@ mod index_registry {
             self.chains.insert(&chain, &chain_entity);
             Self::env().emit_event(ChainEndpointSet { chain, endpoint });
             Ok(())
+        }
+
+        #[ink(message)]
+        pub fn register_bridge(
+            &mut self,
+            name: String,
+            chain0: ChainInfo,
+            chain1: ChainInfo,
+        ) -> Result<()> {
+            self.esure_admin()?;
+            ensure!(
+                !self.bridges.contains(&name),
+                Error::BridgeAlreadyRegistered
+            );
+            self.bridges
+                .insert(&name, &Bridge::new(name.clone(), chain0, chain1));
+            let mut supported_bridges = self.supported_bridges.clone();
+            supported_bridges.push(name.clone());
+            self.supported_bridges = supported_bridges;
+            Self::env().emit_event(BridgeRegistered { name });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn unregister_bridge(&mut self, name: String) -> Result<()> {
+            self.esure_admin()?;
+
+            ensure!(self.bridges.get(&name).is_some(), Error::BridgeNotFound);
+            self.bridges.remove(&name);
+            let mut supported_bridges = self.supported_bridges.clone();
+            supported_bridges.retain(|x| x == &name);
+            self.supported_bridges = supported_bridges;
+            Self::env().emit_event(BridgeUnregistered { name });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn add_bridge_asset(&mut self, bridge_name: String, pair: AssetPair) -> Result<()> {
+            self.esure_admin()?;
+
+            let mut bridge = self
+                .bridges
+                .get(&bridge_name)
+                .ok_or(Error::BridgeNotFound)?;
+            ensure!(
+                self.asset_registered(&bridge.chain0.name, &pair.asset0)
+                    && self.asset_registered(&bridge.chain1.name, &pair.asset1),
+                Error::AssetNotFound
+            );
+            bridge.register(pair.clone())?;
+            // Insert back
+            self.bridges.insert(&bridge_name, &bridge);
+            Self::env().emit_event(BridgeAssetRegistered {
+                name: bridge_name,
+                pair,
+            });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn remove_bridge_asset(&mut self, bridge_name: String, pair: AssetPair) -> Result<()> {
+            self.esure_admin()?;
+
+            let mut bridge = self
+                .bridges
+                .get(&bridge_name)
+                .ok_or(Error::BridgeNotFound)?;
+            bridge.unregister(pair.clone())?;
+            // Insert back
+            self.bridges.insert(&bridge_name, &bridge);
+            Self::env().emit_event(BridgeAssetUnregistered {
+                name: bridge_name,
+                pair,
+            });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn register_dex(&mut self, name: String, id: Vec<u8>, chain: ChainInfo) -> Result<()> {
+            self.esure_admin()?;
+            ensure!(!self.dexs.contains(&name), Error::DexAlreadyRegistered);
+            self.dexs
+                .insert(&name, &Dex::new(name.clone(), id.clone(), chain));
+            let mut supported_dexs = self.supported_dexs.clone();
+            supported_dexs.push(name.clone());
+            self.supported_dexs = supported_dexs;
+            Self::env().emit_event(DexRegistered { id, name });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn unregister_dex(&mut self, name: String) -> Result<()> {
+            self.esure_admin()?;
+
+            ensure!(self.dexs.get(&name).is_some(), Error::DexNotFound);
+            self.dexs.remove(&name);
+            let mut supported_dexs = self.supported_dexs.clone();
+            supported_dexs.retain(|x| x == &name);
+            self.supported_dexs = supported_dexs;
+            Self::env().emit_event(DexUnregistered { name });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn add_dex_pair(&mut self, dex_name: String, pair: DexPair) -> Result<()> {
+            self.esure_admin()?;
+
+            let mut dex = self.dexs.get(&dex_name).ok_or(Error::DexNotFound)?;
+            ensure!(
+                self.asset_registered(&dex.chain.name, &pair.asset0)
+                    && self.asset_registered(&dex.chain.name, &pair.asset1),
+                Error::AssetNotFound
+            );
+            dex.register(pair.clone())?;
+            // Insert back
+            self.dexs.insert(&dex_name, &dex);
+            Self::env().emit_event(DexPairRegistered { id: dex.id, pair });
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn remove_dex_pair(&mut self, dex_name: String, pair: DexPair) -> Result<()> {
+            self.esure_admin()?;
+
+            let mut dex = self.dexs.get(&dex_name).ok_or(Error::DexNotFound)?;
+            dex.unregister(pair.clone())?;
+            // Insert back
+            self.dexs.insert(&dex_name, &dex);
+            Self::env().emit_event(DexPairUnregistered { id: dex.id, pair });
+            Ok(())
+        }
+
+        /// Return true if asset has been registered on the specific chain
+        fn asset_registered(&self, chain_name: &Vec<u8>, asset: &AssetInfo) -> bool {
+            if let Some(chain_entity) = self.chains.get(chain_name) {
+                chain_entity
+                    .lookup_by_location(asset.location.clone())
+                    .is_some()
+            } else {
+                false
+            }
         }
 
         /// Returns error if caller is not admin
