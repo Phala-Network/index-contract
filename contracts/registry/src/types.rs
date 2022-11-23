@@ -120,15 +120,15 @@ pub trait ChainMutate {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
-    chain: String,
+    pub chain: String,
     /// Encoded asset MultiLocation
-    location: Vec<u8>,
+    pub location: Vec<u8>,
     /// Asset name
-    name: String,
+    pub name: String,
     /// Symbol of asset
-    symbol: String,
+    pub symbol: String,
     /// Decimal of asset
-    decimals: u8,
+    pub decimals: u8,
 }
 
 /// Trading pair informatios should be contained in the input graph
@@ -136,37 +136,27 @@ pub struct AssetGraph {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct TradingPairGraph {
     /// Indentification of the trading pair on dex
-    id: Vec<u8>,
-    /// Asset name of token0
-    token0: Vec<u8>,
-    /// Asset name of token1
-    token1: Vec<u8>,
-    /// Encoded asset0 MultiLocation
-    location0: Vec<u8>,
-    /// Encoded asset1 MultiLocation
-    location1: Vec<u8>,
-    /// Balance of asset0 in pool
-    reserve0: u128,
-    /// Balance of asset1 in pool
-    reserve1: u128,
-    /// Capability of trading pool, represented by USD
-    cap: u128,
+    pub id: Vec<u8>,
+    /// Name of asset0
+    pub asset0: String,
+    /// Name of asset1
+    pub asset1: String,
     /// Dex name that trading pair belong to
-    dex: String,
+    pub dex: String,
     /// Chain name that trading pair belong to
-    chain: String,
+    pub chain: String,
 }
 
-/// Bridge informatios should be contained in the input graph
+/// Bridge informations should be contained in the input graph
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct BridgeGraph {
     /// Name of source chain
-    chain0: String,
+    pub chain0: String,
     /// Name of dest chain
-    chain1: String,
-    /// Name list of supported assets
-    assets: Vec<Vec<u8>>,
+    pub chain1: String,
+    /// Asset name of bridge pair.
+    pub assets: Vec<(String, String)>,
 }
 
 /// Definition of the input graph
@@ -174,9 +164,9 @@ pub struct BridgeGraph {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct Graph {
     /// All registered assets
-    assets: Vec<AssetGraph>,
+    pub assets: Vec<AssetGraph>,
     /// All registered trading pairs
-    pairs: Vec<TradingPairGraph>,
+    pub pairs: Vec<TradingPairGraph>,
     /// All supported bridges
-    bridges: Vec<BridgeGraph>,
+    pub bridges: Vec<BridgeGraph>,
 }

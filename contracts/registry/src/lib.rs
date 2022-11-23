@@ -16,7 +16,7 @@ mod index_registry {
     use crate::dex::{Dex, DexPair};
     use crate::types::Error;
     use crate::types::*;
-    use alloc::{string::String, vec::Vec};
+    use alloc::{string::String, vec, vec::Vec};
     use index::ensure;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
@@ -200,6 +200,9 @@ mod index_registry {
                 Error::ChainAlreadyRegistered
             );
             self.chains.insert(&info.name, &Chain::new(info.clone()));
+            let mut supported_chains = self.supported_chains.clone();
+            supported_chains.push(info.name.clone());
+            self.supported_chains = supported_chains;
             Self::env().emit_event(ChainRegistered { chain: info });
             Ok(())
         }
@@ -212,6 +215,9 @@ mod index_registry {
 
             ensure!(self.chains.get(&name).is_some(), Error::ChainNotFound);
             self.chains.remove(&name);
+            let mut supported_chains = self.supported_chains.clone();
+            supported_chains.retain(|x| x != &name);
+            self.supported_chains = supported_chains;
             Self::env().emit_event(ChainUnregistered { chain: name });
             Ok(())
         }
@@ -414,6 +420,63 @@ mod index_registry {
             self.dexs.insert(&dex_name, &dex);
             Self::env().emit_event(DexPairUnregistered { id: dex.id, pair });
             Ok(())
+        }
+
+        #[ink(message)]
+        pub fn get_graph(&self) -> Result<Graph> {
+            let mut assets: Vec<AssetGraph> = vec![];
+            let mut pairs: Vec<TradingPairGraph> = vec![];
+            let mut bridges: Vec<BridgeGraph> = vec![];
+
+            for chain in self.supported_chains.iter() {
+                let registered_assets = self.chains.get(&chain).unwrap().registered_assets();
+                for asset in registered_assets.iter() {
+                    assets.push(AssetGraph {
+                        chain: chain.clone(),
+                        location: asset.location.clone(),
+                        name: asset.name.clone(),
+                        symbol: asset.symbol.clone(),
+                        decimals: asset.decimals,
+                    });
+                }
+            }
+
+            for dex in self.supported_dexs.iter() {
+                let dex_entity = self.dexs.get(&dex).unwrap();
+                let registered_pairs = dex_entity.pairs;
+                for pair in registered_pairs.iter() {
+                    pairs.push(TradingPairGraph {
+                        id: pair.id.clone(),
+                        asset0: pair.asset0.name.clone(),
+                        asset1: pair.asset1.name.clone(),
+                        dex: dex_entity.name.clone(),
+                        chain: dex_entity.chain.name.clone(),
+                    });
+                }
+            }
+
+            for bridge in self.supported_bridges.iter() {
+                let bridge_entity = self.bridges.get(&bridge).unwrap();
+                let registered_pairs = bridge_entity.assets;
+                let mut asset_pairs: Vec<(String, String)> = vec![];
+                for asset_pair in registered_pairs.iter() {
+                    asset_pairs.push((
+                        asset_pair.asset0.name.clone(),
+                        asset_pair.asset1.name.clone(),
+                    ));
+                }
+                bridges.push(BridgeGraph {
+                    chain0: bridge_entity.chain0.name,
+                    chain1: bridge_entity.chain1.name,
+                    assets: asset_pairs,
+                });
+            }
+
+            Ok(Graph {
+                assets,
+                pairs,
+                bridges,
+            })
         }
 
         /// Return true if asset has been registered on the specific chain
@@ -1151,7 +1214,7 @@ mod index_registry {
         }
 
         #[ink::test]
-        fn bridge_registry_should_works() {
+        fn test_bridge_registry_should_works() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
             let mut registry = Registry::new();
@@ -1260,7 +1323,7 @@ mod index_registry {
         }
 
         #[ink::test]
-        fn dex_registry_should_works() {
+        fn test_dex_registry_should_works() {
             let accounts = default_accounts();
             set_caller(accounts.alice);
             let mut registry = Registry::new();
@@ -1340,6 +1403,210 @@ mod index_registry {
             assert_eq!(
                 registry.dexs.get(&"UniswapV2".to_string()).unwrap().pairs,
                 vec![]
+            );
+        }
+
+        #[ink::test]
+        fn test_get_registry_should_works() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut registry = Registry::new();
+
+            let ethereum = ChainInfo {
+                name: "Ethereum".to_string(),
+                chain_type: ChainType::Evm,
+                native: None,
+                stable: None,
+                endpoint: "endpoint".to_string(),
+                network: None,
+            };
+            let phala = ChainInfo {
+                name: "Phala".to_string(),
+                chain_type: ChainType::Sub,
+                native: None,
+                stable: None,
+                endpoint: "endpoint".to_string(),
+                network: None,
+            };
+            let pha_on_ethereum = AssetInfo {
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum".to_vec(),
+            };
+            let pha_on_phala = AssetInfo {
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
+                decimals: 12,
+                location: b"Somewhere on Phala".to_vec(),
+            };
+            let weth_on_ethereum = AssetInfo {
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
+                decimals: 18,
+                location: b"Somewhere on Ethereum2".to_vec(),
+            };
+            let weth_on_phala = AssetInfo {
+                name: "Phala Wrap Ether".to_string(),
+                symbol: "pWETH".to_string(),
+                decimals: 18,
+                location: b"Somewhere on Phala2".to_vec(),
+            };
+            let ethereum2phala_pha_pair = AssetPair {
+                asset0: pha_on_ethereum.clone(),
+                asset1: pha_on_phala.clone(),
+            };
+            let ethereum2phala_weth_pair = AssetPair {
+                asset0: weth_on_ethereum.clone(),
+                asset1: weth_on_phala.clone(),
+            };
+            let phala2ethereum_pha_pair = AssetPair {
+                asset0: pha_on_phala.clone(),
+                asset1: pha_on_ethereum.clone(),
+            };
+            let pha_weth_dex_pair = DexPair {
+                id: b"pair_address".to_vec(),
+                asset0: pha_on_ethereum.clone(),
+                asset1: weth_on_ethereum.clone(),
+                swap_fee: Some(0),
+                dev_fee: Some(0),
+            };
+
+            // Register chains
+            assert_eq!(registry.register_chain(ethereum.clone()), Ok(()));
+            assert_eq!(
+                registry.register_asset(ethereum.name.clone(), pha_on_ethereum.clone()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_asset(ethereum.name.clone(), weth_on_ethereum.clone()),
+                Ok(())
+            );
+            assert_eq!(registry.register_chain(phala.clone()), Ok(()));
+            assert_eq!(
+                registry.register_asset(phala.name.clone(), pha_on_phala.clone()),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_asset(phala.name.clone(), weth_on_phala.clone()),
+                Ok(())
+            );
+
+            // Register bridges
+            assert_eq!(
+                registry.register_bridge(
+                    "Bridge_Phala2Ethereum".to_string(),
+                    phala.clone(),
+                    ethereum.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.add_bridge_asset(
+                    "Bridge_Phala2Ethereum".to_string(),
+                    phala2ethereum_pha_pair.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.register_bridge(
+                    "Bridge_Ethereum2Phala".to_string(),
+                    ethereum.clone(),
+                    phala
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.add_bridge_asset(
+                    "Bridge_Ethereum2Phala".to_string(),
+                    ethereum2phala_pha_pair.clone()
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.add_bridge_asset(
+                    "Bridge_Ethereum2Phala".to_string(),
+                    ethereum2phala_weth_pair.clone()
+                ),
+                Ok(())
+            );
+
+            // Register dexs
+            assert_eq!(
+                registry.register_dex(
+                    "UniswapV2".to_string(),
+                    b"UniswapV2 factory".to_vec(),
+                    ethereum
+                ),
+                Ok(())
+            );
+            assert_eq!(
+                registry.add_dex_pair("UniswapV2".to_string(), pha_weth_dex_pair.clone()),
+                Ok(())
+            );
+
+            let graph = registry.get_graph().unwrap();
+            assert_eq!(
+                graph,
+                Graph {
+                    assets: [
+                        AssetGraph {
+                            chain: "Ethereum".to_string(),
+                            location: pha_on_ethereum.location.clone(),
+                            name: pha_on_ethereum.name.clone(),
+                            symbol: pha_on_ethereum.symbol.clone(),
+                            decimals: pha_on_ethereum.decimals.clone(),
+                        },
+                        AssetGraph {
+                            chain: "Ethereum".to_string(),
+                            location: weth_on_ethereum.location.clone(),
+                            name: weth_on_ethereum.name.clone(),
+                            symbol: weth_on_ethereum.symbol.clone(),
+                            decimals: weth_on_ethereum.decimals.clone(),
+                        },
+                        AssetGraph {
+                            chain: "Phala".to_string(),
+                            location: pha_on_phala.location.clone(),
+                            name: pha_on_phala.name.clone(),
+                            symbol: pha_on_phala.symbol.clone(),
+                            decimals: pha_on_phala.decimals.clone(),
+                        },
+                        AssetGraph {
+                            chain: "Phala".to_string(),
+                            location: weth_on_phala.location.clone(),
+                            name: weth_on_phala.name.clone(),
+                            symbol: weth_on_phala.symbol.clone(),
+                            decimals: weth_on_phala.decimals.clone(),
+                        },
+                    ]
+                    .to_vec(),
+                    pairs: [TradingPairGraph {
+                        id: pha_weth_dex_pair.id,
+                        asset0: pha_weth_dex_pair.asset0.name,
+                        asset1: pha_weth_dex_pair.asset1.name,
+                        dex: "UniswapV2".to_string(),
+                        chain: "Ethereum".to_string(),
+                    }]
+                    .to_vec(),
+                    bridges: [
+                        BridgeGraph {
+                            chain0: "Phala".to_string(),
+                            chain1: "Ethereum".to_string(),
+                            assets: [(pha_on_phala.name.clone(), pha_on_ethereum.name.clone()),]
+                                .to_vec(),
+                        },
+                        BridgeGraph {
+                            chain0: "Ethereum".to_string(),
+                            chain1: "Phala".to_string(),
+                            assets: [
+                                (pha_on_ethereum.name, pha_on_phala.name),
+                                (weth_on_ethereum.name, weth_on_phala.name),
+                            ]
+                            .to_vec(),
+                        },
+                    ]
+                    .to_vec(),
+                }
             );
         }
     }
