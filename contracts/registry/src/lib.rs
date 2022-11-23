@@ -429,7 +429,7 @@ mod index_registry {
             let mut bridges: Vec<BridgeGraph> = vec![];
 
             for chain in self.supported_chains.iter() {
-                let registered_assets = self.chains.get(&chain).unwrap().registered_assets();
+                let registered_assets = self.chains.get(chain).unwrap().registered_assets();
                 for asset in registered_assets.iter() {
                     assets.push(AssetGraph {
                         chain: chain.clone(),
@@ -442,7 +442,7 @@ mod index_registry {
             }
 
             for dex in self.supported_dexs.iter() {
-                let dex_entity = self.dexs.get(&dex).unwrap();
+                let dex_entity = self.dexs.get(dex).unwrap();
                 let registered_pairs = dex_entity.pairs;
                 for pair in registered_pairs.iter() {
                     pairs.push(TradingPairGraph {
@@ -456,7 +456,7 @@ mod index_registry {
             }
 
             for bridge in self.supported_bridges.iter() {
-                let bridge_entity = self.bridges.get(&bridge).unwrap();
+                let bridge_entity = self.bridges.get(bridge).unwrap();
                 let registered_pairs = bridge_entity.assets;
                 let mut asset_pairs: Vec<(String, String)> = vec![];
                 for asset_pair in registered_pairs.iter() {
