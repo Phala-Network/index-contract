@@ -5,7 +5,6 @@ extern crate alloc;
 mod constants;
 pub mod executors;
 pub mod prelude;
-pub mod registry;
 pub mod subrpc;
 pub mod traits;
 mod transactors;

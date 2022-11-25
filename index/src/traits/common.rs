@@ -6,10 +6,6 @@ use scale::{Decode, Encode};
 pub enum Error {
     BadAbi,
     BadOrigin,
-    AssetAlreadyRegistered,
-    AssetNotFound,
-    ChainAlreadyRegistered,
-    ChainNotFound,
     ExtractLocationFailed,
     InvalidAddress,
     ConstructContractFailed,

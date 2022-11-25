@@ -1,10 +1,9 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-use super::chain_store::ChainStore;
-use crate::traits::{
-    common::Error as RegistryError,
-    registry::{AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate},
+use crate::chain_store::ChainStore;
+use crate::types::{
+    AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate,
+    Error as RegistryError,
 };
 use alloc::{string::String, vec::Vec};
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
@@ -44,7 +43,7 @@ impl ChainMutate for Chain {
         self.store.set_stable(stable)
     }
 
-    fn set_endpoint(&mut self, endpoint: Vec<u8>) {
+    fn set_endpoint(&mut self, endpoint: String) {
         self.store.set_endpoint(endpoint)
     }
 }
@@ -65,11 +64,11 @@ impl AssetsRegisry for Chain {
         self.store.registered_assets()
     }
 
-    fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo> {
+    fn lookup_by_name(&self, name: String) -> Option<AssetInfo> {
         self.store.lookup_by_name(name)
     }
 
-    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo> {
+    fn lookup_by_symbol(&self, symbol: String) -> Option<AssetInfo> {
         self.store.lookup_by_symbol(symbol)
     }
 
@@ -79,11 +78,12 @@ impl AssetsRegisry for Chain {
 }
 
 pub struct EvmBalance {
-    endpoint: Vec<u8>,
+    endpoint: String,
 }
 
+#[allow(dead_code)]
 impl EvmBalance {
-    pub fn new(endpoint: Vec<u8>) -> Self {
+    pub fn new(endpoint: String) -> Self {
         EvmBalance { endpoint }
     }
 
@@ -147,7 +147,7 @@ impl BalanceFetcher for EvmBalance {
         asset: AssetId,
         account: MultiLocation,
     ) -> core::result::Result<u128, RegistryError> {
-        let transport = Eth::new(PinkHttp::new(String::from_utf8_lossy(&self.endpoint)));
+        let transport = Eth::new(PinkHttp::new(self.endpoint.clone()));
         let token_address: Address = self
             .extract_token(&asset)
             .ok_or(RegistryError::ExtractLocationFailed)?;
@@ -158,7 +158,7 @@ impl BalanceFetcher for EvmBalance {
             transport,
             // PHA address
             token_address,
-            include_bytes!("./res/erc20-abi.json"),
+            include_bytes!("../../../index/src/abis/erc20-abi.json"),
         )
         .map_err(|_| RegistryError::ConstructContractFailed)?;
         // TODO.wf handle potential failure smoothly instead of unwrap directly
@@ -171,13 +171,13 @@ impl BalanceFetcher for EvmBalance {
 
 // BalanceFetcher implementation for chain use pallet-assets as assets registry.
 // See https://github.com/paritytech/substrate/tree/master/frame/assets
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub struct SubAssetsBalance {
-    _endpoint: Vec<u8>,
+    _endpoint: String,
 }
 
 impl SubAssetsBalance {
-    pub fn new(_endpoint: Vec<u8>) -> Self {
+    pub fn _new(_endpoint: String) -> Self {
         SubAssetsBalance { _endpoint }
     }
 }
@@ -195,13 +195,13 @@ impl BalanceFetcher for SubAssetsBalance {
 
 // BalanceFetcher implementation for chain use currency as assets registry.
 // See https://github.com/open-web3-stack/open-runtime-module-library/tree/master/currencies
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub struct SubCurrencyBalance {
-    _endpoint: Vec<u8>,
+    _endpoint: String,
 }
 
 impl SubCurrencyBalance {
-    pub fn new(_endpoint: Vec<u8>) -> Self {
+    pub fn _new(_endpoint: String) -> Self {
         SubCurrencyBalance { _endpoint }
     }
 }
