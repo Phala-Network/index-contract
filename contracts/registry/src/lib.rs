@@ -2,11 +2,12 @@
 extern crate alloc;
 use ink_lang as ink;
 
-mod bridge;
-mod chain;
+pub use index_registry::{Registry, RegistryRef};
+pub mod bridge;
+pub mod chain;
 mod chain_store;
-mod dex;
-mod types;
+pub mod dex;
+pub mod types;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
