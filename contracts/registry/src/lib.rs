@@ -2,7 +2,7 @@
 extern crate alloc;
 use ink_lang as ink;
 
-pub use index_registry::{Registry, RegistryRef};
+pub use registry::{Registry, RegistryRef};
 pub mod bridge;
 pub mod chain;
 mod chain_store;
@@ -11,7 +11,7 @@ pub mod types;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
-mod index_registry {
+mod registry {
     use crate::bridge::{AssetPair, Bridge};
     use crate::chain::Chain;
     use crate::dex::{Dex, DexPair};
