@@ -9,8 +9,10 @@ mod index_executor {
     use alloc::{vec, vec::Vec};
     use scale::{Decode, Encode};
     // use index::{ensure, prelude::*};
+    use index::utils::ToArray;
     use index_registry::{types::Graph, RegistryRef};
     use ink_env::call::FromAccountId;
+    use pink_extension::chain_extension::{signing, SigType};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -20,6 +22,28 @@ mod index_executor {
     }
 
     type Result<T> = core::result::Result<T, Error>;
+
+    #[derive(Encode, Decode, Debug, PartialEq, Eq)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct AccountInfo {
+        pub account32: [u8; 32],
+        pub account20: [u8; 20],
+    }
+
+    impl From<[u8; 32]> for AccountInfo {
+        fn from(privkey: [u8; 32]) -> Self {
+            let ecdsa_pubkey: [u8; 33] = signing::get_public_key(&privkey, SigType::Ecdsa)
+                .try_into()
+                .expect("Public key should be of length 33");
+            let mut ecdsa_address = [0u8; 20];
+            ink_env::ecdsa_to_eth_address(&ecdsa_pubkey, &mut ecdsa_address)
+                .expect("Get address of ecdsa failed");
+            Self {
+                account32: signing::get_public_key(&privkey, SigType::Sr25519).to_array(),
+                account20: ecdsa_address,
+            }
+        }
+    }
 
     #[ink(storage)]
     // #[derive(SpreadAllocate)]
@@ -42,16 +66,21 @@ mod index_executor {
         #[ink(constructor)]
         pub fn new() -> Self {
             let mut worker_accounts: Vec<[u8; 32]> = vec![];
-            for _index in 0..10 {
-                // TODO: generate private key
-                worker_accounts.push([0; 32])
+            for index in 0..10 {
+                worker_accounts.push(
+                    pink_web3::keys::pink::KeyPair::derive_keypair(
+                        &[b"worker".to_vec(), [index].to_vec()].concat(),
+                    )
+                    .private_key(),
+                )
             }
 
             Self {
                 admin: Self::env().caller(),
                 registry: None,
                 worker_accounts,
-                executor_account: [0; 32],
+                executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
+                    .private_key(),
             }
         }
 
@@ -67,6 +96,22 @@ mod index_executor {
         pub fn get_graph(&self) -> Result<Graph> {
             let graph = self.registry.clone().unwrap().get_graph().unwrap();
             Ok(graph)
+        }
+
+        /// Return executor account information
+        #[ink(message)]
+        pub fn get_executor_account(&self) -> AccountInfo {
+            self.executor_account.into()
+        }
+
+        /// Return worker accounts information
+        #[ink(message)]
+        pub fn get_worker_account(&self) -> Vec<AccountInfo> {
+            let mut accounts: Vec<AccountInfo> = Vec::new();
+            for worker in &self.worker_accounts {
+                accounts.push((*worker).into())
+            }
+            accounts
         }
 
         /// Claim and execute tasks from all supported blockchains. This is a query operation
