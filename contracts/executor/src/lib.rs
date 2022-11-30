@@ -17,6 +17,9 @@ mod index_executor {
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
+        ReadCacheFailed,
+        WriteCacheFailed,
+        DecodeCacheFailed,
         ExecuteFailed,
         Unimplemented,
     }
@@ -75,6 +78,12 @@ mod index_executor {
                 )
             }
 
+            // Create worker account
+            let empty_alloc: Vec<[u8; 32]> = vec![];
+            pink_extension::ext()
+                .cache_set(b"alloc", &empty_alloc.encode())
+                .expect("write cache failed");
+
             Self {
                 admin: Self::env().caller(),
                 registry: None,
@@ -125,16 +134,52 @@ mod index_executor {
         pub fn execute(&self) -> Result<()> {
             Err(Error::Unimplemented)
         }
+
+        /// Mark an account as allocated, e.g. put it into local cache `alloc` queue.
+        #[allow(dead_code)]
+        fn allocate_worker(&self, worker: &[u8; 32]) -> Result<()> {
+            let alloc_list = pink_extension::ext()
+                .cache_get(b"alloc")
+                .ok_or(Error::ReadCacheFailed)?;
+            let mut decoded_list: Vec<[u8; 32]> =
+                Decode::decode(&mut alloc_list.as_slice()).map_err(|_| Error::DecodeCacheFailed)?;
+
+            decoded_list.push(*worker);
+            pink_extension::ext()
+                .cache_set(b"alloc", &decoded_list.encode())
+                .map_err(|_| Error::WriteCacheFailed)?;
+            Ok(())
+        }
+
+        /// Retuen accounts that hasn't been allocated to a specific task
+        #[allow(dead_code)]
+        fn free_worker(&self) -> Result<Vec<[u8; 32]>> {
+            let mut free_list = vec![];
+            let alloc_list = pink_extension::ext()
+                .cache_get(b"alloc")
+                .ok_or(Error::ReadCacheFailed)?;
+            let decoded_list: Vec<[u8; 32]> =
+                Decode::decode(&mut alloc_list.as_slice()).map_err(|_| Error::DecodeCacheFailed)?;
+
+            for worker in self.worker_accounts.iter() {
+                if !decoded_list.contains(worker) {
+                    free_list.push(*worker);
+                }
+            }
+            Ok(free_list)
+        }
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
         use dotenv::dotenv;
+        use index::traits::executor;
         use index_registry::{
             types::{ChainInfo, ChainType},
             Registry,
         };
+        use ink_lang as ink;
         use pink_extension::PinkEnvironment;
 
         fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
@@ -143,6 +188,51 @@ mod index_executor {
 
         fn set_caller(sender: AccountId) {
             ink_env::test::set_caller::<PinkEnvironment>(sender);
+        }
+
+        #[ink::test]
+        fn worker_allocation_cache_should_work() {
+            use pink_extension::chain_extension::mock;
+            use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
+            pink_extension_runtime::mock_ext::mock_all_ext();
+
+            let storage: Rc<RefCell<HashMap<Vec<u8>, Vec<u8>>>> = Default::default();
+
+            {
+                let storage = storage.clone();
+                mock::mock_cache_set(move |k, v| {
+                    storage.borrow_mut().insert(k.to_vec(), v.to_vec());
+                    Ok(())
+                });
+            }
+            {
+                let storage = storage.clone();
+                mock::mock_cache_get(move |k| storage.borrow().get(k).map(|v| v.to_vec()));
+            }
+            {
+                let storage = storage.clone();
+                mock::mock_cache_remove(move |k| {
+                    storage.borrow_mut().remove(k).map(|v| v.to_vec())
+                });
+            }
+
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut executor = Executor::new();
+            assert_eq!(executor.free_worker().unwrap(), executor.worker_accounts);
+            assert_eq!(
+                executor.allocate_worker(&executor.worker_accounts[0]),
+                Ok(())
+            );
+            assert_eq!(
+                executor.allocate_worker(&executor.worker_accounts[1]),
+                Ok(())
+            );
+            assert_eq!(
+                executor.free_worker().unwrap(),
+                executor.worker_accounts[2..]
+            );
         }
     }
 }
