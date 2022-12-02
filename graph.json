@@ -1,0 +1,103 @@
+{
+    "Ok": {
+      "assets": [
+        {
+          "chain": "Ethereum",
+          "location": "0x6c5ba91642f10282b576d91922ae6448c9d52f4e",
+          "name": "Phala Token",
+          "symbol": "PHA",
+          "decimals": "18"
+        },
+        {
+          "chain": "Ethereum",
+          "location": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+          "name": "Wrapped Ether",
+          "symbol": "WETH",
+          "decimals": "18"
+        },
+        {
+          "chain": "Khala",
+          "location": "0x010100511f",
+          "name": "Phala Token",
+          "symbol": "PHA",
+          "decimals": "12"
+        },
+        {
+          "chain": "Karura",
+          "location": "0x010100511f",
+          "name": "Phala Token",
+          "symbol": "PHA",
+          "decimals": "12"
+        },
+        {
+          "chain": "Karura",
+          "location": "0x010200411f06080080",
+          "name": "Karura",
+          "symbol": "KAR",
+          "decimals": "12"
+        },
+        {
+          "chain": "Karura",
+          "location": "0x010200411f06080081",
+          "name": "Karura USD",
+          "symbol": "kUSD",
+          "decimals": "12"
+        }
+      ],
+      "pairs": [
+        {
+          "id": "0x8867f20c1c63baccec7617626254a060eeb0e61e",
+          "asset0": "Phala Token",
+          "asset1": "Wrapped Ether",
+          "dex": "UniswapV2",
+          "chain": "Ethereum"
+        },
+        {
+          "id": "lp://KAR/KUSD",
+          "asset0": "Karura",
+          "asset1": "Karura USD",
+          "dex": "KaruraSwap",
+          "chain": "Karura"
+        },
+        {
+          "id": "lp://KUSD/PHA",
+          "asset0": "Karura USD",
+          "asset1": "Phala Token",
+          "dex": "KaruraSwap",
+          "chain": "Karura"
+        }
+      ],
+      "bridges": [
+        {
+          "chain0": "Khala",
+          "chain1": "Ethereum",
+          "assets": [
+            [
+              "Phala Token",
+              "Phala Token"
+            ]
+          ]
+        },
+        {
+          "chain0": "Ethereum",
+          "chain1": "Khala",
+          "assets": [
+            [
+              "Phala Token",
+              "Phala Token"
+            ]
+          ]
+        },
+        {
+          "chain0": "Khala",
+          "chain1": "Karura",
+          "assets": [
+            [
+              "Phala Token",
+              "Phala Token"
+            ]
+          ]
+        }
+      ]
+    }
+  }

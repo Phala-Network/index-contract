@@ -1375,6 +1375,7 @@ name = "index_executor"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "hex",
  "hex-literal",
  "index",
  "index_registry",

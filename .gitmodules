@@ -1,0 +1,3 @@
+[submodule "chain"]
+	path = chain
+	url = git@github.com:shelvenzhou/phala-blockchain-setup.git
