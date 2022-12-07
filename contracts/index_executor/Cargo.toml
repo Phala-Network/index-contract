@@ -25,7 +25,7 @@ pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "
 pallet-index = { git = "https://github.com/Phala-Network/khala-parachain.git", branch = "pallet-index", default-features = false }
 
 index = { path = "../../index", default-features = false }
-index_registry = { path = "../registry", default-features = false, features = ["ink-as-dependency"] }
+index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
 hex-literal = "0.3"

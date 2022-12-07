@@ -2,10 +2,10 @@
 resolver = "2"
 
 members = [
-    "contracts/semi-bridge",
-    "contracts/system-remark",
-    "contracts/registry",
-    "contracts/executor",
+    "contracts/semi_bridge",
+    "contracts/system_remark",
+    "contracts/index_registry",
+    "contracts/index_executor",
 ]
 
 exclude = [
