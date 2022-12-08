@@ -23,7 +23,7 @@ describe('Registry tests', () => {
     before(async function() {
         registryFactory = await this.devPhase.getFactory(
             ContractType.InkCode,
-            './artifacts/index_contract/index_contract.contract'
+            './artifacts/index_registry/index_registry.contract'
         );
         registryCodeHash = registryFactory.metadata.source.hash;
         await registryFactory.deploy();
@@ -43,7 +43,7 @@ describe('Registry tests', () => {
         before(async function() {
             this.timeout(30_000);
             // Deploy contract
-            registry = await registryFactory.instantiate('default', [], {transferToCluster: 1e12});
+            registry = await registryFactory.instantiate('default', [], {transferToCluster: 10e12});
             console.log('IndexRegistry deployed at', registry.address.toString());
         });
         // pub chain_type: ChainType,
