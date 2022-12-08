@@ -17,7 +17,10 @@ mod system_remark {
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub enum Error {}
+    pub enum Error {
+        // To fix metadata empty variants
+        Unimplemented,
+    }
 
     type Result<T> = core::result::Result<T, Error>;
 
