@@ -46,11 +46,7 @@ describe('Registry tests', () => {
             registry = await registryFactory.instantiate('new', [], {transferToCluster: 10e12});
             console.log('IndexRegistry deployed at', registry.address.toString());
         });
-        // pub chain_type: ChainType,
-        // pub native: Option<AssetInfo>,
-        // pub stable: Option<AssetInfo>,
-        // pub endpoint: String,
-        // pub network: Option<u8>,
+
         it('Registry functions should work', async function() {
             // Registry chain:Ethereum
             const ethereumReg = await registry.tx
@@ -89,8 +85,19 @@ describe('Registry tests', () => {
                 })
                 .signAndSend(alice, {nonce: -1});
             console.log('Register Karura', karuraReg.toHuman());
-
-        });
+            const registerPha = await registry.tx
+                .registerAsset(txConf, "Ethereum", {
+                    "name": "Phala Token",
+                    "symbol": "PHA",
+                    "decimals": 18,
+                    "location": "0x6c5ba91642f10282b576d91922ae6448c9d52f4e",
+                })
+                .signAndSend(alice, {nonce: -1});
+            console.log('Register Ethereum PHA', registerPha.toHuman());
+            const graphQuery = await registry.query.getGraph(certAlice, {});
+            expect(graphQuery.result.isOk).to.be.true;
+            expect(graphQuery.output.asOk.assets[0].location.toHex()).to.be.equal("0x6c5ba91642f10282b576d91922ae6448c9d52f4e");
+        })
     });
 
     // // To keep the blockchain running after the test, remove the "skip" in the following test
