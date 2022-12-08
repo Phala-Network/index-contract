@@ -43,7 +43,7 @@ describe('Registry tests', () => {
         before(async function() {
             this.timeout(30_000);
             // Deploy contract
-            registry = await registryFactory.instantiate('default', [], {transferToCluster: 10e12});
+            registry = await registryFactory.instantiate('new', [], {transferToCluster: 10e12});
             console.log('IndexRegistry deployed at', registry.address.toString());
         });
         // pub chain_type: ChainType,
