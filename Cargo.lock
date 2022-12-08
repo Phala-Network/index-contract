@@ -4070,6 +4070,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "system_remark"
+version = "0.1.2"
+dependencies = [
+ "dotenv",
+ "hex",
+ "hex-literal",
+ "index",
+ "ink_env",
+ "ink_lang",
+ "ink_metadata",
+ "ink_prelude 3.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ink_primitives",
+ "ink_storage",
+ "parity-scale-codec",
+ "pink-extension 0.2.0",
+ "pink-extension-runtime",
+ "pink-web3",
+ "primitive-types",
+ "scale-info",
+]
+
+[[package]]
 name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

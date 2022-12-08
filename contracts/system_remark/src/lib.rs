@@ -11,7 +11,9 @@ mod system_remark {
     use scale::{Decode, Encode};
 
     #[ink(storage)]
-    pub struct Remarker();
+    pub struct Remarker {
+        pub admin: AccountId,
+    }
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -22,8 +24,11 @@ mod system_remark {
     impl Remarker {
         #[ink(constructor)]
         pub fn default() -> Self {
-            Self {}
+            Self {
+                admin: Self::env().caller(),
+            }
         }
+
         /// Sends a remark to the chain
         ///
         /// Just to make sure `cargo contract build` can work
