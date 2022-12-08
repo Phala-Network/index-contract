@@ -14,7 +14,7 @@ async function initChain(devphase: any): Promise<void> {
             ['src/setup-drivers.js'],
             {
                 stdio: 'inherit',
-                cwd: './chian',
+                cwd: './chain',
                 env: {
                     'ENDPOINT': devphase.options.nodeUrl,
                     'WORKERS': devphase.options.workerUrl,
@@ -36,7 +36,7 @@ async function saveLog(devphase: any, outPath): Promise<void> {
         const readLog = spawn(
             'node', ['src/read-log.js'],
             {
-                cwd: './chian',
+                cwd: './chain',
                 env: {
                     'ENDPOINT': devphase.options.nodeUrl,
                     'WORKERS': devphase.options.workerUrl,
