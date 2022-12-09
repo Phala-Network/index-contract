@@ -1,0 +1,195 @@
+{
+  "source": {
+    "hash": "0x935fd7cab3c1213ede3fd51753ae8b3d556bac214993afc6c58b7128d6237172",
+    "language": "ink! 3.4.0",
+    "compiler": "rustc 1.67.0-nightly"
+  },
+  "contract": {
+    "name": "system_remark",
+    "version": "0.1.2",
+    "authors": [
+      "anonymous"
+    ]
+  },
+  "V3": {
+    "spec": {
+      "constructors": [
+        {
+          "args": [],
+          "docs": [],
+          "label": "default",
+          "payable": false,
+          "selector": "0xed4b9d1b"
+        }
+      ],
+      "docs": [],
+      "events": [],
+      "messages": [
+        {
+          "args": [
+            {
+              "label": "remark",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 3
+              }
+            }
+          ],
+          "docs": [
+            " Sends a remark to the chain",
+            "",
+            " Just to make sure `cargo contract build` can work"
+          ],
+          "label": "remark",
+          "mutates": false,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 4
+          },
+          "selector": "0x26f3ecc8"
+        }
+      ]
+    },
+    "storage": {
+      "struct": {
+        "fields": [
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "ty": 0
+              }
+            },
+            "name": "admin"
+          }
+        ]
+      }
+    },
+    "types": [
+      {
+        "id": 0,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 1,
+                  "typeName": "[u8; 32]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "ink_env",
+            "types",
+            "AccountId"
+          ]
+        }
+      },
+      {
+        "id": 1,
+        "type": {
+          "def": {
+            "array": {
+              "len": 32,
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": {
+          "def": {
+            "primitive": "u8"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": {
+          "def": {
+            "primitive": "str"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "fields": [
+                    {
+                      "type": 5
+                    }
+                  ],
+                  "index": 0,
+                  "name": "Ok"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 6
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Err"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 5
+            },
+            {
+              "name": "E",
+              "type": 6
+            }
+          ],
+          "path": [
+            "Result"
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "Unimplemented"
+                }
+              ]
+            }
+          },
+          "path": [
+            "system_remark",
+            "system_remark",
+            "Error"
+          ]
+        }
+      }
+    ]
+  }
+}

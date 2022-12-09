@@ -1,0 +1,1995 @@
+{
+  "source": {
+    "hash": "0x6520e9ded69569405e0d90321edcb7d77ee962f194a9baa68f32ec1352e06ba6",
+    "language": "ink! 3.4.0",
+    "compiler": "rustc 1.67.0-nightly"
+  },
+  "contract": {
+    "name": "index_registry",
+    "version": "0.1.0",
+    "authors": [
+      "Phala Network"
+    ],
+    "repository": "https://github.com/Phala-Network/index-contract",
+    "homepage": "https://phala.network/",
+    "license": "Apache 2.0"
+  },
+  "V3": {
+    "spec": {
+      "constructors": [
+        {
+          "args": [],
+          "docs": [
+            "Create an Ethereum entity"
+          ],
+          "label": "new",
+          "payable": false,
+          "selector": "0x9bae9d5e"
+        }
+      ],
+      "docs": [],
+      "events": [
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "ChainInfo"
+                ],
+                "type": 8
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when chain registered."
+          ],
+          "label": "ChainRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when chain unregistered.",
+            " args: [chain_name]"
+          ],
+          "label": "ChainUnregistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when native asset set.",
+            " args: [chain_name, asset_info]"
+          ],
+          "label": "ChainNativeSet"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when stable asset set.",
+            " args: [chain_name, asset_info]"
+          ],
+          "label": "ChainStableSet"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "endpoint",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when RPC endpoint asset set.",
+            " args: [chain_name, endpoint]"
+          ],
+          "label": "ChainEndpointSet"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when asset registered.",
+            " args: [chain_name, asset_info]"
+          ],
+          "label": "AssetRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when asset unregistered.",
+            " args: [chain_name, asset_info]"
+          ],
+          "label": "AssetUnregistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge registered.",
+            " args: [bridge_name]"
+          ],
+          "label": "BridgeRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge unregistered.",
+            " args: [bridge_name]"
+          ],
+          "label": "BridgeUnregistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": false,
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "AssetPair"
+                ],
+                "type": 19
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge asset registered.",
+            " args: [bridge_name, asset_pair]"
+          ],
+          "label": "BridgeAssetRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "docs": [],
+              "indexed": false,
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "AssetPair"
+                ],
+                "type": 19
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge asset unregistered.",
+            " args: [bridge_name, asset_pair]"
+          ],
+          "label": "BridgeAssetUnregistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "id",
+              "type": {
+                "displayName": [
+                  "Vec"
+                ],
+                "type": 12
+              }
+            },
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge registered.",
+            " args: [dex_id, dex_name]"
+          ],
+          "label": "DexRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when bridge unregistered.",
+            " args: [dex_id]"
+          ],
+          "label": "DexUnregistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "id",
+              "type": {
+                "displayName": [
+                  "Vec"
+                ],
+                "type": 12
+              }
+            },
+            {
+              "docs": [],
+              "indexed": false,
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "DexPair"
+                ],
+                "type": 23
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when dex trading pair registered.",
+            " args: [dex_id, trading_pair]"
+          ],
+          "label": "DexPairRegistered"
+        },
+        {
+          "args": [
+            {
+              "docs": [],
+              "indexed": true,
+              "label": "id",
+              "type": {
+                "displayName": [
+                  "Vec"
+                ],
+                "type": 12
+              }
+            },
+            {
+              "docs": [],
+              "indexed": false,
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "DexPair"
+                ],
+                "type": 23
+              }
+            }
+          ],
+          "docs": [
+            " Event emitted when dex trading pair unregistered.",
+            " args: [dex_id, trading_pair]"
+          ],
+          "label": "DexPairUnregistered"
+        }
+      ],
+      "messages": [
+        {
+          "args": [
+            {
+              "label": "info",
+              "type": {
+                "displayName": [
+                  "ChainInfo"
+                ],
+                "type": 8
+              }
+            }
+          ],
+          "docs": [
+            " Register a chain",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "register_chain",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0xd9137364"
+        },
+        {
+          "args": [
+            {
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Unregister a chain",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "unregister_chain",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x818482bf"
+        },
+        {
+          "args": [
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Register an asset for a chain",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "register_asset",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x763156d2"
+        },
+        {
+          "args": [
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Unregister an asset from a chain",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "unregister_asset",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x9a3f992f"
+        },
+        {
+          "args": [
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Set native asset",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "set_chain_native",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x518f3a50"
+        },
+        {
+          "args": [
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "asset",
+              "type": {
+                "displayName": [
+                  "AssetInfo"
+                ],
+                "type": 11
+              }
+            }
+          ],
+          "docs": [
+            " Set native asset",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "set_chain_stable",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x303b9976"
+        },
+        {
+          "args": [
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "endpoint",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Set RPC endpoint",
+            " Authorized method, only the contract owner can call"
+          ],
+          "label": "set_chain_endpoint",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x7c18a000"
+        },
+        {
+          "args": [
+            {
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "chain0",
+              "type": {
+                "displayName": [
+                  "ChainInfo"
+                ],
+                "type": 8
+              }
+            },
+            {
+              "label": "chain1",
+              "type": {
+                "displayName": [
+                  "ChainInfo"
+                ],
+                "type": 8
+              }
+            }
+          ],
+          "docs": [],
+          "label": "register_bridge",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x92703ca5"
+        },
+        {
+          "args": [
+            {
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [],
+          "label": "unregister_bridge",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x05bacbe3"
+        },
+        {
+          "args": [
+            {
+              "label": "bridge_name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "AssetPair"
+                ],
+                "type": 19
+              }
+            }
+          ],
+          "docs": [],
+          "label": "add_bridge_asset",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0xa48c1f54"
+        },
+        {
+          "args": [
+            {
+              "label": "bridge_name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "AssetPair"
+                ],
+                "type": 19
+              }
+            }
+          ],
+          "docs": [],
+          "label": "remove_bridge_asset",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x47cf07e3"
+        },
+        {
+          "args": [
+            {
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "id",
+              "type": {
+                "displayName": [
+                  "Vec"
+                ],
+                "type": 12
+              }
+            },
+            {
+              "label": "chain",
+              "type": {
+                "displayName": [
+                  "ChainInfo"
+                ],
+                "type": 8
+              }
+            }
+          ],
+          "docs": [],
+          "label": "register_dex",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0x6c0d35ae"
+        },
+        {
+          "args": [
+            {
+              "label": "name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [],
+          "label": "unregister_dex",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0xaab78b97"
+        },
+        {
+          "args": [
+            {
+              "label": "dex_name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "DexPair"
+                ],
+                "type": 23
+              }
+            }
+          ],
+          "docs": [],
+          "label": "add_dex_pair",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0xadc1633d"
+        },
+        {
+          "args": [
+            {
+              "label": "dex_name",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 4
+              }
+            },
+            {
+              "label": "pair",
+              "type": {
+                "displayName": [
+                  "DexPair"
+                ],
+                "type": 23
+              }
+            }
+          ],
+          "docs": [],
+          "label": "remove_dex_pair",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 26
+          },
+          "selector": "0xcce78e35"
+        },
+        {
+          "args": [],
+          "docs": [],
+          "label": "get_graph",
+          "mutates": false,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 29
+          },
+          "selector": "0x2db369c5"
+        }
+      ]
+    },
+    "storage": {
+      "struct": {
+        "fields": [
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "ty": 0
+              }
+            },
+            "name": "admin"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0100000000000000000000000000000000000000000000000000000000000000",
+                "ty": 3
+              }
+            },
+            "name": "supported_chains"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0200000000000000000000000000000000000000000000000000000000000000",
+                "ty": 5
+              }
+            },
+            "name": "chains"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0300000000000000000000000000000000000000000000000000000000000000",
+                "ty": 3
+              }
+            },
+            "name": "supported_bridges"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0400000000000000000000000000000000000000000000000000000000000000",
+                "ty": 16
+              }
+            },
+            "name": "bridges"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0500000000000000000000000000000000000000000000000000000000000000",
+                "ty": 3
+              }
+            },
+            "name": "supported_dexs"
+          },
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0600000000000000000000000000000000000000000000000000000000000000",
+                "ty": 20
+              }
+            },
+            "name": "dexs"
+          }
+        ]
+      }
+    },
+    "types": [
+      {
+        "id": 0,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 1,
+                  "typeName": "[u8; 32]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "ink_env",
+            "types",
+            "AccountId"
+          ]
+        }
+      },
+      {
+        "id": 1,
+        "type": {
+          "def": {
+            "array": {
+              "len": 32,
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": {
+          "def": {
+            "primitive": "u8"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 4
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": {
+          "def": {
+            "primitive": "str"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "offset_key",
+                  "type": 15,
+                  "typeName": "Key"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "K",
+              "type": 4
+            },
+            {
+              "name": "V",
+              "type": 6
+            }
+          ],
+          "path": [
+            "ink_storage",
+            "lazy",
+            "mapping",
+            "Mapping"
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "store",
+                  "type": 7,
+                  "typeName": "ChainStore"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "chain",
+            "Chain"
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "info",
+                  "type": 8,
+                  "typeName": "ChainInfo"
+                },
+                {
+                  "name": "assets",
+                  "type": 14,
+                  "typeName": "Vec<AssetInfo>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "chain_store",
+            "ChainStore"
+          ]
+        }
+      },
+      {
+        "id": 8,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "name",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "chain_type",
+                  "type": 9,
+                  "typeName": "ChainType"
+                },
+                {
+                  "name": "native",
+                  "type": 10,
+                  "typeName": "Option<AssetInfo>"
+                },
+                {
+                  "name": "stable",
+                  "type": 10,
+                  "typeName": "Option<AssetInfo>"
+                },
+                {
+                  "name": "endpoint",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "network",
+                  "type": 13,
+                  "typeName": "Option<u8>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "ChainInfo"
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "Evm"
+                },
+                {
+                  "index": 1,
+                  "name": "Sub"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "ChainType"
+          ]
+        }
+      },
+      {
+        "id": 10,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "None"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 11
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Some"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 11
+            }
+          ],
+          "path": [
+            "Option"
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "name",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "symbol",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "decimals",
+                  "type": 2,
+                  "typeName": "u8"
+                },
+                {
+                  "name": "location",
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "AssetInfo"
+          ]
+        }
+      },
+      {
+        "id": 12,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 13,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "None"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 2
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Some"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 2
+            }
+          ],
+          "path": [
+            "Option"
+          ]
+        }
+      },
+      {
+        "id": 14,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 11
+            }
+          }
+        }
+      },
+      {
+        "id": 15,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 1,
+                  "typeName": "[u8; 32]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "ink_primitives",
+            "Key"
+          ]
+        }
+      },
+      {
+        "id": 16,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "offset_key",
+                  "type": 15,
+                  "typeName": "Key"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "K",
+              "type": 4
+            },
+            {
+              "name": "V",
+              "type": 17
+            }
+          ],
+          "path": [
+            "ink_storage",
+            "lazy",
+            "mapping",
+            "Mapping"
+          ]
+        }
+      },
+      {
+        "id": 17,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "name",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "chain0",
+                  "type": 8,
+                  "typeName": "ChainInfo"
+                },
+                {
+                  "name": "chain1",
+                  "type": 8,
+                  "typeName": "ChainInfo"
+                },
+                {
+                  "name": "assets",
+                  "type": 18,
+                  "typeName": "Vec<AssetPair>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "bridge",
+            "Bridge"
+          ]
+        }
+      },
+      {
+        "id": 18,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 19
+            }
+          }
+        }
+      },
+      {
+        "id": 19,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "asset0",
+                  "type": 11,
+                  "typeName": "AssetInfo"
+                },
+                {
+                  "name": "asset1",
+                  "type": 11,
+                  "typeName": "AssetInfo"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "bridge",
+            "AssetPair"
+          ]
+        }
+      },
+      {
+        "id": 20,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "offset_key",
+                  "type": 15,
+                  "typeName": "Key"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "K",
+              "type": 4
+            },
+            {
+              "name": "V",
+              "type": 21
+            }
+          ],
+          "path": [
+            "ink_storage",
+            "lazy",
+            "mapping",
+            "Mapping"
+          ]
+        }
+      },
+      {
+        "id": 21,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "id",
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                },
+                {
+                  "name": "name",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "chain",
+                  "type": 8,
+                  "typeName": "ChainInfo"
+                },
+                {
+                  "name": "pairs",
+                  "type": 22,
+                  "typeName": "Vec<DexPair>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "dex",
+            "Dex"
+          ]
+        }
+      },
+      {
+        "id": 22,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 23
+            }
+          }
+        }
+      },
+      {
+        "id": 23,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "id",
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                },
+                {
+                  "name": "asset0",
+                  "type": 11,
+                  "typeName": "AssetInfo"
+                },
+                {
+                  "name": "asset1",
+                  "type": 11,
+                  "typeName": "AssetInfo"
+                },
+                {
+                  "name": "swap_fee",
+                  "type": 24,
+                  "typeName": "Option<u128>"
+                },
+                {
+                  "name": "dev_fee",
+                  "type": 24,
+                  "typeName": "Option<u128>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "dex",
+            "DexPair"
+          ]
+        }
+      },
+      {
+        "id": 24,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "None"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 25
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Some"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 25
+            }
+          ],
+          "path": [
+            "Option"
+          ]
+        }
+      },
+      {
+        "id": 25,
+        "type": {
+          "def": {
+            "primitive": "u128"
+          }
+        }
+      },
+      {
+        "id": 26,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "fields": [
+                    {
+                      "type": 27
+                    }
+                  ],
+                  "index": 0,
+                  "name": "Ok"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 28
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Err"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 27
+            },
+            {
+              "name": "E",
+              "type": 28
+            }
+          ],
+          "path": [
+            "Result"
+          ]
+        }
+      },
+      {
+        "id": 27,
+        "type": {
+          "def": {
+            "tuple": []
+          }
+        }
+      },
+      {
+        "id": 28,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "BadAbi"
+                },
+                {
+                  "index": 1,
+                  "name": "BadOrigin"
+                },
+                {
+                  "index": 2,
+                  "name": "AssetAlreadyRegistered"
+                },
+                {
+                  "index": 3,
+                  "name": "AssetNotFound"
+                },
+                {
+                  "index": 4,
+                  "name": "BridgeAlreadyRegistered"
+                },
+                {
+                  "index": 5,
+                  "name": "BridgeNotFound"
+                },
+                {
+                  "index": 6,
+                  "name": "ChainAlreadyRegistered"
+                },
+                {
+                  "index": 7,
+                  "name": "ChainNotFound"
+                },
+                {
+                  "index": 8,
+                  "name": "DexAlreadyRegistered"
+                },
+                {
+                  "index": 9,
+                  "name": "DexNotFound"
+                },
+                {
+                  "index": 10,
+                  "name": "ExtractLocationFailed"
+                },
+                {
+                  "index": 11,
+                  "name": "ConstructContractFailed"
+                },
+                {
+                  "index": 12,
+                  "name": "Unimplemented"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "Error"
+          ]
+        }
+      },
+      {
+        "id": 29,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "fields": [
+                    {
+                      "type": 30
+                    }
+                  ],
+                  "index": 0,
+                  "name": "Ok"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 28
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Err"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 30
+            },
+            {
+              "name": "E",
+              "type": 28
+            }
+          ],
+          "path": [
+            "Result"
+          ]
+        }
+      },
+      {
+        "id": 30,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "assets",
+                  "type": 31,
+                  "typeName": "Vec<AssetGraph>"
+                },
+                {
+                  "name": "pairs",
+                  "type": 33,
+                  "typeName": "Vec<TradingPairGraph>"
+                },
+                {
+                  "name": "bridges",
+                  "type": 35,
+                  "typeName": "Vec<BridgeGraph>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "Graph"
+          ]
+        }
+      },
+      {
+        "id": 31,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 32
+            }
+          }
+        }
+      },
+      {
+        "id": 32,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "chain",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "location",
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                },
+                {
+                  "name": "name",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "symbol",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "decimals",
+                  "type": 2,
+                  "typeName": "u8"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "AssetGraph"
+          ]
+        }
+      },
+      {
+        "id": 33,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 34
+            }
+          }
+        }
+      },
+      {
+        "id": 34,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "id",
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                },
+                {
+                  "name": "asset0",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "asset1",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "dex",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "chain",
+                  "type": 4,
+                  "typeName": "String"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "TradingPairGraph"
+          ]
+        }
+      },
+      {
+        "id": 35,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 36
+            }
+          }
+        }
+      },
+      {
+        "id": 36,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "name": "chain0",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "chain1",
+                  "type": 4,
+                  "typeName": "String"
+                },
+                {
+                  "name": "assets",
+                  "type": 37,
+                  "typeName": "Vec<(String, String)>"
+                }
+              ]
+            }
+          },
+          "path": [
+            "index_registry",
+            "types",
+            "BridgeGraph"
+          ]
+        }
+      },
+      {
+        "id": 37,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 38
+            }
+          }
+        }
+      },
+      {
+        "id": 38,
+        "type": {
+          "def": {
+            "tuple": [
+              4,
+              4
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

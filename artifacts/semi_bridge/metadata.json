@@ -1,0 +1,494 @@
+{
+  "source": {
+    "hash": "0xb0db8c20dea82924104de77d36117759aac89d92f9ebdc08077f62446ef1871a",
+    "language": "ink! 3.4.0",
+    "compiler": "rustc 1.67.0-nightly"
+  },
+  "contract": {
+    "name": "semi_bridge",
+    "version": "0.1.2",
+    "authors": [
+      "anonymous"
+    ]
+  },
+  "V3": {
+    "spec": {
+      "constructors": [
+        {
+          "args": [],
+          "docs": [],
+          "label": "default",
+          "payable": false,
+          "selector": "0xed4b9d1b"
+        }
+      ],
+      "docs": [],
+      "events": [],
+      "messages": [
+        {
+          "args": [
+            {
+              "label": "rpc",
+              "type": {
+                "displayName": [
+                  "String"
+                ],
+                "type": 3
+              }
+            },
+            {
+              "label": "bridge_address",
+              "type": {
+                "displayName": [
+                  "H160"
+                ],
+                "type": 4
+              }
+            }
+          ],
+          "docs": [
+            " Configures the bridge"
+          ],
+          "label": "config",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 6
+          },
+          "selector": "0x70714744"
+        },
+        {
+          "args": [
+            {
+              "label": "private_key",
+              "type": {
+                "displayName": [
+                  "Vec"
+                ],
+                "type": 9
+              }
+            }
+          ],
+          "docs": [
+            " Import a private key to override the interior account"
+          ],
+          "label": "set_account",
+          "mutates": true,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "H160"
+            ],
+            "type": 4
+          },
+          "selector": "0x861293ca"
+        },
+        {
+          "args": [],
+          "docs": [
+            " Returns the wallet address"
+          ],
+          "label": "wallet",
+          "mutates": false,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "H160"
+            ],
+            "type": 4
+          },
+          "selector": "0x053ffe7f"
+        },
+        {
+          "args": [
+            {
+              "label": "token_rid",
+              "type": {
+                "displayName": [
+                  "H256"
+                ],
+                "type": 10
+              }
+            },
+            {
+              "label": "amount",
+              "type": {
+                "displayName": [
+                  "U256"
+                ],
+                "type": 11
+              }
+            },
+            {
+              "label": "recipient",
+              "type": {
+                "displayName": [
+                  "H256"
+                ],
+                "type": 10
+              }
+            }
+          ],
+          "docs": [
+            " Transfers tokens to the `address` derived from the contract's private key",
+            "",
+            " # Arguments",
+            "",
+            " * `src_chain`: an integer that represents the chain from which the asset is transferred",
+            " * `dest_chain`: the recipient of the tokens",
+            " * `token_rid`: token resource id",
+            " * `amount`: amount of token to be transferred",
+            " * `recipient`: the account that receives the tokens on Phala chain"
+          ],
+          "label": "transfer",
+          "mutates": false,
+          "payable": false,
+          "returnType": {
+            "displayName": [
+              "Result"
+            ],
+            "type": 6
+          },
+          "selector": "0x84a15da1"
+        }
+      ]
+    },
+    "storage": {
+      "struct": {
+        "fields": [
+          {
+            "layout": {
+              "cell": {
+                "key": "0x0000000000000000000000000000000000000000000000000000000000000000",
+                "ty": 0
+              }
+            },
+            "name": "owner"
+          },
+          {
+            "layout": {
+              "array": {
+                "cellsPerElem": 1,
+                "layout": {
+                  "cell": {
+                    "key": "0x2100000000000000000000000000000000000000000000000000000000000000",
+                    "ty": 2
+                  }
+                },
+                "len": 32,
+                "offset": "0x0100000000000000000000000000000000000000000000000000000000000000"
+              }
+            },
+            "name": "key"
+          },
+          {
+            "layout": {
+              "enum": {
+                "dispatchKey": "0x2100000000000000000000000000000000000000000000000000000000000000",
+                "variants": {
+                  "0": {
+                    "fields": [
+                      {
+                        "layout": {
+                          "struct": {
+                            "fields": [
+                              {
+                                "layout": {
+                                  "cell": {
+                                    "key": "0x2200000000000000000000000000000000000000000000000000000000000000",
+                                    "ty": 3
+                                  }
+                                },
+                                "name": "rpc"
+                              },
+                              {
+                                "layout": {
+                                  "array": {
+                                    "cellsPerElem": 1,
+                                    "layout": {
+                                      "cell": {
+                                        "key": "0x3700000000000000000000000000000000000000000000000000000000000000",
+                                        "ty": 2
+                                      }
+                                    },
+                                    "len": 20,
+                                    "offset": "0x2300000000000000000000000000000000000000000000000000000000000000"
+                                  }
+                                },
+                                "name": "bridge_address"
+                              }
+                            ]
+                          }
+                        },
+                        "name": null
+                      }
+                    ]
+                  },
+                  "1": {
+                    "fields": []
+                  }
+                }
+              }
+            },
+            "name": "config"
+          }
+        ]
+      }
+    },
+    "types": [
+      {
+        "id": 0,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 1,
+                  "typeName": "[u8; 32]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "ink_env",
+            "types",
+            "AccountId"
+          ]
+        }
+      },
+      {
+        "id": 1,
+        "type": {
+          "def": {
+            "array": {
+              "len": 32,
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": {
+          "def": {
+            "primitive": "u8"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": {
+          "def": {
+            "primitive": "str"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 5,
+                  "typeName": "[u8; 20]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "primitive_types",
+            "H160"
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "type": {
+          "def": {
+            "array": {
+              "len": 20,
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "fields": [
+                    {
+                      "type": 7
+                    }
+                  ],
+                  "index": 0,
+                  "name": "Ok"
+                },
+                {
+                  "fields": [
+                    {
+                      "type": 8
+                    }
+                  ],
+                  "index": 1,
+                  "name": "Err"
+                }
+              ]
+            }
+          },
+          "params": [
+            {
+              "name": "T",
+              "type": 7
+            },
+            {
+              "name": "E",
+              "type": 8
+            }
+          ],
+          "path": [
+            "Result"
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "type": {
+          "def": {
+            "tuple": []
+          }
+        }
+      },
+      {
+        "id": 8,
+        "type": {
+          "def": {
+            "variant": {
+              "variants": [
+                {
+                  "index": 0,
+                  "name": "BadOrigin"
+                },
+                {
+                  "index": 1,
+                  "name": "NotConfigurated"
+                },
+                {
+                  "index": 2,
+                  "name": "KeyRetired"
+                },
+                {
+                  "index": 3,
+                  "name": "KeyNotRetiredYet"
+                },
+                {
+                  "index": 4,
+                  "name": "UpstreamFailed"
+                },
+                {
+                  "index": 5,
+                  "name": "BadAbi"
+                },
+                {
+                  "index": 6,
+                  "name": "FailedToGetStorage"
+                },
+                {
+                  "index": 7,
+                  "name": "FailedToDecodeStorage"
+                },
+                {
+                  "index": 8,
+                  "name": "FailedToEstimateGas"
+                },
+                {
+                  "index": 9,
+                  "name": "FailedToCreateExecutor"
+                }
+              ]
+            }
+          },
+          "path": [
+            "semi_bridge",
+            "semi_bridge",
+            "Error"
+          ]
+        }
+      },
+      {
+        "id": 9,
+        "type": {
+          "def": {
+            "sequence": {
+              "type": 2
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 1,
+                  "typeName": "[u8; 32]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "primitive_types",
+            "H256"
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "type": {
+          "def": {
+            "composite": {
+              "fields": [
+                {
+                  "type": 12,
+                  "typeName": "[u64; 4]"
+                }
+              ]
+            }
+          },
+          "path": [
+            "primitive_types",
+            "U256"
+          ]
+        }
+      },
+      {
+        "id": 12,
+        "type": {
+          "def": {
+            "array": {
+              "len": 4,
+              "type": 13
+            }
+          }
+        }
+      },
+      {
+        "id": 13,
+        "type": {
+          "def": {
+            "primitive": "u64"
+          }
+        }
+      }
+    ]
+  }
+}
