@@ -31,6 +31,10 @@ in snake case, consistent with the directory names under `contracts/`.
 
 ## Test with Devphase
 
+```sh
+ $ yarn devphase test
+```
+
 ## Launch a standalone local test stack for custom testing
 
 1. start the local stack.
@@ -50,12 +54,6 @@ in snake case, consistent with the directory names under `contracts/`.
 
 ```sh
  $ node src/dump-logs.js
-```
-
-4. Run tests
-
-```sh
- $ yarn devphase test
 ```
 
 The tests are written in TypeScript at `./tests/*.test.ts`. The logs are output to `./logs/{date}`
