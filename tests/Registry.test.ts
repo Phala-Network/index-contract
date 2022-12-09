@@ -4,8 +4,6 @@ import { ApiPromise } from '@polkadot/api';
 import type { KeyringPair } from '@polkadot/keyring/types';
 import { ContractType } from 'devphase';
 
-import 'dotenv/config';
-
 async function delay(ms: number): Promise<void> {
     return new Promise( resolve => setTimeout(resolve, ms) );
 }
@@ -60,7 +58,6 @@ describe('Registry tests', () => {
                 })
                 .signAndSend(alice, {nonce: -1});
             console.log('Register Ethereum', ethereumReg.toHuman());
-            await delay(1*1000);
             // Registry chain:Khala
             const khalaReg = await registry.tx
                 .registerChain(txConf, {
@@ -94,6 +91,7 @@ describe('Registry tests', () => {
                 })
                 .signAndSend(alice, {nonce: -1});
             console.log('Register Ethereum PHA', registerPha.toHuman());
+            await delay(3*1000);
             const graphQuery = await registry.query.getGraph(certAlice, {});
             expect(graphQuery.result.isOk).to.be.true;
             expect(graphQuery.output.asOk.assets[0].location.toHex()).to.be.equal("0x6c5ba91642f10282b576d91922ae6448c9d52f4e");
