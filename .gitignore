@@ -11,6 +11,4 @@ build
 node_modules
 yarn.lock
 stacks
-artifacts
-typings
 logs
