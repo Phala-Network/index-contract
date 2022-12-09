@@ -180,7 +180,9 @@ mod index_executor {
         };
         use ink::ToAccountId;
         use ink_lang as ink;
+        use phala_pallet_common::WrapSlice;
         use pink_extension::PinkEnvironment;
+        use xcm::latest::{prelude::*, MultiLocation};
 
         fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
             ink_env::test::default_accounts::<PinkEnvironment>()
@@ -296,6 +298,23 @@ mod index_executor {
                 executor.free_worker().unwrap(),
                 executor.worker_accounts[2..]
             );
+        }
+
+        #[ink::test]
+        fn dump_location() {
+            println!(
+                "Encode location: {:?}",
+                hex::encode(
+                    MultiLocation::new(
+                        1,
+                        X2(
+                            Parachain(2000),
+                            GeneralKey(WrapSlice(&hex_literal::hex!["0081"]).into())
+                        )
+                    )
+                    .encode()
+                )
+            )
         }
     }
 }

@@ -6,3 +6,11 @@ target/
 .keystore
 .DS_Store
 
+build
+.env
+node_modules
+yarn.lock
+stacks
+artifacts
+typings
+logs

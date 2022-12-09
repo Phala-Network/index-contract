@@ -25,12 +25,13 @@ pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "
 pallet-index = { git = "https://github.com/Phala-Network/khala-parachain.git", branch = "pallet-index", default-features = false }
 
 index = { path = "../../index", default-features = false }
-index_registry = { path = "../registry", default-features = false, features = ["ink-as-dependency"] }
+index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
 hex-literal = "0.3"
 pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"
+hex = "0.4.3"
 
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.
