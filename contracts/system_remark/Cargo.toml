@@ -25,12 +25,14 @@ hex = { version = "0.4.3", default-features = false }
 
 pink-extension = { version = "0.2.0", default-features = false, features = ["ink-as-dependency"] }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
+subrpc = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false }
 
 index = { path = "../../index", default-features = false }
 
 [dev-dependencies]
 pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"
+subrpc = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main" }
 
 
 [lib]
@@ -52,6 +54,7 @@ std = [
     "scale-info/std",
     "pink-extension/std",
     "pink-web3/std",
+    "subrpc/std",
     "hex/std",
     "index/std",
 ]

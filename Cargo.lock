@@ -1367,6 +1367,7 @@ dependencies = [
  "sp-io 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "sp-runtime 6.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "ss58-registry",
+ "subrpc",
  "xcm",
 ]
 
@@ -4028,6 +4029,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "subrpc"
+version = "0.1.0"
+source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#c8a3b2c5f31c26e5bda8733d7ef0befce01c76e1"
+dependencies = [
+ "base58",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+ "pink-extension 0.2.0",
+ "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
+ "ss58-registry",
+]
+
+[[package]]
 name = "substrate-bip39"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4089,6 +4108,7 @@ dependencies = [
  "pink-web3",
  "primitive-types",
  "scale-info",
+ "subrpc",
 ]
 
 [[package]]
