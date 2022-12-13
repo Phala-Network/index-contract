@@ -6,17 +6,28 @@ mod task;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
-    use alloc::{vec, vec::Vec};
+    use alloc::{string::ToString, vec, vec::Vec};
     use scale::{Decode, Encode};
     // use index::{ensure, prelude::*};
     use index::utils::ToArray;
     use index_registry::{types::Graph, RegistryRef};
     use ink_env::call::FromAccountId;
+    use phat_offchain_rollup::{
+        clients::substrate::{claim_name, get_name_owner, SubstrateRollupClient},
+        Action,
+    };
     use pink_extension::chain_extension::{signing, SigType};
+    // To enable `(result).log_err("Reason")?`
+    use pink_extension::ResultExt;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
+        MissingRegistry,
+        ChainNotFound,
+        FailedToGetNameOwner,
+        RollupConfiguredByAnotherAccount,
+        FailedToClaimName,
         ReadCacheFailed,
         WriteCacheFailed,
         DecodeCacheFailed,
@@ -56,6 +67,7 @@ mod index_executor {
         pub registry: Option<RegistryRef>,
         pub worker_accounts: Vec<[u8; 32]>,
         pub executor_account: [u8; 32],
+        pub rollup_pallet_id: Option<u8>,
     }
 
     impl Default for Executor {
@@ -90,6 +102,7 @@ mod index_executor {
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
+                rollup_pallet_id: None,
             }
         }
 
@@ -98,6 +111,56 @@ mod index_executor {
         pub fn set_registry(&mut self, registry: AccountId) -> Result<()> {
             self.registry = Some(RegistryRef::from_account_id(registry));
             Ok(())
+        }
+
+        /// Initialize rollup after registry set
+        /// `rollup_pallet_id` is the rollup pallet id defined in `construct_runtime` marco.
+        /// executor account key will be the key that submit transaction to target blockchains
+        #[ink(message)]
+        pub fn init_rollup(&self, rollup_pallet_id: u8) -> Result<()> {
+            let rollup_init_record = pink_extension::ext().cache_get(b"rollup_init");
+            // TODO: Check if the transaction has successed
+            if let Some(_) = rollup_init_record {
+                return Ok(());
+            }
+
+            self.registry.as_ref().ok_or(Error::MissingRegistry)?;
+            let contract_id = self.env().account_id();
+            // Get rpc info from registry
+            let chain = self
+                .registry
+                .clone()
+                .unwrap()
+                .get_chain("Khala".to_string())
+                .map_err(|_| Error::ChainNotFound)?;
+            let endpoint = chain.endpoint;
+            // Check if the rollup is initialized properly
+            let actual_owner = get_name_owner(&endpoint, &contract_id)
+                .log_err("failed to get name owner")
+                .or(Err(Error::FailedToGetNameOwner))?;
+            if let Some(owner) = actual_owner {
+                let pubkey = pink_extension::ext().get_public_key(
+                    pink_extension::chain_extension::SigType::Sr25519,
+                    &self.executor_account,
+                );
+                if owner.encode() != pubkey {
+                    return Err(Error::RollupConfiguredByAnotherAccount);
+                }
+            }
+            // Not initialized. Let's claim the name.
+            claim_name(
+                &endpoint,
+                rollup_pallet_id,
+                &contract_id,
+                &self.executor_account,
+            )
+            .log_err("failed to claim name")
+            .map(|tx_hash| {
+                pink_extension::ext()
+                    .cache_set(b"rollup_init", &tx_hash)
+                    .expect("write cache failed");
+            })
+            .or(Err(Error::FailedToClaimName))
         }
 
         /// For cross-contract call test

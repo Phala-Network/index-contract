@@ -424,6 +424,12 @@ mod registry {
         }
 
         #[ink(message)]
+        pub fn get_chain(&self, name: String) -> Result<ChainInfo> {
+            let chain = self.chains.get(&name).ok_or(Error::ChainNotFound)?;
+            Ok(chain.get_info())
+        }
+
+        #[ink(message)]
         pub fn get_graph(&self) -> Result<Graph> {
             let mut assets: Vec<AssetGraph> = vec![];
             let mut pairs: Vec<TradingPairGraph> = vec![];
