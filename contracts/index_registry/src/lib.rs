@@ -18,7 +18,7 @@ mod registry {
     use crate::types::Error;
     use crate::types::*;
     use alloc::{string::String, vec, vec::Vec};
-    use index::ensure;
+    use index::utils::ensure;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
