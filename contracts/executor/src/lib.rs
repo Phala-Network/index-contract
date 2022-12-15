@@ -2,7 +2,13 @@
 extern crate alloc;
 use ink_lang as ink;
 
-mod task;
+mod account;
+mod engine;
+mod worker;
+mod tasks;
+mod types;
+mod uploader;
+mod claimer;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
@@ -20,7 +26,13 @@ mod index_executor {
     use ink_env::call::FromAccountId;
     use index_registry::{AccountInfo, AccountStatus, RegistryRef};
 
-    use task::{ActivedTaskFetcher, RuningTaskFetcher, Step, TaskClaimer, TaskUploader};
+    use engine::{RuningTaskFetcher, Step};
+    use crate::types::{Task, TaskId, TaskStatus};
+    use crate::account::AccountInfo;
+    use crate::claimer::{ActivedTaskFetcher, TaskClaimer};
+    use crate::uploader::{UploadToChain, TaskUploader};
+    use crate::worker::*;
+    use crate::task::*;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -33,7 +45,7 @@ mod index_executor {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Executor {
         pub admin: AccountId,
-        pub registry: RegistryRef,
+        pub registry: Option<RegistryRef>,
         pub worker_accounts: Vec<[u8; 32]>,
         pub executor_account: [u8; 32],
     }
@@ -44,30 +56,110 @@ mod index_executor {
         }
     }
 
+    /// Task creation lifetime cycle:
+    ///
+    /// - Source: Created
+    /// - Phat: Found
+    /// - Phat: Upload
+    /// - Khala: Created
+    /// - Source: Claimed (not before 4 to ensure it will not be dropped)
+    /// - Phat: Executing
     impl Executor {
         #[ink(constructor)]
         /// Create an Executor entity
-        pub fn new(register: AccountId) -> Self {
-            ink_lang::utils::initialize_contract(|this: &mut Self| {
-                this.admin = Self::env().caller();
-                this.registry = RegistryRef::from_account_id(register);
-                for index in 0..10 {
-                    // TODO: generate private key
-                    this.worker_accounts.push(vec![0; 32])
-                }
-                pink_extension::ext().cache_set(b"alloc", vec![])?;
-            })
+        pub fn new() -> Self {
+            let mut worker_accounts: Vec<[u8; 32]> = vec![];
+            for index in 0..10 {
+                worker_accounts.push(
+                    pink_web3::keys::pink::KeyPair::derive_keypair(
+                        &[b"worker".to_vec(), [index].to_vec()].concat(),
+                    )
+                    .private_key(),
+                )
+            }
+
+            init_worker_alloc();
+
+            Self {
+                admin: Self::env().caller(),
+                registry: None,
+                worker_accounts,
+                executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
+                    .private_key(),
+            }
         }
 
-        /// Claim and execute tasks from all supported blockchains. This is a query operation
+        /// Search actived tasks from source chain and upload them to rollup storage after worker
+        /// account allocated
+        #[ink(message)]
+        pub fn upload_task(&self, source_chain: String) -> Result<(), Error> {
+            // TODO: Maybe recover cache through onchain storage if cache is empty
+            // By this way, if a task hasn't been claimed in source chain, and also
+            // hasn't been saved in rollup storage, we can treat it as un-uploaded,
+            // It's fine we re upload it, redundancy issue should be handled by rollup
+            // handler pallet. e.g. pallet-index
+
+            let free_workers = free_worker();
+
+            // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
+            // and append them to runing tasks
+            let onchain_actived_tasks = ActivedTaskFetcher::new(self.registry.chains.get(chain).unwrap(), worker).fetch_tasks()?;
+            /// TODO: Compare free_workers length with onchain_actived_tasks length
+            for (idx, task) in onchain_actived_tasks {
+                task.status = TaskStatus::Initialized;
+                // Allocate worker account for this task
+                task.worker = AccountInfo::Account30::from(free_workers[idx]);
+            });
+
+            // Upload tasks through off-chain rollup
+            // ... create client
+            // TODO: Except the task data, we also need have a pending task list
+            client.action(Action::Reply(UploadToChain { task: task.clone() }.encode()));
+            // ... 
+            if let Some(submittable) = maybe_submittable {
+                let tx_id = submittable
+                    .submit(&self.executor_account, 0)
+                    .log_err("failed to submit rollup tx")
+                    .or(Err(Error::FailedToSendTransaction))?;
+
+                // Add the new task to local cache
+                // Since we already have tx hash, it can be used to track transactioin result
+                // in `claim_task`, when it succeeds, `claim_task` start to claim task from
+                // source chain
+                task.status = TaskStatus::Uploading(Some(tx_id));
+                self.add_task(&task)?;
+            }
+        }
+
+        /// Claim task from source chain when it was uploaded to rollup storage successfully
+        #[ink(message)]
+        pub fn claim_task(&self) -> Result<(), Error> {
+            // TODO: Maybe recover cache through onchain storage if cache is empty
+            // Here we need to query both rollup storage and source chain storage to determine
+            // if the task should being uploaded.
+
+            let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
+            match task.status {
+                TaskStatus::Uploading(tx_id) =>  {
+                    let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_hash)?;
+                    // If claimed successfully, allocate worker account and upload it to pallet-index
+                    if result.is_ok() {
+                        // Claim task from source chain
+                        let hash = TaskClaimer::claim_task(&task.chain, &task.id)?;
+                        task.status = TaskStatus::Claiming(Some(hash));
+                        self.update_task(&task);
+                    }
+                },
+                _ => {
+                    //
+                }
+            }
+        }
+
+        /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
-        /// 
-        /// 
-        /// 1) Perform spcific operations for the runing tasks according to current status.
-        /// 2) Fetch new actived tasks from supported chains and append them to the local runing tasks queue.
-        /// 
-        #[ink::message]
-        pub fn execute(&self) -> Result<(), Error> {
+        #[ink(message)]
+        pub fn execute_task(&self) -> Result<(), Error> {
             // Get the worker key that the contract deployed on
             let worker = pink_extension::ext().worker_pubkey();
             let mut running_tasks = self.running_tasks()?;
@@ -78,7 +170,6 @@ mod index_executor {
                 running_tasks = self.recover_cache(&onchain_tasks)?;
             }
 
-            // 1) Check and execute runing tasks.
             running_tasks.iter().map(|id| {
                 let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
                 match task.status {
@@ -107,16 +198,6 @@ mod index_executor {
                             // Upload task to on-chain storage
                             let hash = TaskUploader::upload_task(self.executor_account, &worker, &local_claimed_tasks[index].task)?;
                             task.status = TaskStatus::Uploading(Some(hash));
-                            self.update_task(&task);
-                        }
-                    },
-                    TaskStatus::Uploading(Some(upload_tx_hash)), => {
-                        let result = TransactionChecker::check_transaction(task.chain, upload_tx_hash)?;
-                        if result {
-                            // Start to execute first step
-                            let signer = PrivateKey(task.worker);
-                            let hash = Step(self.registry)::execute_step(&signer, &task.edges[0])?;
-                            task.status = TaskStatus::Executing(0, Some(hash));
                             self.update_task(&task);
                         }
                     },
@@ -156,19 +237,6 @@ mod index_executor {
                         // Do nothing
                     }
                 }
-            });
-
-            // 2) Fetch actived task that completed initial confirmation from all supported chains that belong to current worker,
-            // and append them to runing tasks
-            let onchain_actived_tasks = self.registry.supported_chains.iter().map(|chain| {
-                let chain_info = self.registry.chains.get(chain).unwrap();
-                let actived_tasks = ActivedTaskFetcher::new(chain_info, worker).fetch_tasks()?;
-                actived_tasks
-            }).collect().concat();
-            /// Save to local cache
-            onchain_actived_tasks.iter().map(|mut task| {
-                task.status = TaskStatus::Initialized;
-                self.add_task(&task);
             });
 
             Ok(())
