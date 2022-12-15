@@ -24,7 +24,6 @@ phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-r
 
 pink-extension = { version = "0.2.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
-pallet-index = { git = "https://github.com/Phala-Network/khala-parachain.git", branch = "pallet-index", default-features = false }
 
 index = { path = "../../index", default-features = false }
 index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
@@ -64,7 +63,6 @@ std = [
     "phat_offchain_rollup/std",
     "pink-extension/std",
     "pink-web3/std",
-    "pallet-index/std",
     "index/std",
     "index_registry/std",
 ]

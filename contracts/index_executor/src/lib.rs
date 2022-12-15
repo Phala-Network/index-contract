@@ -3,10 +3,16 @@ extern crate alloc;
 use ink_lang as ink;
 
 mod task;
+mod task_uploader;
+mod types;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
-    use alloc::{string::ToString, vec, vec::Vec};
+    use alloc::{
+        string::{String, ToString},
+        vec,
+        vec::Vec,
+    };
     use scale::{Decode, Encode};
     // use index::{ensure, prelude::*};
     use index::utils::ToArray;
@@ -18,19 +24,27 @@ mod index_executor {
     };
     use pink_extension::chain_extension::{signing, SigType};
     // To enable `(result).log_err("Reason")?`
+    use crate::task_uploader::UploadToChain;
+    use crate::types::{Task, TaskId, TaskStatus};
+    use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use pink_extension::ResultExt;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
-        MissingRegistry,
+        BadOrigin,
+        NotConfigured,
         ChainNotFound,
         FailedToGetNameOwner,
         RollupConfiguredByAnotherAccount,
         FailedToClaimName,
+        FailedToCreateClient,
+        FailedToCommitTx,
+        FailedToSendTransaction,
         ReadCacheFailed,
         WriteCacheFailed,
         DecodeCacheFailed,
+        TaskNotFoundInCache,
         ExecuteFailed,
         Unimplemented,
     }
@@ -42,6 +56,15 @@ mod index_executor {
     pub struct AccountInfo {
         pub account32: [u8; 32],
         pub account20: [u8; 20],
+    }
+
+    #[derive(Encode, Decode, Debug, PackedLayout, SpreadLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
+    struct Config {
+        /// Registry contract
+        registry: RegistryRef,
+        /// The rollup anchor pallet id on the target blockchain
+        pallet_id: u8,
     }
 
     impl From<[u8; 32]> for AccountInfo {
@@ -63,11 +86,10 @@ mod index_executor {
     // #[derive(SpreadAllocate)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Executor {
-        pub admin: AccountId,
-        pub registry: Option<RegistryRef>,
-        pub worker_accounts: Vec<[u8; 32]>,
-        pub executor_account: [u8; 32],
-        pub rollup_pallet_id: Option<u8>,
+        admin: AccountId,
+        config: Option<Config>,
+        worker_accounts: Vec<[u8; 32]>,
+        executor_account: [u8; 32],
     }
 
     impl Default for Executor {
@@ -98,39 +120,33 @@ mod index_executor {
 
             Self {
                 admin: Self::env().caller(),
-                registry: None,
+                config: None,
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
-                rollup_pallet_id: None,
             }
         }
 
-        /// Create an Executor entity
         #[ink(message)]
-        pub fn set_registry(&mut self, registry: AccountId) -> Result<()> {
-            self.registry = Some(RegistryRef::from_account_id(registry));
+        pub fn config(&mut self, registry: AccountId, pallet_id: u8) -> Result<()> {
+            self.ensure_owner()?;
+            self.config = Some(Config {
+                registry: RegistryRef::from_account_id(registry),
+                pallet_id,
+            });
             Ok(())
         }
 
         /// Initialize rollup after registry set
-        /// `rollup_pallet_id` is the rollup pallet id defined in `construct_runtime` marco.
         /// executor account key will be the key that submit transaction to target blockchains
         #[ink(message)]
-        pub fn init_rollup(&self, rollup_pallet_id: u8) -> Result<()> {
-            let rollup_init_record = pink_extension::ext().cache_get(b"rollup_init");
-            // TODO: Check if the transaction has successed
-            if let Some(_) = rollup_init_record {
-                return Ok(());
-            }
-
-            self.registry.as_ref().ok_or(Error::MissingRegistry)?;
+        pub fn init_rollup(&self) -> Result<()> {
+            let config = self.ensure_configured()?;
             let contract_id = self.env().account_id();
             // Get rpc info from registry
-            let chain = self
+            let chain = config
                 .registry
                 .clone()
-                .unwrap()
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let endpoint = chain.endpoint;
@@ -146,27 +162,111 @@ mod index_executor {
                 if owner.encode() != pubkey {
                     return Err(Error::RollupConfiguredByAnotherAccount);
                 }
+            } else {
+                // Not initialized. Let's claim the name.
+                claim_name(
+                    &endpoint,
+                    config.pallet_id,
+                    &contract_id,
+                    &self.executor_account,
+                )
+                .log_err("failed to claim name")
+                .map(|_tx_hash| {
+                    // Do nothing so far
+                })
+                .or(Err(Error::FailedToClaimName))?;
             }
-            // Not initialized. Let's claim the name.
-            claim_name(
-                &endpoint,
-                rollup_pallet_id,
-                &contract_id,
-                &self.executor_account,
-            )
-            .log_err("failed to claim name")
-            .map(|tx_hash| {
-                pink_extension::ext()
-                    .cache_set(b"rollup_init", &tx_hash)
-                    .expect("write cache failed");
-            })
-            .or(Err(Error::FailedToClaimName))
+            Ok(())
+        }
+
+        /// Claim and execute tasks from all supported blockchains. This is a query operation
+        /// that scheduler invokes periodically.
+        ///
+        ///
+        /// 1) Perform spcific operations for the runing tasks according to current status.
+        /// 2) Fetch new actived tasks from supported chains and append them to the local runing tasks queue.
+        ///
+        #[ink(message)]
+        pub fn execute(&self) -> Result<()> {
+            Err(Error::Unimplemented)
+        }
+
+        /// Claim tasks from source chain. The worflow is:
+        /// 1. Get actived task from all supported chains
+        /// 2. Upload task info to rollup storage
+        #[ink(message)]
+        pub fn upload_task(&self, _source_chain: String) -> Result<()> {
+            let config = self.ensure_configured()?;
+
+            // TODO: fetch actived tasks from supported blockchain
+
+            // TODO: Maybe recover cache through onchain storage if it is empty
+
+            // Get rpc info from registry
+            let chain = config
+                .registry
+                .clone()
+                .get_chain("Khala".to_string())
+                .map_err(|_| Error::ChainNotFound)?;
+            let contract_id = self.env().account_id();
+            let mut client =
+                SubstrateRollupClient::new(&chain.endpoint, config.pallet_id, &contract_id)
+                    .log_err("failed to create rollup client")
+                    .or(Err(Error::FailedToCreateClient))?;
+
+            // TODO: Allocate worker account for this task
+
+            // TODO: Use real task data
+            let mut task = Task {
+                id: [0; 32],
+                worker: [0; 32],
+                status: TaskStatus::Initialized,
+                source: b"Ethereum".to_vec(),
+                edges: vec![],
+                sender: vec![],
+                recipient: vec![],
+            };
+            // TODO: Except the task data, we also need have a pending task list
+            client.action(Action::Reply(UploadToChain { task: task.clone() }.encode()));
+            // Submit the transaction if it's not empty
+            let maybe_submittable = client
+                .commit()
+                .log_err("failed to commit")
+                .or(Err(Error::FailedToCommitTx))?;
+            if let Some(submittable) = maybe_submittable {
+                let tx_id = submittable
+                    .submit(&self.executor_account, 0)
+                    .log_err("failed to submit rollup tx")
+                    .or(Err(Error::FailedToSendTransaction))?;
+
+                // Add the new task to local cache
+                task.status = TaskStatus::Uploading(Some(tx_id));
+                self.add_task(&task)?;
+            }
+
+            Ok(())
+        }
+
+        /// For cross-contract call test
+        #[ink(message)]
+        pub fn get_local_tasks(&self) -> Result<Vec<Task>> {
+            let mut task_list: Vec<Task> = vec![];
+            let local_tasks = pink_extension::ext()
+                .cache_get(b"running_tasks")
+                .ok_or(Error::ReadCacheFailed)?;
+            let decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
+                .map_err(|_| Error::DecodeCacheFailed)?;
+            for task_id in decoded_tasks {
+                task_list.push(self.get_task(&task_id).unwrap());
+            }
+            Ok(task_list)
         }
 
         /// For cross-contract call test
         #[ink(message)]
         pub fn get_graph(&self) -> Result<Graph> {
-            let graph = self.registry.clone().unwrap().get_graph().unwrap();
+            let config = self.ensure_configured()?;
+            let graph = config.registry.clone().get_graph().unwrap();
             Ok(graph)
         }
 
@@ -184,18 +284,6 @@ mod index_executor {
                 accounts.push((*worker).into())
             }
             accounts
-        }
-
-        /// Claim and execute tasks from all supported blockchains. This is a query operation
-        /// that scheduler invokes periodically.
-        ///
-        ///
-        /// 1) Perform spcific operations for the runing tasks according to current status.
-        /// 2) Fetch new actived tasks from supported chains and append them to the local runing tasks queue.
-        ///
-        #[ink(message)]
-        pub fn execute(&self) -> Result<()> {
-            Err(Error::Unimplemented)
         }
 
         /// Mark an account as allocated, e.g. put it into local cache `alloc` queue.
@@ -230,6 +318,82 @@ mod index_executor {
                 }
             }
             Ok(free_list)
+        }
+
+        fn add_task(&self, task: &Task) -> Result<()> {
+            let local_tasks = pink_extension::ext()
+                .cache_get(b"running_tasks")
+                .ok_or(Error::ReadCacheFailed)?;
+            let mut decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
+                .map_err(|_| Error::DecodeCacheFailed)?;
+
+            if !decoded_tasks.contains(&task.id) {
+                decoded_tasks.push(task.id);
+                pink_extension::ext()
+                    .cache_set(b"running_tasks", &decoded_tasks.encode())
+                    .map_err(|_| Error::WriteCacheFailed)?;
+                // Save full task information
+                pink_extension::ext()
+                    .cache_set(&task.id, &task.encode())
+                    .map_err(|_| Error::WriteCacheFailed)?;
+            }
+            Ok(())
+        }
+
+        fn remove_task(&self, task: &Task) -> Result<()> {
+            let local_tasks = pink_extension::ext()
+                .cache_get(b"running_tasks")
+                .ok_or(Error::ReadCacheFailed)?;
+            let mut decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
+                .map_err(|_| Error::DecodeCacheFailed)?;
+            let index = decoded_tasks
+                .iter()
+                .position(|id| *id == task.id)
+                .ok_or(Error::TaskNotFoundInCache)?;
+            decoded_tasks.remove(index);
+            // Delete task record from cache
+            pink_extension::ext()
+                .cache_remove(&task.id)
+                .ok_or(Error::WriteCacheFailed)?;
+
+            Ok(())
+        }
+
+        fn update_task(&self, task: &Task) -> Result<()> {
+            if let Some(_) = pink_extension::ext().cache_get(&task.id) {
+                // Update task record
+                pink_extension::ext()
+                    .cache_set(&task.id, &task.encode())
+                    .map_err(|_| Error::WriteCacheFailed)?;
+            }
+            Ok(())
+        }
+
+        fn get_task(&self, id: &TaskId) -> Option<Task> {
+            pink_extension::ext()
+                .cache_get(id)
+                .and_then(|encoded_task| {
+                    match Decode::decode(&mut encoded_task.as_slice())
+                        .map_err(|_| Error::DecodeCacheFailed)
+                    {
+                        Ok(task) => Some(task),
+                        _ => None,
+                    }
+                })
+        }
+
+        /// Returns BadOrigin error if the caller is not the owner
+        fn ensure_owner(&self) -> Result<()> {
+            if self.env().caller() == self.admin {
+                Ok(())
+            } else {
+                Err(Error::BadOrigin)
+            }
+        }
+
+        /// Returns the config reference or raise the error `NotConfigured`
+        fn ensure_configured(&self) -> Result<&Config> {
+            self.config.as_ref().ok_or(Error::NotConfigured)
         }
     }
 
