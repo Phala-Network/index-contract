@@ -123,7 +123,7 @@ mod index_executor {
                     TaskStatus::Executing(step_index, Some(execute_tx_hash)) => {
                         // TODO: result should contains more information
                         let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_hash)?;
-                        if result {
+                        if result.is_ok() {
                             // If all steps executed completed, set task status as Completed
                             if step_index == task.edges.len - 1 {
                                 task.status = TaskStatus::Completed;
@@ -138,33 +138,13 @@ mod index_executor {
                                 self.update_task(&task);
                             }
                         } else {
-                            // Re-apply nonce
-                            self.apply_worker(&task)?;
-                            // TODO: Retry
-
-                            // TODO: Exceed retry limit, revert
-                            let signer = PrivateKey(task.worker);
-                            let hash = Step(self.registry)::revert_step(&signer, &task.edges[step_index])?;
-                            task.status = TaskStatus::Reverting(step_index, Some(hash));
-                            self.update_task(&task);
-                        }
-                    },
-                    TaskStatus::Reverting(step_index, Some(revert_tx_hash)) => {
-                        let result = TransactionChecker::check_transaction(Step(self.registry)::dest_chain(&task.edges[step_index]), revert_tx_hash)?;
-                        if result {
-                                // TODO: More validations
-
-                                // Start to execute next step
-                                let signer = PrivateKey(task.worker);
-                                let hash = Step(self.registry)::revert_step(&signer, &task.edges[step_index - 1])?;
-                                task.status = TaskStatus::Reverting(step_index - 1, Some(hash));
-                                self.update_task(&task);
-                        } eles {
-                            // Re-apply nonce
-                            self.apply_worker(&task)?;
-                            // TODO: Retry
-
-                            // TODO: Exceed retry limit, task is dead, manual handling???
+                            // Execution failed, prepare necessary informations that DAO can handle later.
+                            // Informatios should contains:
+                            // 1. Sender on source chain
+                            // 2. Current step
+                            // 3. The allocated worker account
+                            // 4. Current asset that worker account hold
+                            //
                         }
                     },
                     TaskStatus::Completed => {
