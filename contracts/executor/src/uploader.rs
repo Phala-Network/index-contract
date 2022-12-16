@@ -10,10 +10,10 @@ pub struct UploadToChain {
 
 /// Update/Create task in rollup storage.
 ///
-/// Return transaction hash if success.
+/// Return account nonce related to this transaction
 struct TaskUploader;
 impl TaskUploader {
-    pub fn upload_task(worker: &AccountId, task: &Task) -> Result<Vec<u8>, Error> {
+    pub fn upload_task(worker: &AccountId, task: &Task) -> Result<u64, Error> {
         Err(Error::Unimplemented)
     }
 }

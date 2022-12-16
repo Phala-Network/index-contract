@@ -23,10 +23,10 @@ impl ActivedTaskFetcher {
 /// For example, call RPC method defined here:
 ///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L63
 ///
-/// Return transaction hash if success.
+/// Return account nonce that related to this transaction
 struct TaskClaimer;
 impl TaskClaimer {
-    pub fn claim_task(chain: &Vec<u8>, task_id: &TaskId) -> Result<Vec<u8>, Error> {
+    pub fn claim_task(chain: &Vec<u8>, task_id: &TaskId) -> Result<u64, Error> {
         Err(Error::Unimplemented)
     }
 }

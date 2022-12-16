@@ -117,14 +117,18 @@ pub struct Edge {
 pub enum TaskStatus {
     /// Task initial confirmed by user on source chain.
     Initialized,
-    /// Task is being uploaded to on-chain storage. [tx_hash]
-    Uploading(Option<Vec<u8>>),
-    /// Task is being claimed by worker. [tx_hash]
-    Claiming(Option<Vec<u8>>),
-    /// Task is being executing with step index. [step_index, tx_hash]
-    Executing(u8, Option<Vec<u8>>),
-    /// Task is being reverting with step index. [step_index, tx_hash]
-    Reverting(u8, Option<Vec<u8>>),
+    /// Task is being uploaded to on-chain storage.
+    /// Transaction can be indentified by executor account nonce on rollup chain
+    /// [executor_nonce]
+    Uploading(Option<u64>),
+    /// Task is being claimed by worker.
+    /// Transaction indentified by executor account nonce on source chain.
+    /// [executor_nonce]
+    Claiming(Option<u64>),
+    /// Task is being executing with step index.
+    /// Transaction can be indentified by worker account nonce on specific chain
+    /// [step_index, worker_nonce]
+    Executing(u8, Option<u64>),
     /// Last step of task has been executed successful last step on dest chain.
     Completed,
 }

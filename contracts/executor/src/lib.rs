@@ -126,7 +126,8 @@ mod index_executor {
                 // Since we already have tx hash, it can be used to track transactioin result
                 // in `claim_task`, when it succeeds, `claim_task` start to claim task from
                 // source chain
-                task.status = TaskStatus::Uploading(Some(tx_id));
+                // TODO: calculate nonce of this transaction
+                task.status = TaskStatus::Uploading(Some(nonce));
                 self.add_task(&task)?;
             }
         }
@@ -140,13 +141,13 @@ mod index_executor {
 
             let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
             match task.status {
-                TaskStatus::Uploading(tx_id) =>  {
-                    let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_hash)?;
+                TaskStatus::Uploading(upload_tx_nonce) =>  {
+                    let result = TransactionChecker::check_transaction(self.executor_account, task.chain, upload_tx_nonce)?;
                     // If claimed successfully, allocate worker account and upload it to pallet-index
                     if result.is_ok() {
                         // Claim task from source chain
-                        let hash = TaskClaimer::claim_task(&task.chain, &task.id)?;
-                        task.status = TaskStatus::Claiming(Some(hash));
+                        let claim_tx_nonce = TaskClaimer::claim_task(&task.chain, &task.id)?;
+                        task.status = TaskStatus::Claiming(Some(claim_tx_nonce));
                         self.update_task(&task);
                     }
                 },
@@ -179,8 +180,8 @@ mod index_executor {
                         task.status = TaskStatus::Claiming(Some(hash));
                         self.update_task(&task);
                     },
-                    TaskStatus::Claiming(Some(claim_tx_hash)) => {
-                        let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_hash)?;
+                    TaskStatus::Claiming(Some(claim_tx_nonce)) => {
+                        let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_nonce)?;
                         // If claimed successfully, allocate worker account and upload it to pallet-index
                         if result {
                             // Allocate worker account (account used to send trasnaction to blockchain) to each claimed task,
@@ -201,9 +202,9 @@ mod index_executor {
                             self.update_task(&task);
                         }
                     },
-                    TaskStatus::Executing(step_index, Some(execute_tx_hash)) => {
+                    TaskStatus::Executing(step_index, Some(execute_tx_nonce)) => {
                         // TODO: result should contains more information
-                        let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_hash)?;
+                        let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_nonce)?;
                         if result.is_ok() {
                             // If all steps executed completed, set task status as Completed
                             if step_index == task.edges.len - 1 {

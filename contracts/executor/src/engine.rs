@@ -32,7 +32,7 @@ impl RuningTaskFetcher {
 /// We can use RPC `get_transaction` on Ethereum to check the transaction status
 struct TransactionChecker;
 impl TransactionChecker {
-    pub fn check_transaction(chain: Vec<u8>, hash: Vec<u8>) -> Result<bool, Error> {
+    pub fn check_transaction(chain: Vec<u8>, nonce: u64) -> Result<bool, Error> {
         // Check transaction result according to different edge type
         Err(Error::Unimplemented)
     }
@@ -40,8 +40,8 @@ impl TransactionChecker {
 
 struct Step(RegistryRef);
 impl Step {
-    /// Execute step according to edge type, return corresponding transaction hash if success.
-    pub fn execute_step(signer: &[u8; 32], edge: &Edge) -> Result<Vec<u8>, Error> {
+    /// Execute step according to edge type, return corresponding account nonce if success.
+    pub fn execute_step(signer: &[u8; 32], edge: &Edge) -> Result<u64, Error> {
         match edge.edge {
             Source(source_edge) => {
                 // ingore
