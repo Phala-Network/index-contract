@@ -26,7 +26,7 @@ impl ActivedTaskFetcher {
 /// Return account nonce that related to this transaction
 struct TaskClaimer;
 impl TaskClaimer {
-    pub fn claim_task(chain: &Vec<u8>, task_id: &TaskId) -> Result<u64, Error> {
+    pub fn claim_task(task: &Task) -> Result<u64, Error> {
         Err(Error::Unimplemented)
     }
 }

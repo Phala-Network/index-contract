@@ -26,7 +26,7 @@ mod index_executor {
     use ink_env::call::FromAccountId;
     use index_registry::{AccountInfo, AccountStatus, RegistryRef};
 
-    use engine::{RuningTaskFetcher, Step};
+    use engine::{RuningTaskFetcher, StepExecutor, ExecutionChecker};
     use crate::types::{Task, TaskId, TaskStatus};
     use crate::account::AccountInfo;
     use crate::claimer::{ActivedTaskFetcher, TaskClaimer};
@@ -56,14 +56,6 @@ mod index_executor {
         }
     }
 
-    /// Task creation lifetime cycle:
-    ///
-    /// - Source: Created
-    /// - Phat: Found
-    /// - Phat: Upload
-    /// - Khala: Created
-    /// - Source: Claimed (not before 4 to ensure it will not be dropped)
-    /// - Phat: Executing
     impl Executor {
         #[ink(constructor)]
         /// Create an Executor entity
@@ -78,8 +70,6 @@ mod index_executor {
                 )
             }
 
-            init_worker_alloc();
-
             Self {
                 admin: Self::env().caller(),
                 registry: None,
@@ -89,71 +79,21 @@ mod index_executor {
             }
         }
 
-        /// Search actived tasks from source chain and upload them to rollup storage after worker
-        /// account allocated
+        /// Search actived tasks from source chain and upload them to rollup storage
         #[ink(message)]
-        pub fn upload_task(&self, source_chain: String) -> Result<(), Error> {
-            // TODO: Maybe recover cache through onchain storage if cache is empty
-            // By this way, if a task hasn't been claimed in source chain, and also
-            // hasn't been saved in rollup storage, we can treat it as un-uploaded,
-            // It's fine we re upload it, redundancy issue should be handled by rollup
-            // handler pallet. e.g. pallet-index
-
-            let free_workers = free_worker();
-
+        pub fn fetch_task(&self, source_chain: String) -> Result<(), Error> {
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
             // and append them to runing tasks
-            let onchain_actived_tasks = ActivedTaskFetcher::new(self.registry.chains.get(chain).unwrap(), worker).fetch_tasks()?;
-            /// TODO: Compare free_workers length with onchain_actived_tasks length
-            for (idx, task) in onchain_actived_tasks {
-                task.status = TaskStatus::Initialized;
-                // Allocate worker account for this task
-                task.worker = AccountInfo::Account30::from(free_workers[idx]);
-            });
+            let mut onchain_actived_tasks = ActivedTaskFetcher::new(self.registry.chains.get(source_chain).unwrap(), self.executor_account).fetch_tasks()?;
+            
+            self.initialize_task_onchain(&onchain_actived_tasks);
 
-            // Upload tasks through off-chain rollup
-            // ... create client
-            // TODO: Except the task data, we also need have a pending task list
-            client.action(Action::Reply(UploadToChain { task: task.clone() }.encode()));
-            // ... 
+            // Submit to blockchain
             if let Some(submittable) = maybe_submittable {
                 let tx_id = submittable
                     .submit(&self.executor_account, 0)
                     .log_err("failed to submit rollup tx")
                     .or(Err(Error::FailedToSendTransaction))?;
-
-                // Add the new task to local cache
-                // Since we already have tx hash, it can be used to track transactioin result
-                // in `claim_task`, when it succeeds, `claim_task` start to claim task from
-                // source chain
-                // TODO: calculate nonce of this transaction
-                task.status = TaskStatus::Uploading(Some(nonce));
-                self.add_task(&task)?;
-            }
-        }
-
-        /// Claim task from source chain when it was uploaded to rollup storage successfully
-        #[ink(message)]
-        pub fn claim_task(&self) -> Result<(), Error> {
-            // TODO: Maybe recover cache through onchain storage if cache is empty
-            // Here we need to query both rollup storage and source chain storage to determine
-            // if the task should being uploaded.
-
-            let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
-            match task.status {
-                TaskStatus::Uploading(upload_tx_nonce) =>  {
-                    let result = TransactionChecker::check_transaction(self.executor_account, task.chain, upload_tx_nonce)?;
-                    // If claimed successfully, allocate worker account and upload it to pallet-index
-                    if result.is_ok() {
-                        // Claim task from source chain
-                        let claim_tx_nonce = TaskClaimer::claim_task(&task.chain, &task.id)?;
-                        task.status = TaskStatus::Claiming(Some(claim_tx_nonce));
-                        self.update_task(&task);
-                    }
-                },
-                _ => {
-                    //
-                }
             }
         }
 
@@ -161,62 +101,38 @@ mod index_executor {
         /// that scheduler invokes periodically.
         #[ink(message)]
         pub fn execute_task(&self) -> Result<(), Error> {
-            // Get the worker key that the contract deployed on
-            let worker = pink_extension::ext().worker_pubkey();
-            let mut running_tasks = self.running_tasks()?;
+            // Try recover cache from onchain storage if it is empty or crashed
+            self.maybe_recover_cache()?;
 
-            // Recover cache if `running_tasks` is empty
-            if running_tasks.len == 0 {
-                let onchain_tasks = RuningTaskFetcher::new(&Chain(b"phala").endpoint, &worker).fetch_tasks()?;
-                running_tasks = self.recover_cache(&onchain_tasks)?;
-            }
+            let local_tasks = get_all_task_local()?;
 
-            running_tasks.iter().map(|id| {
-                let mut task = self.get_task(&id).ok_or(Error::ExecuteFailed)?;
+            for id in local_tasks.iter() {
+                // Get task saved in local cache
+                let mut task = self.get_task_local(&id).ok_or(Error::ExecuteFailed)?;
+                let signer = self.pub_to_prv(&task.worker);
+
                 match task.status {
                     TaskStatus::Initialized =>  {
-                        // Claim task from source chain
-                        let hash = TaskClaimer::claim_task(&task.chain, &task.id)?;
-                        task.status = TaskStatus::Claiming(Some(hash));
-                        self.update_task(&task);
-                    },
-                    TaskStatus::Claiming(Some(claim_tx_nonce)) => {
-                        let result = TransactionChecker::check_transaction(self.executor_account, task.chain, claim_tx_nonce)?;
-                        // If claimed successfully, allocate worker account and upload it to pallet-index
-                        if result {
-                            // Allocate worker account (account used to send trasnaction to blockchain) to each claimed task,
-                            // and upload them to the pending task queue saved in pallet-index
-                            let free_accounts = self.free_worker();
-                            if (free_accounts.len == 0) retuen;
-                            task.worker = PublicKey(free_accounts[0]);
-                            // Apply nonce to each step
-                            self.apply_worker(&task)?;
-                            // Mark as allocated
-                            self.allocate_worker(&free_accounts[0])?;
+                        // If task exist in local cache, that means it already been uploaded in rollup storage,
+                        // next step, we claim it from source chain
 
-                            // TODO: Check validity before upload
-
-                            // Upload task to on-chain storage
-                            let hash = TaskUploader::upload_task(self.executor_account, &worker, &local_claimed_tasks[index].task)?;
-                            task.status = TaskStatus::Uploading(Some(hash));
-                            self.update_task(&task);
-                        }
+                        // First step of execution is always to claim task from source chain
+                        let nonce = StepExecutor(self.registry)::execute_step(&signer, &task.steps[0])?;
+                        task.status = TaskStatus::Executing(0, Some(nonce));
+                        self.update_task_local(&task);
                     },
                     TaskStatus::Executing(step_index, Some(execute_tx_nonce)) => {
                         // TODO: result should contains more information
-                        let result = TransactionChecker::check_transaction(Step(self.registry)::source_chain(&task.edges[step_index]), execute_tx_nonce)?;
+                        let result = ExecutionChecker::check_execution(&task.steps[step_index], AccountInfo::from(signer))?;
                         if result.is_ok() {
                             // If all steps executed completed, set task status as Completed
-                            if step_index == task.edges.len - 1 {
+                            if step_index == task.steps.len - 1 {
                                 task.status = TaskStatus::Completed;
                                 self.update_task(&task);
                             } else {
-                                // TODO: More validations
-
                                 // Start to execute next step
-                                let signer = PrivateKey(task.worker);
-                                let hash = Step(self.registry)::execute_step(&signer, &task.edges[step_index + 1])?;
-                                task.status = TaskStatus::Executing(step_index + 1, Some(hash));
+                                let nonce = StepExecutor(self.registry)::execute_step(&signer, &task.steps[step_index + 1])?;
+                                task.status = TaskStatus::Executing(step_index + 1, Some(nonce));
                                 self.update_task(&task);
                             }
                         } else {
@@ -230,16 +146,82 @@ mod index_executor {
                         }
                     },
                     TaskStatus::Completed => {
-                        self.remove_task(&task)?;
-
-                        // TODO: update pallet-index
+                        // Remove task from blockchain and recycle worker account
+                        self.destroy_task_onchain(&task);
+                        // If task already delete from rollup storage, delete it from local cache
+                        if self.lookup_task_onchain(task.id) == None {
+                            remove_task_local(&task);
+                        }
                     },
-                    _ => {
-                        // Do nothing
-                    }
                 }
             });
 
             Ok(())
+        }
+
+        fn initialize_task_onchain(&self, client: &SubstrateRollupClient, tasks: &mut Vec<Task>) {
+            let client = RollupClient::new();
+            let mut free_accounts: Vec<AccountInfo::Account32> = client.session.get(b"free_accounts".to_vec()).unwrap();
+            let mut pending_tasks: Vec<TaskId> = client.session.get(b"pending_tasks".to_vec()).unwrap();
+
+            for task in tasks.iter_mut() {
+                if client.session.get(task.id).is_some() {
+                    // Task already saved, skip
+                    contine;
+                }
+                if let Some(account) = free_accounts.pop() {
+                    // Apply a worker account
+                    task.worker = account;
+                    // Aplly worker nonce for each step in task
+                    self.aplly_nonce(&task);
+                    task.status = TaskStatus::Initialized;
+                    // Push to pending tasks queue
+                    pending_tasks.push(task.id);
+                    // Save task data
+                    client.session.put(task.id, task);
+                } else {
+                    // We can not handle more tasks any more
+                    break;
+                }
+            }
+
+            client.session.put(b"free_accounts".to_vec(), free_accounts);
+            client.session.put(b"pending_tasks".to_vec(), pending_tasks);
+            client.commit();
+        }
+
+        fn destroy_task_onchain(&self, client: &SubstrateRollupClient, tasks: &Task) {
+            let client = RollupClient::new();
+            let mut pending_tasks: Vec<TaskId> = client.session.get(b"pending_tasks".to_vec()).unwrap();
+            let mut free_accounts: Vec<AccountInfo::Account32> = client.session.get(b"free_accounts".to_vec()).unwrap();
+
+            if client.session.get(task.id).is_some() {
+                if let Some(idx) = pending_tasks
+                .iter()
+                .position(|id| *id == task.id) {
+                    // Remove from pending tasks queue
+                    pending_tasks.remove(idx);
+                    // Recycle worker account
+                    free_accounts.push(task.worker);
+                    // Delete task data
+                    client.session.remove(task.id);
+                }
+                client.session.put(b"free_accounts".to_vec(), free_accounts);
+                client.session.put(b"pending_tasks".to_vec(), pending_tasks);
+                client.commit();
+            }
+        }
+
+        fn lookup_task_onchain(&self, id: TaskId) -> Option<Task> {
+            let client = RollupClient::new();
+            client.session.get(id)
+        }
+
+        fn aplly_nonce(&self, task: &mut Task) -> {
+
+        }
+
+        fn maybe_recover_cache(&self) {
+
         }
 }
