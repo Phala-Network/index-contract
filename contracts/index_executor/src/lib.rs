@@ -214,8 +214,6 @@ mod index_executor {
                     .log_err("failed to create rollup client")
                     .or(Err(Error::FailedToCreateClient))?;
 
-            // TODO: Allocate worker account for this task
-
             // TODO: Use real task data
             let mut task = Task {
                 id: [0; 32],
@@ -226,7 +224,7 @@ mod index_executor {
                 sender: vec![],
                 recipient: vec![],
             };
-            // TODO: Except the task data, we also need have a pending task list
+            // TODO: Use session save task/taskid_list/task_worker_account info.
             client.action(Action::Reply(UploadToChain { task: task.clone() }.encode()));
             // Submit the transaction if it's not empty
             let maybe_submittable = client
@@ -241,6 +239,7 @@ mod index_executor {
 
                 // Add the new task to local cache
                 task.status = TaskStatus::Uploading(Some(tx_id));
+                // Save for debug purpose, will remove
                 self.add_task(&task)?;
             }
 
