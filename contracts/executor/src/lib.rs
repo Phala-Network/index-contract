@@ -172,6 +172,7 @@ mod index_executor {
                     task.worker = account;
                     // Aplly worker nonce for each step in task
                     self.aplly_nonce(&task);
+                    // TODO: query initial balance of worker account and setup to specific step
                     task.status = TaskStatus::Initialized;
                     // Push to pending tasks queue
                     pending_tasks.push(task.id);
