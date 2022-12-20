@@ -48,29 +48,41 @@ pub struct SwapStep {
     /// Price impact after executing the step
     pub impact: u128,
     /// Original relayer account balance of spend asset
+    /// Should be set when initializing task
     pub b0: Option<u128>,
     /// Original relayer account balance of received asset
+    /// Should be set when initializing task
     pub b1: Option<u128>,
+    /// Amount to be spend
+    pub spend: u128,
 }
 
 /// Definition of bridge operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct BridgeStep {
-    /// asset/chain
+    /// Asset id on source chain
     from: Vec<u8>,
-    /// asset/chain
+    /// Name of source chain
+    source_chain: Vec<u8>,
+    /// Asset on dest chain
     to: Vec<u8>,
+    /// Name of dest chain
+    dest_chain: Vec<u8>,
+    /// Fee of the bridge represented by the transfer asset
+    fee: u128,
     /// Capacity of the step
     cap: u128,
     /// Flow of the step
     flow: u128,
-    /// Price impact after executing the step
-    impact: u128,
     /// Original relayer account balance of asset on source chain
+    /// Should be set when initializing task
     b0: Option<u128>,
     /// Original relayer account balance of asset on dest chain
+    /// Should be set when initializing task
     b1: Option<u128>,
+    /// Bridge amount
+    amount: u128,
 }
 
 /// Definition of bridge operation step
@@ -79,6 +91,8 @@ pub struct BridgeStep {
 pub struct ClaimStep {
     /// Chain name
     chain: Vec<u8>,
+    /// Task Id
+    id: TaskId,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -95,9 +109,9 @@ pub enum StepMeta {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Step {
     /// Content of the step
-    pub step: StepMeta,
+    pub meta: StepMeta,
     /// Nonce of the worker account that related to this step execution
-    pub nonce: Option<u128>,
+    pub nonce: Option<u64>,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]

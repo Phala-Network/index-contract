@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-fn add_task_local(&self, task: &Task) -> Result<()> {
+fn add_task_local(task: &Task) -> Result<()> {
     let local_tasks = pink_extension::ext()
         .cache_get(b"running_tasks")
         .ok_or(Error::ReadCacheFailed)?;
@@ -20,7 +20,7 @@ fn add_task_local(&self, task: &Task) -> Result<()> {
     Ok(())
 }
 
-fn remove_task_local(&self, task: &Task) -> Result<()> {
+fn remove_task_local(task: &Task) -> Result<()> {
     let local_tasks = pink_extension::ext()
         .cache_get(b"running_tasks")
         .ok_or(Error::ReadCacheFailed)?;
@@ -39,7 +39,7 @@ fn remove_task_local(&self, task: &Task) -> Result<()> {
     Ok(())
 }
 
-fn update_task_local(&self, task: &Task) -> Result<()> {
+fn update_task_local(task: &Task) -> Result<()> {
     if let Some(_) = pink_extension::ext().cache_get(&task.id) {
         // Update task record
         pink_extension::ext()
@@ -49,7 +49,7 @@ fn update_task_local(&self, task: &Task) -> Result<()> {
     Ok(())
 }
 
-fn get_task_local(&self, id: &TaskId) -> Option<Task> {
+fn get_task_local(id: &TaskId) -> Option<Task> {
     pink_extension::ext()
         .cache_get(id)
         .and_then(|encoded_task| {
@@ -62,7 +62,7 @@ fn get_task_local(&self, id: &TaskId) -> Option<Task> {
         })
 }
 
-fn get_all_task_local(&self, id: &TaskId) -> Result<Vec<TaskId>> {
+fn get_all_task_local(id: &TaskId) -> Result<Vec<TaskId>> {
     let local_tasks = pink_extension::ext()
         .cache_get(b"running_tasks")
         .ok_or(Error::ReadCacheFailed)?;

@@ -3,11 +3,10 @@ extern crate alloc;
 use ink_lang as ink;
 
 mod account;
+mod cache;
 mod engine;
 mod worker;
-mod tasks;
 mod types;
-mod uploader;
 mod claimer;
 
 #[allow(clippy::large_enum_variant)]
@@ -26,13 +25,11 @@ mod index_executor {
     use ink_env::call::FromAccountId;
     use index_registry::{AccountInfo, AccountStatus, RegistryRef};
 
-    use engine::{RuningTaskFetcher, StepExecutor, ExecutionChecker};
+    use engine::{StepExecutor, ExecutionChecker};
     use crate::types::{Task, TaskId, TaskStatus};
     use crate::account::AccountInfo;
-    use crate::claimer::{ActivedTaskFetcher, TaskClaimer};
-    use crate::uploader::{UploadToChain, TaskUploader};
-    use crate::worker::*;
-    use crate::task::*;
+    use crate::claimer::ActivedTaskFetcher;
+    use crate::cache::*;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -47,6 +44,7 @@ mod index_executor {
         pub admin: AccountId,
         pub registry: Option<RegistryRef>,
         pub worker_accounts: Vec<[u8; 32]>,
+        pub pub_to_prv: Mapping<[u8p; 32], [u8; 32]>,
         pub executor_account: [u8; 32],
     }
 
@@ -62,12 +60,12 @@ mod index_executor {
         pub fn new() -> Self {
             let mut worker_accounts: Vec<[u8; 32]> = vec![];
             for index in 0..10 {
-                worker_accounts.push(
-                    pink_web3::keys::pink::KeyPair::derive_keypair(
-                        &[b"worker".to_vec(), [index].to_vec()].concat(),
-                    )
-                    .private_key(),
+                let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
+                    &[b"worker".to_vec(), [index].to_vec()].concat(),
                 )
+                .private_key();
+                worker_accounts.push(private_key);
+                self.pub_to_prv.insert(&AccountInfo::from(private_key).account32, &private_key);
             }
 
             Self {
@@ -218,10 +216,76 @@ mod index_executor {
         }
 
         fn aplly_nonce(&self, task: &mut Task) -> {
+            let client = RollupClient::new();
+            let mut nonce_map: Mapping<String, u64> = Mapping::new();
+            for step in task.steps.iter() {
+                match step.meta {
+                    Claim(claim_step) => {
+                        let nonce = nonce_map.get(claim_step.chain).or_else(|| {
+                            let onchain_nonce = NonceFetcher::fetch_nonce(claim_step.chain, AccountInfo::from(self.pub_to_prv(&task.worker)));
+                            onchain_nonce
+                        });
+                        step.nonce = nonce;
+                        // Increase nonce by 1
+                        nonce_map.insert(claim_step.chain, nonce.unwrap() + 1);
+                    },
+                    Swap(swap_step) => {
+                        let nonce = nonce_map.get(swap_step.chain).or_else(|| {
+                            let onchain_nonce = NonceFetcher::fetch_nonce(swap_step.chain, AccountInfo::from(self.pub_to_prv(&task.worker)));
+                            onchain_nonce
+                        });
+                        step.nonce = nonce;
+                        // Increase nonce by 1
+                        nonce_map.insert(swap_step.chain, nonce.unwrap() + 1);
+                    },
+                    Bridge(bridge_step) => {
+                        let nonce = nonce_map.get(bridge_step.source_chain).or_else(|| {
+                            let onchain_nonce = NonceFetcher::fetch_nonce(bridge_step.source_chain, AccountInfo::from(self.pub_to_prv(&task.worker)));
+                            onchain_nonce
+                        });
+                        step.nonce = nonce;
+                        // Increase nonce by 1
+                        nonce_map.insert(bridge_step.source_chain, nonce.unwrap() + 1);
+                    },
+                    _ => {
+                        // Do nothing
+                    }
+                }
+            }
 
         }
 
-        fn maybe_recover_cache(&self) {
+        fn maybe_recover_cache(&self) -> Result<(), Error> {
+            match get_all_task_local() {
+                Ok(runing_tasks) => {
+                    // If local cache is empty, try to recover
+                    if runing_tasks.len() == 0 {
+                        self.recover_from_rollup_storage();
+                    }
+                },
+                Err(_) => {
+                    // If failed to read cache, try to recover
+                    self.recover_from_rollup_storage();
+                }
+            }
+        }
+
+        fn recover_from_rollup_storage(&self) -> Result<(), Error> {
+            let client = RollupClient::new();
+            let empty_tasks: Vec<TaskId> = vec![];
+
+            pink_extension::ext()
+            .cache_set(b"running_tasks", &empty_tasks.encode())
+            .map_err(|_| Error::WriteCacheFailed)?;
+
+            // Read from rollup storage
+            let pending_tasks: Vec<TaskId> = client.session.get(b"pending_tasks".to_vec()).unwrap();
+            for id in pending_tasks {
+                if let Some(task) = client.session.get(task.id) {
+                    // TODO: recover status of the task
+                    add_task_local(&task);
+                }
+            }
 
         }
 }
