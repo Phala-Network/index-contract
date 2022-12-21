@@ -434,7 +434,7 @@ mod index_executor {
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
-                .expect("failed to deploy EvmTransactor");
+                .expect("failed to deploy Registry");
             let ethereum = ChainInfo {
                 name: "Ethereum".to_string(),
                 chain_type: ChainType::Evm,
@@ -461,8 +461,8 @@ mod index_executor {
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
-                .expect("failed to deploy SampleOracle");
-            assert_eq!(executor.set_registry(registry.to_account_id()), Ok(()));
+                .expect("failed to deploy Executor");
+            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
 
             // Make cross contract call from executor
             assert_eq!(
@@ -482,48 +482,47 @@ mod index_executor {
         }
 
         #[ink::test]
-        fn worker_allocation_cache_should_work() {
-            use pink_extension::chain_extension::mock;
-            use std::{cell::RefCell, collections::HashMap, rc::Rc};
-
+        fn rollup_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
 
-            let storage: Rc<RefCell<HashMap<Vec<u8>, Vec<u8>>>> = Default::default();
+            // Register contracts
+            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
+            let hash2 = ink_env::Hash::try_from([20u8; 32]).unwrap();
+            ink_env::test::register_contract::<Registry>(hash1.as_ref());
+            ink_env::test::register_contract::<Executor>(hash2.as_ref());
 
-            {
-                let storage = storage.clone();
-                mock::mock_cache_set(move |k, v| {
-                    storage.borrow_mut().insert(k.to_vec(), v.to_vec());
-                    Ok(())
-                });
-            }
-            {
-                let storage = storage.clone();
-                mock::mock_cache_get(move |k| storage.borrow().get(k).map(|v| v.to_vec()));
-            }
-            {
-                let storage = storage.clone();
-                mock::mock_cache_remove(move |k| {
-                    storage.borrow_mut().remove(k).map(|v| v.to_vec())
-                });
-            }
+            // Deploy Registry
+            let mut registry = RegistryRef::new()
+                .code_hash(hash1)
+                .endowment(0)
+                .salt_bytes([0u8; 0])
+                .instantiate()
+                .expect("failed to deploy Registry");
+            let khala = ChainInfo {
+                name: "Khala".to_string(),
+                chain_type: ChainType::Sub,
+                native: None,
+                stable: None,
+                endpoint: "http://127.0.0.1:39933".to_string(),
+                network: None,
+            };
+            assert_eq!(registry.register_chain(khala.clone()), Ok(()));
 
-            let accounts = default_accounts();
-            set_caller(accounts.alice);
-            let mut executor = Executor::new();
-            assert_eq!(executor.free_worker().unwrap(), executor.worker_accounts);
-            assert_eq!(
-                executor.allocate_worker(&executor.worker_accounts[0]),
-                Ok(())
-            );
-            assert_eq!(
-                executor.allocate_worker(&executor.worker_accounts[1]),
-                Ok(())
-            );
-            assert_eq!(
-                executor.free_worker().unwrap(),
-                executor.worker_accounts[2..]
-            );
+            // Deploy Executor
+            let mut executor = ExecutorRef::new()
+                .code_hash(hash2)
+                .endowment(0)
+                .salt_bytes([0u8; 0])
+                .instantiate()
+                .expect("failed to deploy Executor");
+            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
+            // Initial rollup
+            let r = executor.init_rollup().expect("failed to init");
+            pink_extension::warn!("init rollup: {r:?}");
+            let r = executor
+                .upload_task("Ethereum".to_string())
+                .expect("failed to feed price");
+            pink_extension::warn!("upload task: {r:?}");
         }
 
         #[ink::test]
