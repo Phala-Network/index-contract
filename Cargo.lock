@@ -1229,6 +1229,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
+ "pink-subrpc",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types",
  "scale-info",
@@ -1237,7 +1238,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "ss58-registry",
- "subrpc",
  "xcm",
 ]
 
@@ -2113,6 +2113,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pink-subrpc"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62d0f91f33770e2d2feb99396efafcb430a28362b749fd9bb38dc0a9672bed5c"
+dependencies = [
+ "base58",
+ "hex",
+ "hex-literal",
+ "parity-scale-codec",
+ "pink-extension 0.2.0",
+ "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "primitive-types",
+ "scale-info",
+ "serde",
+ "sp-core-hashing 6.0.0",
+ "ss58-registry",
+]
+
+[[package]]
 name = "pink-web3"
 version = "0.19.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2952,6 +2971,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-core-hashing"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbc2d1947252b7a4e403b0a260f596920443742791765ec111daa2bbf98eff25"
+dependencies = [
+ "blake2",
+ "byteorder",
+ "digest 0.10.6",
+ "sha2 0.10.6",
+ "sha3",
+ "sp-std 6.0.0",
+ "twox-hash",
+]
+
+[[package]]
 name = "sp-core-hashing-proc-macro"
 version = "5.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29#cc370aa61e15c18d23a2f686b812fd576a630afe"
@@ -3200,6 +3234,12 @@ version = "4.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29#cc370aa61e15c18d23a2f686b812fd576a630afe"
 
 [[package]]
+name = "sp-std"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af0ee286f98455272f64ac5bb1384ff21ac029fbb669afbaf48477faff12760e"
+
+[[package]]
 name = "sp-storage"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3431,10 +3471,10 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0",
  "pink-extension-runtime",
+ "pink-subrpc",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types",
  "scale-info",
- "subrpc",
 ]
 
 [[package]]

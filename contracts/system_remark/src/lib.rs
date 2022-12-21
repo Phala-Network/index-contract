@@ -6,6 +6,8 @@ use ink_lang as ink;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod system_remark {
+    use pink_subrpc as subrpc;
+
     use alloc::{string::String, vec::Vec};
     use scale::{Decode, Encode};
     use subrpc::{create_transaction, send_transaction};

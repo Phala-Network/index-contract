@@ -1,3 +1,5 @@
+use pink_subrpc as subrpc;
+
 use crate::{
     prelude::Executor,
     traits::common::Error,
