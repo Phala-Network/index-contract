@@ -508,6 +508,12 @@ mod index_executor {
             };
             assert_eq!(registry.register_chain(khala.clone()), Ok(()));
 
+            // Insert empty record in advance
+            let empty_tasks: Vec<TaskId> = vec![];
+            pink_extension::ext()
+                .cache_set(b"running_tasks", &empty_tasks.encode())
+                .unwrap();
+
             // Deploy Executor
             let mut executor = ExecutorRef::new()
                 .code_hash(hash2)
