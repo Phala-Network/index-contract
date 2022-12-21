@@ -1,12 +1,13 @@
+use pink_subrpc as subrpc;
+
 use crate::{
     prelude::Executor,
-    subrpc::{create_transaction, send_transaction},
     traits::common::Error,
     traits::common::{Address, Amount},
 };
 use alloc::string::{String, ToString};
-use xcm::v1::MultiAsset;
-use xcm::v1::{AssetId, Fungibility, Junction, Junctions, MultiLocation};
+use subrpc::{create_transaction, send_transaction};
+use xcm::v1::{AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
 pub struct Phala2EvmExecutor {
     rpc: String,
@@ -66,8 +67,10 @@ impl Executor for Phala2EvmExecutor {
                         0x52u8,
                         0x0u8,
                         (multi_asset, dest, dest_weight),
-                    )?;
-                    let _tx_id = send_transaction(&self.rpc, &signed_tx)?;
+                    )
+                    .map_err(|_| Error::InvalidSignature)?;
+                    let _tx_id = send_transaction(&self.rpc, &signed_tx)
+                        .map_err(|_| Error::SubRPCRequestFailed)?;
                     Ok(())
                 }
                 _ => Err(Error::InvalidAmount),
