@@ -425,7 +425,7 @@ mod registry {
 
         #[ink(message)]
         pub fn get_chain(&self, name: String) -> Result<ChainInfo> {
-            let chain = self.chains.get(&name).ok_or(Error::ChainNotFound)?;
+            let chain = self.chains.get(name).ok_or(Error::ChainNotFound)?;
             Ok(chain.get_info())
         }
 

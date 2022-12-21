@@ -339,6 +339,7 @@ mod index_executor {
             Ok(())
         }
 
+        #[allow(dead_code)]
         fn remove_task(&self, task: &Task) -> Result<()> {
             let local_tasks = pink_extension::ext()
                 .cache_get(b"running_tasks")
@@ -358,8 +359,9 @@ mod index_executor {
             Ok(())
         }
 
+        #[allow(dead_code)]
         fn update_task(&self, task: &Task) -> Result<()> {
-            if let Some(_) = pink_extension::ext().cache_get(&task.id) {
+            if pink_extension::ext().cache_get(&task.id).is_some() {
                 // Update task record
                 pink_extension::ext()
                     .cache_set(&task.id, &task.encode())
