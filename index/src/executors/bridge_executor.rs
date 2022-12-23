@@ -1,80 +1,141 @@
-use crate::traits::{
-    common::{Address, Error},
-    executor::{BridgeExecutor, Executor},
-};
+use pink_subrpc as subrpc;
+
+use crate::traits::{common::Error, executor::BridgeExecutor};
 use crate::transactors::ChainBridgeClient;
-use pink_web3::api::{Eth, Namespace};
-use pink_web3::contract::Contract;
-use pink_web3::keys::pink::KeyPair;
-use pink_web3::transports::PinkHttp;
-use primitive_types::{H256, U256};
+use crate::utils::ToArray;
+use pink_web3::{
+    api::{Eth, Namespace},
+    contract::Contract,
+    keys::pink::KeyPair,
+    transports::PinkHttp,
+    types::Address,
+};
+use primitive_types::U256;
+use scale::Decode;
 use scale::Encode;
-use xcm::v0::NetworkId;
-use xcm::v1::{Junction, Junctions, MultiLocation};
+use subrpc::{create_transaction, send_transaction};
+use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
+use alloc::{string::{String, ToString}, vec::Vec};
 
 pub struct ChainBridgeEvm2Phala {
-    // (asset_location, resource_id)
-    pub assets: Vec<(Vec<u8>, [u8; 32])>
-}
-
-impl BridgeExecutor for ChainBridgeEvm2Phala {
-    fn new(assets: Vec<(Vec<u8>, [u8; 32])>) -> Self {
-        Self {
-            assets,
-        }
-    }
-
-    fn transfer(&self, signer: [u8; 32], asset: Vec<u8>, recipient: Vec<u8>, amount: u128) -> core::result::Result<Self, Error> {
-        Err(Error::Unimplemented)
-    }
-}
-
-pub struct Evm2PhalaExecutor {
+    // (asset_contract_address, resource_id)
+    assets: Vec<(Address, [u8; 32])>,
     bridge_contract: ChainBridgeClient,
 }
 
-impl Executor for Evm2PhalaExecutor {
-    fn new(
-        bridge_address: Address,
-        abi_json: &[u8],
-        rpc: &str,
-    ) -> core::result::Result<Self, Error> {
+#[allow(dead_code)]
+impl ChainBridgeEvm2Phala {
+    pub fn new(rpc: &str, bridge_address: Address, assets: Vec<(Address, [u8; 32])>) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
-        if let Address::EthAddr(address) = bridge_address {
-            Ok(Self {
-                bridge_contract: ChainBridgeClient {
-                    contract: Contract::from_json(eth, address, abi_json).or(Err(Error::BadAbi))?,
-                },
-            })
-        } else {
-            Err(Error::InvalidAddress)
+        let bridge_contract = ChainBridgeClient {
+            contract: Contract::from_json(
+                eth,
+                bridge_address.try_into().expect("Invalid contract address"),
+                include_bytes!("../abis/chainbridge-abi.json"),
+            )
+            .expect("Bad abi data"),
+        };
+
+        Self {
+            assets,
+            bridge_contract,
         }
     }
 
+    fn lookup_rid(&self, addr: Address) -> Option<[u8; 32]> {
+        self.assets
+            .iter()
+            .position(|a| a.0 == addr)
+            .map(|idx| self.assets[idx].1.clone())
+    }
+}
+
+#[allow(dead_code)]
+impl BridgeExecutor for ChainBridgeEvm2Phala {
     fn transfer(
         &self,
         signer: [u8; 32],
-        token_rid: H256,
-        amount: U256,
-        recipient: Address,
+        asset: Vec<u8>,
+        recipient: Vec<u8>,
+        amount: u128,
     ) -> core::result::Result<(), Error> {
         let signer = KeyPair::from(signer);
-        match recipient {
-            Address::SubAddr(addr) => {
-                let dest = MultiLocation::new(
-                    0,
-                    Junctions::X1(Junction::AccountId32 {
-                        network: NetworkId::Any,
-                        id: addr.into(),
-                    }),
-                );
-                _ = self
-                    .bridge_contract
-                    .deposit(signer, token_rid, amount, dest.encode())?;
-                Ok(())
-            }
-            _ => Err(Error::InvalidAddress),
-        }
+        let recipient: [u8; 32] = recipient.try_into().expect("Invalid recipient");
+        let dest = MultiLocation::new(
+            0,
+            Junctions::X1(Junction::AccountId32 {
+                network: NetworkId::Any,
+                id: recipient,
+            }),
+        );
+        let asset: [u8; 20] = asset.to_array();
+        let rid = self.lookup_rid(asset.into()).ok_or(Error::InvalidMultilocation)?;
+        _ = self
+            .bridge_contract
+            .deposit(signer, rid.into(), U256::from(amount), dest.encode())?;
+        Ok(())
+    }
+}
+
+pub struct ChainBridgePhala2Evm {
+    evm_chainid: u8,
+    rpc: String,
+}
+
+#[allow(dead_code)]
+impl ChainBridgePhala2Evm {
+    pub fn new(evm_chainid: u8, rpc: &str) -> core::result::Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        Ok(Self {
+            evm_chainid,
+            rpc: rpc.to_string(),
+        })
+    }
+}
+
+#[allow(dead_code)]
+impl BridgeExecutor for ChainBridgePhala2Evm {
+    fn transfer(
+        &self,
+        signer: [u8; 32],
+        asset: Vec<u8>,
+        recipient: Vec<u8>,
+        amount: u128,
+    ) -> core::result::Result<(), Error> {
+        let asset_location: MultiLocation =
+            Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
+        let multi_asset = MultiAsset {
+            id: AssetId::Concrete(asset_location),
+            fun: Fungibility::Fungible(amount),
+        };
+        let dest = MultiLocation::new(
+            0,
+            Junctions::X3(
+                Junction::GeneralKey(
+                    b"cb"
+                        .to_vec()
+                        .try_into()
+                        .or(Err(Error::InvalidMultilocation))?,
+                ),
+                Junction::GeneralIndex(self.evm_chainid as u128),
+                Junction::GeneralKey(recipient.try_into().or(Err(Error::InvalidMultilocation))?),
+            ),
+        );
+        let dest_weight: core::option::Option<u64> = None;
+        let signed_tx = create_transaction(
+            &signer,
+            "phala",
+            &self.rpc,
+            0x52u8,
+            0x0u8,
+            (multi_asset, dest, dest_weight),
+        )
+        .map_err(|_| Error::InvalidSignature)?;
+        let _tx_id =
+            send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
+        Ok(())
     }
 }
 

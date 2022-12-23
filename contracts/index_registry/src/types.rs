@@ -1,10 +1,27 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-use super::common::Error;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use ink_storage::traits::{PackedLayout, SpreadAllocate, SpreadLayout, StorageLayout};
+use scale::{Decode, Encode};
 use xcm::latest::{AssetId, MultiLocation};
+
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum Error {
+    BadAbi,
+    BadOrigin,
+    AssetAlreadyRegistered,
+    AssetNotFound,
+    BridgeAlreadyRegistered,
+    BridgeNotFound,
+    ChainAlreadyRegistered,
+    ChainNotFound,
+    DexAlreadyRegistered,
+    DexNotFound,
+    ExtractLocationFailed,
+    ConstructContractFailed,
+    Unimplemented,
+}
 
 /// Query the account balance of an asset under a multichain scenario is a mess,
 /// not only because different chains have different account systems but also have
@@ -43,8 +60,8 @@ pub trait BalanceFetcher {
 )]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AssetInfo {
-    pub name: Vec<u8>,
-    pub symbol: Vec<u8>,
+    pub name: String,
+    pub symbol: String,
     pub decimals: u8,
     /// Encoded asset MultiLocation
     pub location: Vec<u8>,
@@ -62,9 +79,9 @@ pub trait AssetsRegisry {
     /// Return all registerd assets
     fn registered_assets(&self) -> Vec<AssetInfo>;
 
-    fn lookup_by_name(&self, name: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_name(&self, name: String) -> Option<AssetInfo>;
 
-    fn lookup_by_symbol(&self, symbol: Vec<u8>) -> Option<AssetInfo>;
+    fn lookup_by_symbol(&self, symbol: String) -> Option<AssetInfo>;
 
     fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo>;
 }
@@ -79,12 +96,22 @@ pub enum ChainType {
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct ChainInfo {
-    pub name: Vec<u8>,
+    pub name: String,
     pub chain_type: ChainType,
     pub native: Option<AssetInfo>,
     pub stable: Option<AssetInfo>,
-    pub endpoint: Vec<u8>,
+    pub endpoint: String,
     pub network: Option<u8>,
+}
+
+/// Query on-chain `account` nonce
+pub trait NonceFetcher {
+    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, Error>;
+}
+impl NonceFetcher for ChainInfo {
+    fn get_nonce(&self, _account: Vec<u8>) -> core::result::Result<u64, Error> {
+        Err(Error::Unimplemented)
+    }
 }
 
 pub trait ChainInspector {
@@ -95,7 +122,7 @@ pub trait ChainInspector {
 pub trait ChainMutate {
     fn set_native(&mut self, native: AssetInfo);
     fn set_stable(&mut self, stable: AssetInfo);
-    fn set_endpoint(&mut self, endpoint: Vec<u8>);
+    fn set_endpoint(&mut self, endpoint: String);
 }
 
 /// Asset informatios should be contained in the input graph
@@ -103,13 +130,13 @@ pub trait ChainMutate {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct AssetGraph {
     /// Chain name that asset belong to
-    pub chain: Vec<u8>,
+    pub chain: String,
     /// Encoded asset MultiLocation
     pub location: Vec<u8>,
     /// Asset name
-    pub name: Vec<u8>,
+    pub name: String,
     /// Symbol of asset
-    pub symbol: Vec<u8>,
+    pub symbol: String,
     /// Decimal of asset
     pub decimals: u8,
 }
@@ -120,36 +147,26 @@ pub struct AssetGraph {
 pub struct TradingPairGraph {
     /// Indentification of the trading pair on dex
     pub id: Vec<u8>,
-    /// Asset name of token0
-    pub token0: Vec<u8>,
-    /// Asset name of token1
-    pub token1: Vec<u8>,
-    /// Encoded asset0 MultiLocation
-    pub location0: Vec<u8>,
-    /// Encoded asset1 MultiLocation
-    pub location1: Vec<u8>,
-    /// Balance of asset0 in pool
-    pub reserve0: u128,
-    /// Balance of asset1 in pool
-    pub reserve1: u128,
-    /// Capability of trading pool, represented by USD
-    pub cap: u128,
+    /// Name of asset0
+    pub asset0: String,
+    /// Name of asset1
+    pub asset1: String,
     /// Dex name that trading pair belong to
-    pub dex: Vec<u8>,
+    pub dex: String,
     /// Chain name that trading pair belong to
-    pub chain: Vec<u8>,
+    pub chain: String,
 }
 
-/// Bridge informatios should be contained in the input graph
+/// Bridge informations should be contained in the input graph
 #[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo,))]
 pub struct BridgeGraph {
     /// Name of source chain
-    pub chain0: Vec<u8>,
+    pub chain0: String,
     /// Name of dest chain
-    pub chain1: Vec<u8>,
-    /// Name list of supported assets
-    pub assets: Vec<Vec<u8>>,
+    pub chain1: String,
+    /// Asset name of bridge pair.
+    pub assets: Vec<(String, String)>,
 }
 
 /// Definition of the input graph

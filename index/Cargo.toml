@@ -21,6 +21,7 @@ xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.2
 ink_storage = { version = "3", default-features = false }
 ink_primitives = { version = "3.3.1", default-features = false }
 ink_metadata = { version = "3.3.1", default-features = false, features = ["derive"], optional = true }
+pink-subrpc = { version = "0.1.0", default-features = false }
 
 [dependencies.sp-io]
 git = "https://github.com/paritytech/substrate"
@@ -40,4 +41,5 @@ std = [
     "ink_storage/std",
     "ink_metadata/std",
     "ink_primitives/std",
+    "pink-subrpc/std",
 ]

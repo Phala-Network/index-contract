@@ -1,4 +1,5 @@
-use alloc::vec::Vec;
+use index::utils::ToArray;
+use pink_extension::chain_extension::{signing, SigType};
 use scale::{Decode, Encode};
 
 #[derive(Encode, Decode, Debug, PartialEq, Eq)]
