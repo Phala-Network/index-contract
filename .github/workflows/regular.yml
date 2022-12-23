@@ -15,7 +15,7 @@ jobs:
           submodules: "true"
       - uses: ./.github/actions/install_toolchain
       - name: Run cargo tests for index
-        run: cargo test -vv -p index
+        run: cd index && cargo test -vv
       - name: Run cargo tests for contracts
         run: cargo test -vv
 

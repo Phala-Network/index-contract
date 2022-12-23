@@ -28,4 +28,4 @@ jobs:
           && sudo cp binaryen-version_110/lib/* /lib/ \
           && rm -rf binaryen-version_110"
       - name: Run cargo contract build for sample contracts
-        run: cd contracts/semi-bridge && cargo contract build
+        run: cd contracts/semi_bridge && cargo contract build
