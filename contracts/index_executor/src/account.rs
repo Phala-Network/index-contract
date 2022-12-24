@@ -1,9 +1,10 @@
 use index::utils::ToArray;
+use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
 use pink_extension::chain_extension::{signing, SigType};
 use scale::{Decode, Encode};
 
-#[derive(Encode, Decode, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AccountInfo {
     pub account32: [u8; 32],
     pub account20: [u8; 20],

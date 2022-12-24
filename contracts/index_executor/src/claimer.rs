@@ -66,7 +66,7 @@ impl ActivedTaskFetcher {
         ActivedTaskFetcher { chain, worker }
     }
 
-    pub fn fetch_tasks(&self) -> Result<Vec<Task>, &'static str> {
+    pub fn fetch_task(&self) -> Result<Task, &'static str> {
         match self.chain.chain_type {
             ChainType::Evm => {
                 Ok(self.query_evm_actived_tasks(self.chain.endpoint.clone(), &self.worker)?)
@@ -79,7 +79,7 @@ impl ActivedTaskFetcher {
         &self,
         endpoint: String,
         worker: &AccountInfo,
-    ) -> Result<Vec<Task>, &'static str> {
+    ) -> Result<Task, &'static str> {
         Err("Unimplemented")
     }
 }
