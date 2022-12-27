@@ -4,6 +4,7 @@ use super::step::Step;
 use alloc::{string::String, vec, vec::Vec};
 use index_registry::types::{ChainType, NonceFetcher};
 use ink_storage::Mapping;
+use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
 
@@ -43,11 +44,11 @@ pub struct Task {
 
 impl Task {
     // Initialize task
-    pub fn init(&mut self, context: &Context, client: &SubstrateRollupClient) {
+    pub fn init(&mut self, context: &Context, client: &mut SubstrateRollupClient) {
         let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
-        if OnchainTasks::lookup_task(&client, &self.id).is_some() {
+        if OnchainTasks::lookup_task(client, &self.id).is_some() {
             // Task already saved, return
             return;
         }
@@ -61,41 +62,47 @@ impl Task {
             // Push to pending tasks queue
             pending_tasks.push(self.id);
             // Save task data
-            // client.session.put(self.id, task);
+            client.session().put(&self.id.to_vec(), self.encode());
         } else {
             // We can not handle more tasks any more
             return;
         }
 
-        // client.session.put(b"free_accounts".to_vec(), free_accounts);
-        // client.session.put(b"pending_tasks".to_vec(), pending_tasks);
-        // client.commit();
+        client
+            .session()
+            .put(&b"free_accounts".to_vec(), free_accounts.encode());
+        client
+            .session()
+            .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
     }
 
     // Recover execution status according to on-chain storage
-    pub fn sync(&self, client: &SubstrateRollupClient) {}
+    pub fn sync(&self, _client: &SubstrateRollupClient) {}
 
-    pub fn execute(&self, context: &Context) -> Result<TaskStatus, &'static str> {
+    pub fn execute(&self, _context: &Context) -> Result<TaskStatus, &'static str> {
         Err("Unimplemented")
     }
 
     /// Delete task record from on-chain storage
-    pub fn destroy(&mut self, client: &SubstrateRollupClient) {
+    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) {
         let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
-        if OnchainTasks::lookup_task(&client, &self.id).is_some() {
+        if OnchainTasks::lookup_task(client, &self.id).is_some() {
             if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
                 // Remove from pending tasks queue
                 pending_tasks.remove(idx);
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                // client.session.remove(self.id);
+                client.session().delete(&self.id.to_vec());
             }
-            // client.session.put(b"free_accounts".to_vec(), free_accounts);
-            // client.session.put(b"pending_tasks".to_vec(), pending_tasks);
-            // client.commit();
+            client
+                .session()
+                .put(&b"free_accounts".to_vec(), free_accounts.encode());
+            client
+                .session()
+                .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
         }
     }
 
@@ -121,25 +128,42 @@ impl Task {
 
 pub struct OnchainTasks;
 impl OnchainTasks {
-    pub fn lookup_task(_client: &SubstrateRollupClient, _id: &TaskId) -> Option<Task> {
-        // client.session.get(id)
-        None
+    pub fn lookup_task(client: &mut SubstrateRollupClient, id: &TaskId) -> Option<Task> {
+        if let Some(raw) = client.session().get(&id.to_vec()).ok() {
+            if let Some(raw_task) = raw {
+                return match Decode::decode(&mut raw_task.as_slice()) {
+                    Ok(task) => Some(task),
+                    Err(_) => None,
+                };
+            }
+        }
+        return None;
     }
 
-    pub fn lookup_pending_tasks(_client: &SubstrateRollupClient) -> Vec<TaskId> {
-        // let pending_tasks: Vec<TaskId> =
-        // client.session.get(b"pending_tasks".to_vec()).unwrap();
-        // pending_tasks
-        vec![]
+    pub fn lookup_pending_tasks(client: &mut SubstrateRollupClient) -> Vec<TaskId> {
+        if let Some(raw) = client.session().get(&b"pending_tasks".to_vec()).ok() {
+            if let Some(raw_tasks) = raw {
+                return match Decode::decode(&mut raw_tasks.as_slice()) {
+                    Ok(tasks) => tasks,
+                    Err(_) => vec![],
+                };
+            }
+        }
+        return vec![];
     }
 }
 
 pub struct OnchainAccounts;
 impl OnchainAccounts {
-    pub fn lookup_free_accounts(_client: &SubstrateRollupClient) -> Vec<[u8; 32]> {
-        // let free_accounts: Vec<[u8; 32]> =
-        // client.session.get(b"free_accounts".to_vec()).unwrap();
-        // free_accounts
-        vec![]
+    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Vec<[u8; 32]> {
+        if let Some(raw) = client.session().get(&b"free_accounts".to_vec()).ok() {
+            if let Some(raw_accounts) = raw {
+                return match Decode::decode(&mut raw_accounts.as_slice()) {
+                    Ok(free_accounts) => free_accounts,
+                    Err(_) => vec![],
+                };
+            }
+        }
+        return vec![];
     }
 }
