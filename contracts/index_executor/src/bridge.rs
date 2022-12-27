@@ -34,6 +34,11 @@ pub struct BridgeStep {
 }
 
 impl Runner for BridgeStep {
+    fn runnable(&self) -> bool {
+        // TODO: implement
+        true
+    }
+
     fn run(&self, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
@@ -57,6 +62,7 @@ impl Runner for BridgeStep {
     }
 
     fn check(&self, nonce: u64) -> bool {
+        // TODO: implement
         false
     }
 }

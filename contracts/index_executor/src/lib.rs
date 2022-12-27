@@ -285,7 +285,7 @@ mod index_executor {
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 let mut task = TaskCache::get_task(&id)
                     .or_else(|| {
-                        if let Some(onchain_task) = OnchainTasks::lookup_task(client, &id) {
+                        if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, &id) {
                             onchain_task.sync(&client);
                             // Add task to local cache
                             let _ = TaskCache::add_task(&onchain_task);

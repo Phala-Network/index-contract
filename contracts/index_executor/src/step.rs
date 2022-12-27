@@ -26,6 +26,14 @@ pub struct Step {
 }
 
 impl Runner for Step {
+    fn runnable(&self) -> bool {
+        match &self.meta {
+            StepMeta::Claim(claim_step) => claim_step.runnable(),
+            StepMeta::Swap(swap_step) => swap_step.runnable(),
+            StepMeta::Bridge(bridge_step) => bridge_step.runnable(),
+        }
+    }
+
     fn run(&self, context: &Context) -> Result<(), &'static str> {
         match &self.meta {
             StepMeta::Claim(claim_step) => claim_step.run(context),

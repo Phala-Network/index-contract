@@ -34,6 +34,11 @@ pub struct SwapStep {
 }
 
 impl Runner for SwapStep {
+    fn runnable(&self) -> bool {
+        // TODO: implement
+        true
+    }
+
     fn run(&self, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
@@ -63,6 +68,7 @@ impl Runner for SwapStep {
     }
 
     fn check(&self, nonce: u64) -> bool {
+        // TODO: implement
         false
     }
 }

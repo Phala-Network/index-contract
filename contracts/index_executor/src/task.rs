@@ -1,6 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::step::Step;
+use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
 use index_registry::types::{ChainType, NonceFetcher};
 use ink_storage::Mapping;
@@ -36,6 +37,8 @@ pub struct Task {
     pub source: Vec<u8>,
     /// All steps to included in the task
     pub steps: Vec<Step>,
+    /// Current step index that is executing
+    pub execute_index: u8,
     /// Sender address on source chain
     pub sender: Vec<u8>,
     /// Recipient address on dest chain
@@ -59,6 +62,7 @@ impl Task {
             self.aplly_nonce(context, client);
             // TODO: query initial balance of worker account and setup to specific step
             self.status = TaskStatus::Initialized;
+            self.execute_index = 0;
             // Push to pending tasks queue
             pending_tasks.push(self.id);
             // Save task data
@@ -77,10 +81,46 @@ impl Task {
     }
 
     // Recover execution status according to on-chain storage
-    pub fn sync(&self, _client: &SubstrateRollupClient) {}
+    pub fn sync(&mut self, _client: &SubstrateRollupClient) {
+        for step in self.steps.iter() {
+            if step.check(step.nonce.unwrap()) {
+                self.execute_index += 1;
+                // If all step executed successfully, set task as `Completed`
+                if self.execute_index as usize == self.steps.len() {
+                    self.status = TaskStatus::Completed;
+                    break;
+                }
+            } else {
+                self.status = TaskStatus::Executing(self.execute_index, step.nonce);
+                // Exit with current status
+                break;
+            }
+        }
+    }
 
-    pub fn execute(&self, _context: &Context) -> Result<TaskStatus, &'static str> {
-        Err("Unimplemented")
+    pub fn execute(&mut self, context: &Context) -> Result<TaskStatus, &'static str> {
+        // If step already executed successfully, execute next step
+        if self.steps[self.execute_index as usize]
+            .check(self.steps[self.execute_index as usize].nonce.unwrap())
+        {
+            self.execute_index += 1;
+            // If all step executed successfully, set task as `Completed`
+            if self.execute_index as usize == self.steps.len() {
+                self.status = TaskStatus::Completed;
+                return Ok(self.status.clone());
+            }
+        }
+
+        if self.steps[self.execute_index as usize].runnable() {
+            self.steps[self.execute_index as usize]
+                .run(context)
+                .map_err(|e| e)?;
+            self.status = TaskStatus::Executing(
+                self.execute_index,
+                self.steps[self.execute_index as usize].nonce,
+            );
+        }
+        Ok(self.status.clone())
     }
 
     /// Delete task record from on-chain storage

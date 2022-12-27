@@ -22,6 +22,11 @@ pub struct ClaimStep {
 }
 
 impl Runner for ClaimStep {
+    fn runnable(&self) -> bool {
+        // TODO: implement
+        true
+    }
+
     fn run(&self, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
         let chain = context
@@ -36,6 +41,7 @@ impl Runner for ClaimStep {
     }
 
     fn check(&self, nonce: u64) -> bool {
+        // TODO: implement
         false
     }
 }
