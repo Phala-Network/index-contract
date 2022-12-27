@@ -69,7 +69,7 @@ mod index_executor {
         /// Registry contract
         registry: RegistryRef,
         /// The rollup anchor pallet id on the target blockchain
-        pallet_id: u8,
+        pallet_id: Option<u8>,
     }
 
     #[derive(Clone, Encode, Decode, Debug)]
@@ -123,12 +123,17 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn config(&mut self, registry: AccountId, pallet_id: u8) -> Result<()> {
+        pub fn config(&mut self, registry: AccountId, pallet_id: Option<u8>) -> Result<()> {
             self.ensure_owner()?;
             self.config = Some(Config {
                 registry: RegistryRef::from_account_id(registry),
                 pallet_id,
             });
+
+            // If we don't give the pallet_id, skip rollup configuration
+            if pallet_id.is_none() {
+                return Ok(());
+            }
 
             let contract_id = self.env().account_id();
             // Get rpc info from registry
@@ -156,7 +161,7 @@ mod index_executor {
                 // Not initialized. Let's claim the name.
                 claim_name(
                     &endpoint,
-                    self.config.clone().unwrap().pallet_id,
+                    self.config.clone().unwrap().pallet_id.unwrap(),
                     &contract_id,
                     &self.executor_account,
                 )
@@ -179,10 +184,13 @@ mod index_executor {
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let contract_id = self.env().account_id();
-            let mut client =
-                SubstrateRollupClient::new(&chain.endpoint, config.pallet_id, &contract_id)
-                    .log_err("failed to create rollup client")
-                    .or(Err(Error::FailedToCreateClient))?;
+            let mut client = SubstrateRollupClient::new(
+                &chain.endpoint,
+                config.pallet_id.unwrap(),
+                &contract_id,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
 
             match running_type {
                 RunningType::Fetch(source_chain) => self.fetch_task(&mut client, source_chain)?,
@@ -484,7 +492,7 @@ mod index_executor {
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Executor");
-            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
+            assert_eq!(executor.config(registry.to_account_id(), None), Ok(()));
 
             // Make cross contract call from executor
             assert_eq!(
@@ -537,14 +545,15 @@ mod index_executor {
                 .unwrap();
 
             // Deploy Executor
-            let mut executor = ExecutorRef::new()
+            let mut _executor = ExecutorRef::new()
                 .code_hash(hash2)
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Executor");
             // Initial rollup
-            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
+            // Comment because we can not test it in CI so far
+            // assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
         }
 
         #[ink::test]
