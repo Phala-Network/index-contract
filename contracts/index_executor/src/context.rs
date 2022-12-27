@@ -1,12 +1,16 @@
 use super::account::AccountInfo;
-use alloc::vec::Vec;
+use alloc::{boxed::Box, string::String, vec::Vec};
+use index::prelude::*;
 use index_registry::RegistryRef;
 
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Context {
     pub signer: [u8; 32],
     pub registry: RegistryRef,
     pub worker_accounts: Vec<AccountInfo>,
+    /// (source_chain, dest_chain) => bridge_executor
+    pub bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)>,
+    /// source_chain => dex_executor
+    pub dex_executors: Vec<(String, Box<dyn DexExecutor>)>,
 }
 
 impl Context {
@@ -15,5 +19,23 @@ impl Context {
             .iter()
             .position(|a| a.account32 == account32)
             .map(|idx| self.worker_accounts[idx].clone())
+    }
+
+    pub fn get_bridge_executor(
+        &self,
+        source_chain: String,
+        dest_chain: String,
+    ) -> Option<Box<dyn BridgeExecutor>> {
+        self.bridge_executors
+            .iter()
+            .position(|e| e.0 .0 == source_chain && e.0 .1 == dest_chain)
+            .map(|idx| dyn_clone::clone_box(&*self.bridge_executors[idx].1))
+    }
+
+    pub fn get_dex_executor(&self, source_chain: String) -> Option<Box<dyn DexExecutor>> {
+        self.dex_executors
+            .iter()
+            .position(|e| e.0 == source_chain)
+            .map(|idx| dyn_clone::clone_box(&*self.dex_executors[idx].1))
     }
 }

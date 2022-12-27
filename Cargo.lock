@@ -1224,6 +1224,7 @@ version = "0.1.0"
 dependencies = [
  "base58",
  "blake2-rfc",
+ "dyn-clone",
  "hex",
  "hex-literal",
  "parity-scale-codec",
@@ -1246,6 +1247,7 @@ name = "index_executor"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "dyn-clone",
  "hex",
  "hex-literal",
  "index",
@@ -1255,12 +1257,14 @@ dependencies = [
  "ink_metadata",
  "ink_primitives",
  "ink_storage",
+ "kv-session",
  "parity-scale-codec",
  "phala-pallet-common",
  "phat_offchain_rollup",
  "pink-extension 0.2.0",
  "pink-extension-runtime",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "primitive-types",
  "scale-info",
  "xcm",
 ]
@@ -1536,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "kv-session"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#23980fed841950cb7e6dc490743bb80003fdc4fe"
+source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#54afc25649d45aa7751bf83223666b9a88048fac"
 
 [[package]]
 name = "lazy_static"
@@ -1937,7 +1941,7 @@ dependencies = [
 [[package]]
 name = "phat_offchain_rollup"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#23980fed841950cb7e6dc490743bb80003fdc4fe"
+source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#54afc25649d45aa7751bf83223666b9a88048fac"
 dependencies = [
  "hex",
  "ink_env",

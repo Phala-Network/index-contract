@@ -1,7 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use index_registry::types::{ChainInfo, ChainType};
 use scale::{Decode, Encode};
 
@@ -10,13 +10,13 @@ use scale::{Decode, Encode};
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct SwapStep {
     /// Asset to spend
-    pub send_asset: Vec<u8>,
+    pub spend_asset: Vec<u8>,
     /// Asset to receive
     pub receive_asset: Vec<u8>,
     /// Chain name
-    pub chain: Vec<u8>,
+    pub chain: String,
     /// Dex name
-    pub dex: Vec<u8>,
+    pub dex: String,
     /// Capacity of the step
     pub cap: u128,
     /// Flow of the step
@@ -38,30 +38,27 @@ impl Runner for SwapStep {
         let signer = context.signer;
 
         // Get executor according to `chain` from registry
-        // let executor = context
-        //     .registry
-        //     .dex_executors
-        //     .get(&self.chain)
-        //     .ok_or(Err("MissingExecutor"))?;
-        // let source_chain = self
-        //     .registry
-        //     .chains
-        //     .get(self.chain)
-        //     .ok_or(Err("MissingChain"))?;
-        // let recipient = match source_chain.chain_type {
-        //     ChainType::Evm => AccountInfo::from(signer).account20,
-        //     ChainType::Sub => AccountInfo::from(signer).account32,
-        // };
-        // // Do swap operation
-        // let _ = executor
-        //     .swap(
-        //         signer,
-        //         self.spend_asset,
-        //         self.receive_asset,
-        //         self.spend,
-        //         recipient,
-        //     )
-        //     .map_err(|| Err("SwapFailed"))?;
+        let executor = context
+            .get_dex_executor(self.chain.clone())
+            .ok_or("MissingExecutor")?;
+        let source_chain = context
+            .registry
+            .get_chain(self.chain.clone())
+            .map_err(|_| "MissingChain")?;
+        let recipient = match source_chain.chain_type {
+            ChainType::Evm => AccountInfo::from(signer).account20.into(),
+            ChainType::Sub => AccountInfo::from(signer).account32.into(),
+        };
+        // Do swap operation
+        let _ = executor
+            .swap(
+                signer,
+                self.spend_asset.clone(),
+                self.receive_asset.clone(),
+                self.spend,
+                recipient,
+            )
+            .map_err(|_| "SwapFailed")?;
         Ok(())
     }
 

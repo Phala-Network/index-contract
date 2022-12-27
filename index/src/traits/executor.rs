@@ -1,8 +1,9 @@
 extern crate alloc;
-use alloc::vec::Vec;
 use super::common::Error;
+use alloc::vec::Vec;
+use dyn_clone::DynClone;
 
-pub trait BridgeExecutor {
+pub trait BridgeExecutor: DynClone {
     fn transfer(
         &self,
         signer: [u8; 32],
@@ -12,7 +13,7 @@ pub trait BridgeExecutor {
     ) -> core::result::Result<(), Error>;
 }
 
-pub trait DexExecutor {
+pub trait DexExecutor: DynClone {
     fn swap(
         &self,
         signer: [u8; 32],

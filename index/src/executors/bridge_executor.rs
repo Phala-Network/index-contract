@@ -3,6 +3,10 @@ use pink_subrpc as subrpc;
 use crate::traits::{common::Error, executor::BridgeExecutor};
 use crate::transactors::ChainBridgeClient;
 use crate::utils::ToArray;
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::Contract,
@@ -15,8 +19,8 @@ use scale::Decode;
 use scale::Encode;
 use subrpc::{create_transaction, send_transaction};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
-use alloc::{string::{String, ToString}, vec::Vec};
 
+#[derive(Clone)]
 pub struct ChainBridgeEvm2Phala {
     // (asset_contract_address, resource_id)
     assets: Vec<(Address, [u8; 32])>,
@@ -69,7 +73,9 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
             }),
         );
         let asset: [u8; 20] = asset.to_array();
-        let rid = self.lookup_rid(asset.into()).ok_or(Error::InvalidMultilocation)?;
+        let rid = self
+            .lookup_rid(asset.into())
+            .ok_or(Error::InvalidMultilocation)?;
         _ = self
             .bridge_contract
             .deposit(signer, rid.into(), U256::from(amount), dest.encode())?;
@@ -77,6 +83,7 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
     }
 }
 
+#[derive(Clone)]
 pub struct ChainBridgePhala2Evm {
     evm_chainid: u8,
     rpc: String,

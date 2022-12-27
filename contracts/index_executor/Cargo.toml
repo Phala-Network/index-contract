@@ -8,6 +8,7 @@ homepage = "https://phala.network/"
 repository = "https://github.com/Phala-Network/index-contract"
 
 [dependencies]
+dyn-clone = "1.0.10"
 hex-literal = "0.3"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 ink_primitives = { version = "3", default-features = false }
@@ -16,11 +17,13 @@ ink_env = { version = "3", default-features = false }
 ink_storage = { version = "3", default-features = false }
 ink_lang = { version = "3", default-features = false }
 
+primitive-types = { version = "0.11", default-features = false, features = ["codec", "scale-info"] }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
 phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate"] }
+kv-session = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false }
 
 pink-extension = { version = "0.2.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
@@ -52,6 +55,7 @@ crate-type = [
 [features]
 default = ["std"]
 std = [
+    "hex/std",
     "ink_metadata/std",
     "ink_env/std",
     "ink_storage/std",

@@ -16,10 +16,13 @@ mod traits;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use alloc::{
+        boxed::Box,
         string::{String, ToString},
         vec,
         vec::Vec,
     };
+    use hex_literal::hex;
+    use index::prelude::*;
     use index_registry::{types::Graph, RegistryRef};
     use ink_env::call::FromAccountId;
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
@@ -27,6 +30,7 @@ mod index_executor {
         claim_name, get_name_owner, SubstrateRollupClient,
     };
     use pink_extension::ResultExt;
+    use primitive_types::{H160, H256};
     use scale::{Decode, Encode};
 
     use crate::account::AccountInfo;
@@ -176,14 +180,14 @@ mod index_executor {
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let contract_id = self.env().account_id();
-            let client =
+            let mut client =
                 SubstrateRollupClient::new(&chain.endpoint, config.pallet_id, &contract_id)
                     .log_err("failed to create rollup client")
                     .or(Err(Error::FailedToCreateClient))?;
 
             match running_type {
-                RunningType::Fetch(source_chain) => self.fetch_task(&client, source_chain)?,
-                RunningType::Execute => self.execute_task(&client)?,
+                RunningType::Fetch(source_chain) => self.fetch_task(&mut client, source_chain)?,
+                RunningType::Execute => self.execute_task(&mut client)?,
             };
 
             // Submit the transaction if it's not empty
@@ -240,7 +244,7 @@ mod index_executor {
         /// Search actived tasks from source chain and upload them to rollup storage
         pub fn fetch_task(
             &self,
-            client: &SubstrateRollupClient,
+            client: &mut SubstrateRollupClient,
             source_chain: String,
         ) -> Result<()> {
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
@@ -265,8 +269,10 @@ mod index_executor {
                     signer: [0; 32],
                     registry: self.config.clone().unwrap().registry.clone(),
                     worker_accounts: self.worker_accounts.clone(),
+                    bridge_executors: vec![],
+                    dex_executors: vec![],
                 },
-                &client,
+                client,
             );
 
             Ok(())
@@ -274,12 +280,12 @@ mod index_executor {
 
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
-        pub fn execute_task(&self, client: &SubstrateRollupClient) -> Result<()> {
-            for id in OnchainTasks::lookup_pending_tasks(&client).iter() {
+        pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
+            for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 let mut task = TaskCache::get_task(&id)
                     .or_else(|| {
-                        if let Some(onchain_task) = OnchainTasks::lookup_task(&client, &id) {
+                        if let Some(onchain_task) = OnchainTasks::lookup_task(client, &id) {
                             onchain_task.sync(&client);
                             // Add task to local cache
                             let _ = TaskCache::add_task(&onchain_task);
@@ -294,12 +300,14 @@ mod index_executor {
                     signer: self.pub_to_prv(task.worker).unwrap(),
                     registry: self.config.clone().unwrap().registry.clone(),
                     worker_accounts: self.worker_accounts.clone(),
+                    bridge_executors: self.create_bridge_executors()?,
+                    dex_executors: self.create_dex_executors()?,
                 }) {
                     Ok(TaskStatus::Completed) => {
                         // Remove task from blockchain and recycle worker account
-                        task.destroy(&client);
+                        task.destroy(client);
                         // If task already delete from rollup storage, delete it from local cache
-                        if OnchainTasks::lookup_task(&client, &id) == None {
+                        if OnchainTasks::lookup_task(client, &id) == None {
                             TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
                         }
                     }
@@ -341,6 +349,73 @@ mod index_executor {
                 .iter()
                 .position(|a| a.account32 == pub_key)
                 .map(|idx| self.worker_prv_keys[idx].clone())
+        }
+
+        fn create_bridge_executors(
+            &self,
+        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
+            let config = self.ensure_configured()?;
+            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
+            let ethereum = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+            let phala = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+
+            // Ethereum -> Phala: ChainBridgeEvm2Phala
+            let chainbridge_on_ethereum: H160 =
+                hex!("056c0e37d026f9639313c281250ca932c9dbe921").into();
+            // PHA ChainBridge resource id on Khala
+            let pha_rid: H256 =
+                hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
+            // PHA contract address on Ethereum
+            let pha_contract: H160 = hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into();
+            bridge_executors.push((
+                (String::from("Ethereum"), String::from("Phala")),
+                Box::new(ChainBridgeEvm2Phala::new(
+                    &ethereum.endpoint,
+                    chainbridge_on_ethereum,
+                    vec![(pha_contract.into(), pha_rid.into())],
+                )),
+            ));
+
+            // Phala -> Ethereum: ChainBridgePhala2Evm
+            // bridge_executors.push((
+            //     (String::from("Phala"), String::from("Ethereum")),
+            //     Box::new(ChainBridgePhala2Evm::new(
+            //         // ChainId of Ethereum under the ChainBridge protocol
+            //         0,
+            //         &phala.endpoint,
+            //     )),
+            // ));
+
+            Ok(bridge_executors)
+        }
+
+        fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
+            let config = self.ensure_configured()?;
+            let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
+            let ethereum = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+
+            dex_executors.push((
+                String::from("Phala"),
+                Box::new(UniswapV2Executor::new(
+                    &ethereum.endpoint,
+                    // UniswapV2 router address on Ethereum
+                    hex!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D").into(),
+                )),
+            ));
+
+            Ok(dex_executors)
         }
     }
 

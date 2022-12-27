@@ -8,6 +8,7 @@ use pink_web3::transports::{resolve_ready, PinkHttp};
 use pink_web3::types::H256;
 
 /// The client to submit transaction to the Evm evm_contract contract
+#[derive(Clone)]
 pub struct ChainBridgeClient {
     pub contract: Contract<PinkHttp>,
 }

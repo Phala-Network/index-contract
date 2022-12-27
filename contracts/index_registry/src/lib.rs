@@ -18,7 +18,7 @@ mod registry {
     use crate::types::Error;
     use crate::types::*;
     use alloc::{string::String, vec, vec::Vec};
-    use index::{ensure, prelude::*};
+    use index::ensure;
     use ink_storage::traits::SpreadAllocate;
     use ink_storage::Mapping;
 
@@ -37,8 +37,6 @@ mod registry {
 
         pub supported_dexs: Vec<String>,
         pub dexs: Mapping<String, Dex>,
-        // pub bridge_executors: Mapping<Vec<u8>, Box<dyn BridgeExecutor>>,
-        // pub dex_executors: Mapping<Vec<u8>, Box<dyn DexExecutor>>,
     }
 
     impl Default for Registry {

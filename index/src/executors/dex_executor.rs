@@ -1,10 +1,10 @@
-
 extern crate alloc;
-use alloc::vec::Vec;
 use crate::traits::{common::Error, executor::DexExecutor};
+use alloc::vec::Vec;
 use pink_web3::types::Address;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct UniswapV2Executor {
     // Router address
     router: Address,
@@ -12,7 +12,7 @@ pub struct UniswapV2Executor {
 
 #[allow(dead_code)]
 impl UniswapV2Executor {
-    fn new(router: Address) -> Self {
+    pub fn new(_rpc: &str, router: Address) -> Self {
         Self { router }
     }
 }
