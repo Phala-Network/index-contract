@@ -91,14 +91,14 @@ pub struct ChainBridgePhala2Evm {
 
 #[allow(dead_code)]
 impl ChainBridgePhala2Evm {
-    pub fn new(evm_chainid: u8, rpc: &str) -> core::result::Result<Self, Error>
+    pub fn new(evm_chainid: u8, rpc: &str) -> Self
     where
         Self: Sized,
     {
-        Ok(Self {
+        Self {
             evm_chainid,
             rpc: rpc.to_string(),
-        })
+        }
     }
 }
 

@@ -360,7 +360,7 @@ mod index_executor {
                 .clone()
                 .get_chain(String::from("Ethereum"))
                 .map_err(|_| Error::ChainNotFound)?;
-            let _phala = config
+            let phala = config
                 .registry
                 .clone()
                 .get_chain(String::from("Ethereum"))
@@ -384,14 +384,14 @@ mod index_executor {
             ));
 
             // Phala -> Ethereum: ChainBridgePhala2Evm
-            // bridge_executors.push((
-            //     (String::from("Phala"), String::from("Ethereum")),
-            //     Box::new(ChainBridgePhala2Evm::new(
-            //         // ChainId of Ethereum under the ChainBridge protocol
-            //         0,
-            //         &phala.endpoint,
-            //     )),
-            // ));
+            bridge_executors.push((
+                (String::from("Phala"), String::from("Ethereum")),
+                Box::new(ChainBridgePhala2Evm::new(
+                    // ChainId of Ethereum under the ChainBridge protocol
+                    0,
+                    &phala.endpoint,
+                )),
+            ));
 
             Ok(bridge_executors)
         }
