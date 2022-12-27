@@ -137,7 +137,6 @@ mod index_executor {
                 .clone()
                 .unwrap()
                 .registry
-                .clone()
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let endpoint = chain.endpoint;
@@ -254,7 +253,6 @@ mod index_executor {
                     .clone()
                     .unwrap()
                     .registry
-                    .clone()
                     .get_chain(source_chain)
                     .unwrap(),
                 AccountInfo::from(self.executor_account),
@@ -267,7 +265,7 @@ mod index_executor {
                 &Context {
                     // Don't need signer here
                     signer: [0; 32],
-                    registry: self.config.clone().unwrap().registry.clone(),
+                    registry: self.config.clone().unwrap().registry,
                     worker_accounts: self.worker_accounts.clone(),
                     bridge_executors: vec![],
                     dex_executors: vec![],
@@ -283,10 +281,10 @@ mod index_executor {
         pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
-                let mut task = TaskCache::get_task(&id)
+                let mut task = TaskCache::get_task(id)
                     .or_else(|| {
-                        if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, &id) {
-                            onchain_task.sync(&client);
+                        if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
+                            onchain_task.sync(client);
                             // Add task to local cache
                             let _ = TaskCache::add_task(&onchain_task);
                             Some(onchain_task)
@@ -307,7 +305,7 @@ mod index_executor {
                         // Remove task from blockchain and recycle worker account
                         task.destroy(client);
                         // If task already delete from rollup storage, delete it from local cache
-                        if OnchainTasks::lookup_task(client, &id) == None {
+                        if OnchainTasks::lookup_task(client, id).is_none() {
                             TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
                         }
                     }
@@ -348,9 +346,10 @@ mod index_executor {
             self.worker_accounts
                 .iter()
                 .position(|a| a.account32 == pub_key)
-                .map(|idx| self.worker_prv_keys[idx].clone())
+                .map(|idx| self.worker_prv_keys[idx])
         }
 
+        #[allow(clippy::type_complexity)]
         fn create_bridge_executors(
             &self,
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
@@ -361,7 +360,7 @@ mod index_executor {
                 .clone()
                 .get_chain(String::from("Ethereum"))
                 .map_err(|_| Error::ChainNotFound)?;
-            let phala = config
+            let _phala = config
                 .registry
                 .clone()
                 .get_chain(String::from("Ethereum"))
@@ -380,7 +379,7 @@ mod index_executor {
                 Box::new(ChainBridgeEvm2Phala::new(
                     &ethereum.endpoint,
                     chainbridge_on_ethereum,
-                    vec![(pha_contract.into(), pha_rid.into())],
+                    vec![(pha_contract, pha_rid.into())],
                 )),
             ));
 

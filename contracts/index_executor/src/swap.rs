@@ -2,7 +2,7 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index_registry::types::{ChainInfo, ChainType};
+use index_registry::types::ChainType;
 use scale::{Decode, Encode};
 
 /// Definition of swap operation step
@@ -67,7 +67,7 @@ impl Runner for SwapStep {
         Ok(())
     }
 
-    fn check(&self, nonce: u64) -> bool {
+    fn check(&self, _nonce: u64) -> bool {
         // TODO: implement
         false
     }

@@ -45,7 +45,7 @@ impl TaskCache {
     }
 
     pub fn update_task(task: &Task) -> Result<(), &'static str> {
-        if let Some(_) = pink_extension::ext().cache_get(&task.id) {
+        if pink_extension::ext().cache_get(&task.id).is_some() {
             // Update task record
             pink_extension::ext()
                 .cache_set(&task.id, &task.encode())

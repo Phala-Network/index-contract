@@ -1,4 +1,3 @@
-use super::account::AccountInfo;
 use super::context::Context;
 use super::step::Step;
 use super::traits::Runner;
@@ -112,9 +111,7 @@ impl Task {
         }
 
         if self.steps[self.execute_index as usize].runnable() {
-            self.steps[self.execute_index as usize]
-                .run(context)
-                .map_err(|e| e)?;
+            self.steps[self.execute_index as usize].run(context)?;
             self.status = TaskStatus::Executing(
                 self.execute_index,
                 self.steps[self.execute_index as usize].nonce,
@@ -151,13 +148,12 @@ impl Task {
         for step in self.steps.iter_mut() {
             let nonce = nonce_map.get(&step.chain).or_else(|| {
                 let chain = context.registry.get_chain(step.chain.clone()).unwrap();
-                let account_info = AccountInfo::from(context.get_account(self.worker).unwrap());
+                let account_info = context.get_account(self.worker).unwrap();
                 let account = match chain.chain_type {
                     ChainType::Evm => account_info.account20.to_vec(),
                     ChainType::Sub => account_info.account32.to_vec(),
                 };
-                let onchain_nonce = chain.get_nonce(account).ok();
-                onchain_nonce
+                chain.get_nonce(account).ok()
             });
             step.nonce = nonce;
             // Increase nonce by 1
@@ -169,41 +165,35 @@ impl Task {
 pub struct OnchainTasks;
 impl OnchainTasks {
     pub fn lookup_task(client: &mut SubstrateRollupClient, id: &TaskId) -> Option<Task> {
-        if let Some(raw) = client.session().get(&id.to_vec()).ok() {
-            if let Some(raw_task) = raw {
-                return match Decode::decode(&mut raw_task.as_slice()) {
-                    Ok(task) => Some(task),
-                    Err(_) => None,
-                };
-            }
+        if let Ok(Some(raw_task)) = client.session().get(&id.to_vec()) {
+            return match Decode::decode(&mut raw_task.as_slice()) {
+                Ok(task) => Some(task),
+                Err(_) => None,
+            };
         }
-        return None;
+        None
     }
 
     pub fn lookup_pending_tasks(client: &mut SubstrateRollupClient) -> Vec<TaskId> {
-        if let Some(raw) = client.session().get(&b"pending_tasks".to_vec()).ok() {
-            if let Some(raw_tasks) = raw {
-                return match Decode::decode(&mut raw_tasks.as_slice()) {
-                    Ok(tasks) => tasks,
-                    Err(_) => vec![],
-                };
-            }
+        if let Ok(Some(raw_tasks)) = client.session().get(&b"pending_tasks".to_vec()) {
+            return match Decode::decode(&mut raw_tasks.as_slice()) {
+                Ok(tasks) => tasks,
+                Err(_) => vec![],
+            };
         }
-        return vec![];
+        vec![]
     }
 }
 
 pub struct OnchainAccounts;
 impl OnchainAccounts {
     pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Vec<[u8; 32]> {
-        if let Some(raw) = client.session().get(&b"free_accounts".to_vec()).ok() {
-            if let Some(raw_accounts) = raw {
-                return match Decode::decode(&mut raw_accounts.as_slice()) {
-                    Ok(free_accounts) => free_accounts,
-                    Err(_) => vec![],
-                };
-            }
+        if let Ok(Some(raw_accounts)) = client.session().get(&b"free_accounts".to_vec()) {
+            return match Decode::decode(&mut raw_accounts.as_slice()) {
+                Ok(free_accounts) => free_accounts,
+                Err(_) => vec![],
+            };
         }
-        return vec![];
+        vec![]
     }
 }

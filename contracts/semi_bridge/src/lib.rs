@@ -119,7 +119,7 @@ mod semi_bridge {
             let executor = ChainBridgeEvm2Phala::new(
                 &config.rpc,
                 config.bridge_address.into(),
-                vec![(token_contract.clone().into(), token_rid.into())],
+                vec![(token_contract, token_rid.into())],
             );
             _ = executor.transfer(
                 self.key,

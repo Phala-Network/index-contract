@@ -1,4 +1,4 @@
-use alloc::{string::String, vec::Vec};
+use alloc::string::String;
 use index_registry::types::{ChainInfo, ChainType};
 use scale::{Decode, Encode};
 
@@ -40,7 +40,7 @@ impl Runner for ClaimStep {
         }
     }
 
-    fn check(&self, nonce: u64) -> bool {
+    fn check(&self, _nonce: u64) -> bool {
         // TODO: implement
         false
     }
@@ -49,9 +49,9 @@ impl Runner for ClaimStep {
 impl ClaimStep {
     fn claim_evm_actived_tasks(
         &self,
-        chain: ChainInfo,
-        task_id: TaskId,
-        worker_key: &[u8; 32],
+        _chain: ChainInfo,
+        _task_id: TaskId,
+        _worker_key: &[u8; 32],
     ) -> Result<(), &'static str> {
         Err("Unimplemented")
     }
@@ -83,8 +83,8 @@ impl ActivedTaskFetcher {
 
     fn query_evm_actived_tasks(
         &self,
-        endpoint: String,
-        worker: &AccountInfo,
+        _endpoint: String,
+        _worker: &AccountInfo,
     ) -> Result<Task, &'static str> {
         Err("Unimplemented")
     }

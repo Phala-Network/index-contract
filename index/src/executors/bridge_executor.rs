@@ -34,7 +34,7 @@ impl ChainBridgeEvm2Phala {
         let bridge_contract = ChainBridgeClient {
             contract: Contract::from_json(
                 eth,
-                bridge_address.try_into().expect("Invalid contract address"),
+                bridge_address,
                 include_bytes!("../abis/chainbridge-abi.json"),
             )
             .expect("Bad abi data"),
@@ -50,7 +50,7 @@ impl ChainBridgeEvm2Phala {
         self.assets
             .iter()
             .position(|a| a.0 == addr)
-            .map(|idx| self.assets[idx].1.clone())
+            .map(|idx| self.assets[idx].1)
     }
 }
 
@@ -149,7 +149,9 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use primitive_types::H256;
     use scale::Encode;
+
     #[test]
     fn it_works() {
         use hex_literal::hex;
