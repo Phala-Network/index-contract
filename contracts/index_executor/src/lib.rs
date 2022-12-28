@@ -2,32 +2,42 @@
 extern crate alloc;
 use ink_lang as ink;
 
+mod account;
+mod bridge;
+mod cache;
+mod claimer;
+mod context;
+mod step;
+mod swap;
 mod task;
-mod task_uploader;
-mod types;
+mod traits;
 
+#[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use alloc::{
+        boxed::Box,
         string::{String, ToString},
         vec,
         vec::Vec,
     };
-    use scale::{Decode, Encode};
-    // use index::{ensure, prelude::*};
-    use index::utils::ToArray;
+    use hex_literal::hex;
+    use index::prelude::*;
     use index_registry::{types::Graph, RegistryRef};
     use ink_env::call::FromAccountId;
-    use phat_offchain_rollup::{
-        clients::substrate::{claim_name, get_name_owner, SubstrateRollupClient},
-        Action,
-    };
-    use pink_extension::chain_extension::{signing, SigType};
-    // To enable `(result).log_err("Reason")?`
-    use crate::task_uploader::UploadToChain;
-    use crate::types::{Task, TaskId, TaskStatus};
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+    use phat_offchain_rollup::clients::substrate::{
+        claim_name, get_name_owner, SubstrateRollupClient,
+    };
     use pink_extension::ResultExt;
+    use primitive_types::{H160, H256};
+    use scale::{Decode, Encode};
+
+    use crate::account::AccountInfo;
+    use crate::cache::*;
+    use crate::claimer::ActivedTaskFetcher;
+    use crate::context::Context;
+    use crate::task::{OnchainTasks, Task, TaskId, TaskStatus};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -41,55 +51,43 @@ mod index_executor {
         FailedToCreateClient,
         FailedToCommitTx,
         FailedToSendTransaction,
+        FailedToFetchTask,
         ReadCacheFailed,
         WriteCacheFailed,
         DecodeCacheFailed,
         TaskNotFoundInCache,
+        TaskNotFoundOnChain,
         ExecuteFailed,
         Unimplemented,
     }
 
     type Result<T> = core::result::Result<T, Error>;
 
-    #[derive(Encode, Decode, Debug, PartialEq, Eq)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub struct AccountInfo {
-        pub account32: [u8; 32],
-        pub account20: [u8; 20],
-    }
-
-    #[derive(Encode, Decode, Debug, PackedLayout, SpreadLayout)]
+    #[derive(Clone, Encode, Decode, Debug, PackedLayout, SpreadLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-    struct Config {
+    pub struct Config {
         /// Registry contract
         registry: RegistryRef,
         /// The rollup anchor pallet id on the target blockchain
-        pallet_id: u8,
+        pallet_id: Option<u8>,
     }
 
-    impl From<[u8; 32]> for AccountInfo {
-        fn from(privkey: [u8; 32]) -> Self {
-            let ecdsa_pubkey: [u8; 33] = signing::get_public_key(&privkey, SigType::Ecdsa)
-                .try_into()
-                .expect("Public key should be of length 33");
-            let mut ecdsa_address = [0u8; 20];
-            ink_env::ecdsa_to_eth_address(&ecdsa_pubkey, &mut ecdsa_address)
-                .expect("Get address of ecdsa failed");
-            Self {
-                account32: signing::get_public_key(&privkey, SigType::Sr25519).to_array(),
-                account20: ecdsa_address,
-            }
-        }
+    #[derive(Clone, Encode, Decode, Debug)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum RunningType {
+        // [source_chain]
+        Fetch(String),
+        Execute,
     }
 
     #[ink(storage)]
-    // #[derive(SpreadAllocate)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Executor {
-        admin: AccountId,
-        config: Option<Config>,
-        worker_accounts: Vec<[u8; 32]>,
-        executor_account: [u8; 32],
+        pub admin: AccountId,
+        pub config: Option<Config>,
+        pub worker_prv_keys: Vec<[u8; 32]>,
+        pub worker_accounts: Vec<AccountInfo>,
+        pub executor_account: [u8; 32],
     }
 
     impl Default for Executor {
@@ -99,28 +97,25 @@ mod index_executor {
     }
 
     impl Executor {
-        /// Create an Executor entity
         #[ink(constructor)]
+        /// Create an Executor entity
         pub fn new() -> Self {
-            let mut worker_accounts: Vec<[u8; 32]> = vec![];
-            for index in 0..10 {
-                worker_accounts.push(
-                    pink_web3::keys::pink::KeyPair::derive_keypair(
-                        &[b"worker".to_vec(), [index].to_vec()].concat(),
-                    )
-                    .private_key(),
-                )
-            }
+            let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
+            let mut worker_accounts: Vec<AccountInfo> = vec![];
 
-            // Create worker account
-            let empty_alloc: Vec<[u8; 32]> = vec![];
-            pink_extension::ext()
-                .cache_set(b"alloc", &empty_alloc.encode())
-                .expect("write cache failed");
+            for index in 0..10 {
+                let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
+                    &[b"worker".to_vec(), [index].to_vec()].concat(),
+                )
+                .private_key();
+                worker_prv_keys.push(private_key);
+                worker_accounts.push(AccountInfo::from(private_key));
+            }
 
             Self {
                 admin: Self::env().caller(),
                 config: None,
+                worker_prv_keys,
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
@@ -128,25 +123,25 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn config(&mut self, registry: AccountId, pallet_id: u8) -> Result<()> {
+        pub fn config(&mut self, registry: AccountId, pallet_id: Option<u8>) -> Result<()> {
             self.ensure_owner()?;
             self.config = Some(Config {
                 registry: RegistryRef::from_account_id(registry),
                 pallet_id,
             });
-            Ok(())
-        }
 
-        /// Initialize rollup after registry set
-        /// executor account key will be the key that submit transaction to target blockchains
-        #[ink(message)]
-        pub fn init_rollup(&self) -> Result<()> {
-            let config = self.ensure_configured()?;
+            // If we don't give the pallet_id, skip rollup configuration
+            if pallet_id.is_none() {
+                return Ok(());
+            }
+
             let contract_id = self.env().account_id();
             // Get rpc info from registry
-            let chain = config
-                .registry
+            let chain = self
+                .config
                 .clone()
+                .unwrap()
+                .registry
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let endpoint = chain.endpoint;
@@ -166,7 +161,7 @@ mod index_executor {
                 // Not initialized. Let's claim the name.
                 claim_name(
                     &endpoint,
-                    config.pallet_id,
+                    self.config.clone().unwrap().pallet_id.unwrap(),
                     &contract_id,
                     &self.executor_account,
                 )
@@ -179,29 +174,9 @@ mod index_executor {
             Ok(())
         }
 
-        /// Claim and execute tasks from all supported blockchains. This is a query operation
-        /// that scheduler invokes periodically.
-        ///
-        ///
-        /// 1) Perform spcific operations for the runing tasks according to current status.
-        /// 2) Fetch new actived tasks from supported chains and append them to the local runing tasks queue.
-        ///
         #[ink(message)]
-        pub fn execute(&self) -> Result<()> {
-            Err(Error::Unimplemented)
-        }
-
-        /// Claim tasks from source chain. The worflow is:
-        /// 1. Get actived task from all supported chains
-        /// 2. Upload task info to rollup storage
-        #[ink(message)]
-        pub fn upload_task(&self, _source_chain: String) -> Result<()> {
+        pub fn run(&self, running_type: RunningType) -> Result<()> {
             let config = self.ensure_configured()?;
-
-            // TODO: fetch actived tasks from supported blockchain
-
-            // TODO: Maybe recover cache through onchain storage if it is empty
-
             // Get rpc info from registry
             let chain = config
                 .registry
@@ -209,40 +184,32 @@ mod index_executor {
                 .get_chain("Khala".to_string())
                 .map_err(|_| Error::ChainNotFound)?;
             let contract_id = self.env().account_id();
-            let mut client =
-                SubstrateRollupClient::new(&chain.endpoint, config.pallet_id, &contract_id)
-                    .log_err("failed to create rollup client")
-                    .or(Err(Error::FailedToCreateClient))?;
+            let mut client = SubstrateRollupClient::new(
+                &chain.endpoint,
+                config.pallet_id.unwrap(),
+                &contract_id,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
 
-            // TODO: Use real task data
-            let mut task = Task {
-                id: [0; 32],
-                worker: [0; 32],
-                status: TaskStatus::Initialized,
-                source: b"Ethereum".to_vec(),
-                edges: vec![],
-                sender: vec![],
-                recipient: vec![],
+            match running_type {
+                RunningType::Fetch(source_chain) => self.fetch_task(&mut client, source_chain)?,
+                RunningType::Execute => self.execute_task(&mut client)?,
             };
-            // TODO: Use session save task/taskid_list/task_worker_account info.
-            client.action(Action::Reply(UploadToChain { task: task.clone() }.encode()));
+
             // Submit the transaction if it's not empty
             let maybe_submittable = client
                 .commit()
                 .log_err("failed to commit")
                 .or(Err(Error::FailedToCommitTx))?;
+
+            // Submit to blockchain
             if let Some(submittable) = maybe_submittable {
-                let tx_id = submittable
+                let _tx_id = submittable
                     .submit(&self.executor_account, 0)
                     .log_err("failed to submit rollup tx")
                     .or(Err(Error::FailedToSendTransaction))?;
-
-                // Add the new task to local cache
-                task.status = TaskStatus::Uploading(Some(tx_id));
-                // Save for debug purpose, will remove
-                self.add_task(&task)?;
             }
-
             Ok(())
         }
 
@@ -256,7 +223,7 @@ mod index_executor {
             let decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
                 .map_err(|_| Error::DecodeCacheFailed)?;
             for task_id in decoded_tasks {
-                task_list.push(self.get_task(&task_id).unwrap());
+                task_list.push(TaskCache::get_task(&task_id).unwrap());
             }
             Ok(task_list)
         }
@@ -278,109 +245,95 @@ mod index_executor {
         /// Return worker accounts information
         #[ink(message)]
         pub fn get_worker_account(&self) -> Vec<AccountInfo> {
-            let mut accounts: Vec<AccountInfo> = Vec::new();
-            for worker in &self.worker_accounts {
-                accounts.push((*worker).into())
-            }
-            accounts
+            self.worker_accounts.clone()
         }
 
-        /// Mark an account as allocated, e.g. put it into local cache `alloc` queue.
-        #[allow(dead_code)]
-        fn allocate_worker(&self, worker: &[u8; 32]) -> Result<()> {
-            let alloc_list = pink_extension::ext()
-                .cache_get(b"alloc")
-                .ok_or(Error::ReadCacheFailed)?;
-            let mut decoded_list: Vec<[u8; 32]> =
-                Decode::decode(&mut alloc_list.as_slice()).map_err(|_| Error::DecodeCacheFailed)?;
+        /// Search actived tasks from source chain and upload them to rollup storage
+        pub fn fetch_task(
+            &self,
+            client: &mut SubstrateRollupClient,
+            source_chain: String,
+        ) -> Result<()> {
+            // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
+            // and append them to runing tasks
+            let mut actived_task = ActivedTaskFetcher::new(
+                self.config
+                    .clone()
+                    .unwrap()
+                    .registry
+                    .get_chain(source_chain)
+                    .unwrap(),
+                AccountInfo::from(self.executor_account),
+            )
+            .fetch_task()
+            .map_err(|_| Error::FailedToFetchTask)?;
 
-            decoded_list.push(*worker);
-            pink_extension::ext()
-                .cache_set(b"alloc", &decoded_list.encode())
-                .map_err(|_| Error::WriteCacheFailed)?;
+            // Initialize task, and save it to on-chain storage
+            actived_task.init(
+                &Context {
+                    // Don't need signer here
+                    signer: [0; 32],
+                    registry: self.config.clone().unwrap().registry,
+                    worker_accounts: self.worker_accounts.clone(),
+                    bridge_executors: vec![],
+                    dex_executors: vec![],
+                },
+                client,
+            );
+
             Ok(())
         }
 
-        /// Retuen accounts that hasn't been allocated to a specific task
-        #[allow(dead_code)]
-        fn free_worker(&self) -> Result<Vec<[u8; 32]>> {
-            let mut free_list = vec![];
-            let alloc_list = pink_extension::ext()
-                .cache_get(b"alloc")
-                .ok_or(Error::ReadCacheFailed)?;
-            let decoded_list: Vec<[u8; 32]> =
-                Decode::decode(&mut alloc_list.as_slice()).map_err(|_| Error::DecodeCacheFailed)?;
+        /// Execute tasks from all supported blockchains. This is a query operation
+        /// that scheduler invokes periodically.
+        pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
+            for id in OnchainTasks::lookup_pending_tasks(client).iter() {
+                // Get task saved in local cache, if not exist in local, try recover from on-chain storage
+                let mut task = TaskCache::get_task(id)
+                    .or_else(|| {
+                        if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
+                            onchain_task.sync(client);
+                            // Add task to local cache
+                            let _ = TaskCache::add_task(&onchain_task);
+                            Some(onchain_task)
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or(Error::TaskNotFoundOnChain)?;
 
-            for worker in self.worker_accounts.iter() {
-                if !decoded_list.contains(worker) {
-                    free_list.push(*worker);
+                match task.execute(&Context {
+                    signer: self.pub_to_prv(task.worker).unwrap(),
+                    registry: self.config.clone().unwrap().registry.clone(),
+                    worker_accounts: self.worker_accounts.clone(),
+                    bridge_executors: self.create_bridge_executors()?,
+                    dex_executors: self.create_dex_executors()?,
+                }) {
+                    Ok(TaskStatus::Completed) => {
+                        // Remove task from blockchain and recycle worker account
+                        task.destroy(client);
+                        // If task already delete from rollup storage, delete it from local cache
+                        if OnchainTasks::lookup_task(client, id).is_none() {
+                            TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
+                        }
+                    }
+                    Err(_) => {
+                        // Execution failed, prepare necessary informations that DAO can handle later.
+                        // Informatios should contains:
+                        // 1. Sender on source chain
+                        // 2. Current step
+                        // 3. The allocated worker account
+                        // 4. Current asset that worker account hold
+                        //
+                    }
+                    _ => {
+                        TaskCache::update_task(&task).map_err(|_| Error::WriteCacheFailed)?;
+                        continue;
+                    }
                 }
             }
-            Ok(free_list)
-        }
-
-        fn add_task(&self, task: &Task) -> Result<()> {
-            let local_tasks = pink_extension::ext()
-                .cache_get(b"running_tasks")
-                .ok_or(Error::ReadCacheFailed)?;
-            let mut decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
-                .map_err(|_| Error::DecodeCacheFailed)?;
-
-            if !decoded_tasks.contains(&task.id) {
-                decoded_tasks.push(task.id);
-                pink_extension::ext()
-                    .cache_set(b"running_tasks", &decoded_tasks.encode())
-                    .map_err(|_| Error::WriteCacheFailed)?;
-                // Save full task information
-                pink_extension::ext()
-                    .cache_set(&task.id, &task.encode())
-                    .map_err(|_| Error::WriteCacheFailed)?;
-            }
-            Ok(())
-        }
-
-        #[allow(dead_code)]
-        fn remove_task(&self, task: &Task) -> Result<()> {
-            let local_tasks = pink_extension::ext()
-                .cache_get(b"running_tasks")
-                .ok_or(Error::ReadCacheFailed)?;
-            let mut decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
-                .map_err(|_| Error::DecodeCacheFailed)?;
-            let index = decoded_tasks
-                .iter()
-                .position(|id| *id == task.id)
-                .ok_or(Error::TaskNotFoundInCache)?;
-            decoded_tasks.remove(index);
-            // Delete task record from cache
-            pink_extension::ext()
-                .cache_remove(&task.id)
-                .ok_or(Error::WriteCacheFailed)?;
 
             Ok(())
-        }
-
-        #[allow(dead_code)]
-        fn update_task(&self, task: &Task) -> Result<()> {
-            if pink_extension::ext().cache_get(&task.id).is_some() {
-                // Update task record
-                pink_extension::ext()
-                    .cache_set(&task.id, &task.encode())
-                    .map_err(|_| Error::WriteCacheFailed)?;
-            }
-            Ok(())
-        }
-
-        fn get_task(&self, id: &TaskId) -> Option<Task> {
-            pink_extension::ext()
-                .cache_get(id)
-                .and_then(|encoded_task| {
-                    match Decode::decode(&mut encoded_task.as_slice())
-                        .map_err(|_| Error::DecodeCacheFailed)
-                    {
-                        Ok(task) => Some(task),
-                        _ => None,
-                    }
-                })
         }
 
         /// Returns BadOrigin error if the caller is not the owner
@@ -395,6 +348,81 @@ mod index_executor {
         /// Returns the config reference or raise the error `NotConfigured`
         fn ensure_configured(&self) -> Result<&Config> {
             self.config.as_ref().ok_or(Error::NotConfigured)
+        }
+
+        fn pub_to_prv(&self, pub_key: [u8; 32]) -> Option<[u8; 32]> {
+            self.worker_accounts
+                .iter()
+                .position(|a| a.account32 == pub_key)
+                .map(|idx| self.worker_prv_keys[idx])
+        }
+
+        #[allow(clippy::type_complexity)]
+        fn create_bridge_executors(
+            &self,
+        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
+            let config = self.ensure_configured()?;
+            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
+            let ethereum = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+            let phala = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+
+            // Ethereum -> Phala: ChainBridgeEvm2Phala
+            let chainbridge_on_ethereum: H160 =
+                hex!("056c0e37d026f9639313c281250ca932c9dbe921").into();
+            // PHA ChainBridge resource id on Khala
+            let pha_rid: H256 =
+                hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
+            // PHA contract address on Ethereum
+            let pha_contract: H160 = hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into();
+            bridge_executors.push((
+                (String::from("Ethereum"), String::from("Phala")),
+                Box::new(ChainBridgeEvm2Phala::new(
+                    &ethereum.endpoint,
+                    chainbridge_on_ethereum,
+                    vec![(pha_contract, pha_rid.into())],
+                )),
+            ));
+
+            // Phala -> Ethereum: ChainBridgePhala2Evm
+            bridge_executors.push((
+                (String::from("Phala"), String::from("Ethereum")),
+                Box::new(ChainBridgePhala2Evm::new(
+                    // ChainId of Ethereum under the ChainBridge protocol
+                    0,
+                    &phala.endpoint,
+                )),
+            ));
+
+            Ok(bridge_executors)
+        }
+
+        fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
+            let config = self.ensure_configured()?;
+            let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
+            let ethereum = config
+                .registry
+                .clone()
+                .get_chain(String::from("Ethereum"))
+                .map_err(|_| Error::ChainNotFound)?;
+
+            dex_executors.push((
+                String::from("Phala"),
+                Box::new(UniswapV2Executor::new(
+                    &ethereum.endpoint,
+                    // UniswapV2 router address on Ethereum
+                    hex!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D").into(),
+                )),
+            ));
+
+            Ok(dex_executors)
         }
     }
 
@@ -464,7 +492,7 @@ mod index_executor {
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Executor");
-            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
+            assert_eq!(executor.config(registry.to_account_id(), None), Ok(()));
 
             // Make cross contract call from executor
             assert_eq!(
@@ -517,20 +545,15 @@ mod index_executor {
                 .unwrap();
 
             // Deploy Executor
-            let mut executor = ExecutorRef::new()
+            let mut _executor = ExecutorRef::new()
                 .code_hash(hash2)
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Executor");
-            assert_eq!(executor.config(registry.to_account_id(), 100), Ok(()));
             // Initial rollup
-            let r = executor.init_rollup().expect("failed to init");
-            pink_extension::warn!("init rollup: {r:?}");
-            let r = executor
-                .upload_task("Ethereum".to_string())
-                .expect("failed to feed price");
-            pink_extension::warn!("upload task: {r:?}");
+            // Comment because we can not test it in CI so far
+            // assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
         }
 
         #[ink::test]

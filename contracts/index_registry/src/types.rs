@@ -104,6 +104,16 @@ pub struct ChainInfo {
     pub network: Option<u8>,
 }
 
+/// Query on-chain `account` nonce
+pub trait NonceFetcher {
+    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, Error>;
+}
+impl NonceFetcher for ChainInfo {
+    fn get_nonce(&self, _account: Vec<u8>) -> core::result::Result<u64, Error> {
+        Err(Error::Unimplemented)
+    }
+}
+
 pub trait ChainInspector {
     /// Return information of the chain
     fn get_info(&self) -> ChainInfo;

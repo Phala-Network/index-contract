@@ -6,7 +6,7 @@ use ink_lang as ink;
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod semi_bridge {
-    use alloc::{string::String, vec::Vec};
+    use alloc::{string::String, vec, vec::Vec};
     use index::prelude::*;
     use index::utils::ToArray;
     use ink_storage::traits::{PackedLayout, SpreadLayout};
@@ -103,24 +103,29 @@ mod semi_bridge {
         /// # Arguments
         ///
         /// * `src_chain`: an integer that represents the chain from which the asset is transferred
-        /// * `dest_chain`: the recipient of the tokens
+        /// * `token_contract`: token contract address
         /// * `token_rid`: token resource id
         /// * `amount`: amount of token to be transferred
         /// * `recipient`: the account that receives the tokens on Phala chain
         #[ink(message)]
-        pub fn transfer(&self, token_rid: H256, amount: U256, recipient: H256) -> Result<()> {
+        pub fn transfer(
+            &self,
+            token_contract: H160,
+            token_rid: H256,
+            amount: U256,
+            recipient: Vec<u8>,
+        ) -> Result<()> {
             let config = self.config.as_ref().ok_or(Error::NotConfigurated)?;
-            let executor = Evm2PhalaExecutor::new(
-                Address::EthAddr(config.bridge_address.into()),
-                include_bytes!("../res/chainbridge-abi.json"),
+            let executor = ChainBridgeEvm2Phala::new(
                 &config.rpc,
-            )
-            .or(Err(Error::FailedToCreateExecutor))?;
+                config.bridge_address.into(),
+                vec![(token_contract, token_rid.into())],
+            );
             _ = executor.transfer(
                 self.key,
-                token_rid,
-                index::traits::common::Amount::U256(amount),
-                Address::SubAddr(recipient),
+                token_contract.as_bytes().to_vec(),
+                recipient,
+                amount.try_into().expect("Amount converted failed"),
             );
             Ok(())
         }
@@ -176,16 +181,17 @@ mod semi_bridge {
             // PHA ChainBridge resource id on Khala
             let token_rid: H256 =
                 hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
+            // PHA contract address on Ethereum
+            let token_contract: H160 = hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into();
             // 1 PHA
             let amount = Uint::from(1_000_000_000_000_000_000_u128);
 
             let recipient: Vec<u8> =
                 hex!("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48").into();
-            let recipient: H256 = H256::from_slice(&recipient);
 
             // an example result:
             // https://goerli.etherscan.io/tx/0xc064af26458ca91b86af128ba86d9cdcee51397cebebc714df8fc182b298ab11
-            _ = bridge.transfer(token_rid, amount, recipient);
+            _ = bridge.transfer(token_contract, token_rid, amount, recipient);
         }
     }
 }

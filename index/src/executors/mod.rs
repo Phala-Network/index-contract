@@ -1,4 +1,5 @@
-pub mod bridge_executors;
+pub mod bridge_executor;
+pub mod dex_executor;
 
 #[cfg(test)]
 mod tests {
