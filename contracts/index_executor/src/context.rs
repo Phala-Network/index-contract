@@ -1,11 +1,10 @@
 use super::account::AccountInfo;
 use alloc::{boxed::Box, string::String, vec::Vec};
-use index::prelude::*;
-use index_registry::RegistryRef;
+use index::{prelude::*, graph::Graph};
 
 pub struct Context {
     pub signer: [u8; 32],
-    pub registry: RegistryRef,
+    pub graph: Graph,
     pub worker_accounts: Vec<AccountInfo>,
     /// (source_chain, dest_chain) => bridge_executor
     pub bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)>,

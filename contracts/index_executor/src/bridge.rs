@@ -2,6 +2,7 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
+use index::graph::ChainType;
 use scale::{Decode, Encode};
 
 /// Definition of bridge operation step
@@ -46,9 +47,10 @@ impl Runner for BridgeStep {
             .get_bridge_executor(self.source_chain.clone(), self.dest_chain.clone())
             .ok_or("MissingExecutor")?;
         let chain = context
-            .registry
+            .graph
             .get_chain(self.dest_chain.clone())
-            .map_err(|_| "MissingChain")?;
+            .map(Ok)
+            .unwrap_or(Err("MissingChain"))?;
         let recipient = match chain.chain_type {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),

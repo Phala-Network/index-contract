@@ -2,6 +2,7 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
+use index::graph::ChainType;
 use scale::{Decode, Encode};
 
 /// Definition of swap operation step
@@ -46,9 +47,10 @@ impl Runner for SwapStep {
             .get_dex_executor(self.chain.clone())
             .ok_or("MissingExecutor")?;
         let source_chain = context
-            .registry
+            .graph
             .get_chain(self.chain.clone())
-            .map_err(|_| "MissingChain")?;
+            .map(Ok)
+            .unwrap_or(Err("MissingChain"))?;
         let recipient = match source_chain.chain_type {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),

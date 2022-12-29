@@ -22,6 +22,7 @@ mod index_executor {
         vec::Vec,
     };
     use hex_literal::hex;
+    use index::graph::ChainType;
     use index::graph::{Asset, Bridge, BridgePair, Chain, Dex, DexIndexer, DexPair, Graph};
     use index::prelude::*;
     use index_registry::{Graph as RegistryGraph, RegistryRef};
@@ -126,14 +127,10 @@ mod index_executor {
         }
 
         pub fn get_chain(&self, name: String) -> Option<Chain> {
-            let mut bytes = self.raw_graph.clone().as_ref();
+            let bytes = self.raw_graph.clone();
+            let mut bytes = bytes.as_ref();
             let graph = Graph::decode(&mut bytes).unwrap();
-            let chains = graph.registered_chains;
-            let chain = chains
-                .iter()
-                .position(|&c| c.name == name)
-                .map(|idx| chains[idx].clone());
-            return chain;
+            graph.get_chain(name)
         }
 
         #[ink(message)]
@@ -255,9 +252,16 @@ mod index_executor {
                         id: chain.id,
                         name: chain.name,
                         endpoint: chain.endpoint,
-                        chain_type: chain.chain_type,
+                        chain_type: {
+                            match chain.chain_type {
+                                // 0 => ChainType::Unknown,
+                                1 => ChainType::Evm,
+                                2 => ChainType::Sub,
+                                _ => panic!("Unsupported chain!"),
+                            }
+                        },
                     };
-                    arr[item.id as usize] = item;
+                    arr[chain.id as usize] = item;
                 }
                 local_graph.registered_chains = arr;
             }
@@ -283,7 +287,7 @@ mod index_executor {
                         decimals: asset.decimals,
                         chain_id: asset.chain_id,
                     };
-                    arr[item.id as usize] = item;
+                    arr[asset.id as usize] = item;
                 }
                 local_graph.registered_assets = arr;
             }
@@ -298,7 +302,7 @@ mod index_executor {
                         name: dex.name,
                         chain_id: dex.chain_id,
                     };
-                    arr[item.id as usize] = item;
+                    arr[dex.id as usize] = item;
                 }
                 local_graph.registered_dexs = arr;
             }
@@ -313,7 +317,7 @@ mod index_executor {
                         url: indexer.url,
                         dex_id: indexer.dex_id,
                     };
-                    arr[item.id as usize] = item;
+                    arr[indexer.id as usize] = item;
                 }
                 local_graph.registered_dex_indexers = arr;
             }
@@ -335,7 +339,7 @@ mod index_executor {
                         // to that end, we hexify all kinds of pair_id
                         pair_id: hex::decode(pair.pair_id).unwrap(),
                     };
-                    arr[item.id as usize] = item;
+                    arr[pair.id as usize] = item;
                 }
                 local_graph.registered_dex_pairs = arr;
             }
@@ -350,7 +354,7 @@ mod index_executor {
                         name: bridge.name,
                         location: hex::decode(bridge.location).unwrap(),
                     };
-                    arr[item.id as usize] = item;
+                    arr[bridge.id as usize] = item;
                 }
                 local_graph.registered_bridges = arr;
             }
@@ -366,7 +370,7 @@ mod index_executor {
                         asset1_id: pair.asset1_id,
                         bridge_id: pair.bridge_id,
                     };
-                    arr[item.id as usize] = item;
+                    arr[pair.id as usize] = item;
                 }
                 local_graph.registered_bridge_pairs = arr;
             }
@@ -417,7 +421,11 @@ mod index_executor {
                 &Context {
                     // Don't need signer here
                     signer: [0; 32],
-                    registry: self.config.clone().unwrap().registry,
+                    graph: {
+                        let bytes = self.raw_graph.clone();
+                        let mut bytes = bytes.as_ref();
+                        Graph::decode(&mut bytes).unwrap()
+                    },
                     worker_accounts: self.worker_accounts.clone(),
                     bridge_executors: vec![],
                     dex_executors: vec![],
@@ -448,7 +456,11 @@ mod index_executor {
 
                 match task.execute(&Context {
                     signer: self.pub_to_prv(task.worker).unwrap(),
-                    registry: self.config.clone().unwrap().registry.clone(),
+                    graph: {
+                        let bytes = self.raw_graph.clone();
+                        let mut bytes = bytes.as_ref();
+                        Graph::decode(&mut bytes).unwrap()
+                    },
                     worker_accounts: self.worker_accounts.clone(),
                     bridge_executors: self.create_bridge_executors()?,
                     dex_executors: self.create_dex_executors()?,

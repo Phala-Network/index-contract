@@ -2,7 +2,8 @@ use super::context::Context;
 use super::step::Step;
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
-use index_registry::types::{ChainType, NonceFetcher};
+use index::graph::ChainType;
+use index::graph::NonceFetcher;
 use ink_storage::Mapping;
 use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
@@ -147,11 +148,12 @@ impl Task {
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
         for step in self.steps.iter_mut() {
             let nonce = nonce_map.get(&step.chain).or_else(|| {
-                let chain = context.registry.get_chain(step.chain.clone()).unwrap();
+                let chain = context.graph.get_chain(step.chain.clone()).unwrap();
                 let account_info = context.get_account(self.worker).unwrap();
                 let account = match chain.chain_type {
                     ChainType::Evm => account_info.account20.to_vec(),
                     ChainType::Sub => account_info.account32.to_vec(),
+                    // ChainType::Unknown => panic!("chain not supported!"),
                 };
                 chain.get_nonce(account).ok()
             });
