@@ -7,6 +7,7 @@ use scale::{Decode, Encode};
 pub struct Chain {
     pub id: u32,
     pub name: String,
+    pub endpoint: String,
     pub chain_type: u32,
 }
 
@@ -67,11 +68,11 @@ pub struct BridgePair {
 
 #[derive(Clone, Default, Encode, Decode, Debug)]
 pub struct Graph {
-    pub registeredChains: Vec<Chain>,
-    pub registeredAssets: Vec<Asset>,
-    pub registeredDexs: Vec<Dex>,
-    pub registeredDexPairs: Vec<DexPair>,
-    pub registeredDexIndexers: Vec<DexIndexer>,
-    pub registeredBridges: Vec<Bridge>,
-    pub registeredBridgePairs: Vec<BridgePair>,
+    pub registered_chains: Vec<Chain>,
+    pub registered_assets: Vec<Asset>,
+    pub registered_dexs: Vec<Dex>,
+    pub registered_dex_pairs: Vec<DexPair>,
+    pub registered_dex_indexers: Vec<DexIndexer>,
+    pub registered_bridges: Vec<Bridge>,
+    pub registered_bridge_pairs: Vec<BridgePair>,
 }

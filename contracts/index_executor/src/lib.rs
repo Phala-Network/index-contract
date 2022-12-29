@@ -125,6 +125,17 @@ mod index_executor {
             }
         }
 
+        pub fn get_chain(&self, name: String) -> Option<Chain> {
+            let mut bytes = self.raw_graph.clone().as_ref();
+            let graph = Graph::decode(&mut bytes).unwrap();
+            let chains = graph.registered_chains;
+            let chain = chains
+                .iter()
+                .position(|&c| c.name == name)
+                .map(|idx| chains[idx].clone());
+            return chain;
+        }
+
         #[ink(message)]
         pub fn config(&mut self, registry: AccountId, pallet_id: Option<u8>) -> Result<()> {
             self.ensure_owner()?;
@@ -141,12 +152,10 @@ mod index_executor {
             let contract_id = self.env().account_id();
             // Get rpc info from registry
             let chain = self
-                .config
-                .clone()
-                .unwrap()
-                .registry
                 .get_chain("Khala".to_string())
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            //.map_or(|_| Error::ChainNotFound)?;
             let endpoint = chain.endpoint;
             // Check if the rollup is initialized properly
             let actual_owner = get_name_owner(&endpoint, &contract_id)
@@ -181,11 +190,10 @@ mod index_executor {
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             let config = self.ensure_configured()?;
             // Get rpc info from registry
-            let chain = config
-                .registry
-                .clone()
+            let chain = self
                 .get_chain("Khala".to_string())
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
@@ -246,11 +254,12 @@ mod index_executor {
                     let item: Chain = Chain {
                         id: chain.id,
                         name: chain.name,
+                        endpoint: chain.endpoint,
                         chain_type: chain.chain_type,
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredChains = arr;
+                local_graph.registered_chains = arr;
             }
 
             {
@@ -276,7 +285,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredAssets = arr;
+                local_graph.registered_assets = arr;
             }
 
             {
@@ -291,7 +300,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredDexs = arr;
+                local_graph.registered_dexs = arr;
             }
 
             {
@@ -306,7 +315,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredDexIndexers = arr;
+                local_graph.registered_dex_indexers = arr;
             }
 
             {
@@ -328,7 +337,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredDexPairs = arr;
+                local_graph.registered_dex_pairs = arr;
             }
 
             {
@@ -343,7 +352,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredBridges = arr;
+                local_graph.registered_bridges = arr;
             }
 
             {
@@ -359,7 +368,7 @@ mod index_executor {
                     };
                     arr[item.id as usize] = item;
                 }
-                local_graph.registeredBridgePairs = arr;
+                local_graph.registered_bridge_pairs = arr;
             }
 
             self.raw_graph = local_graph.encode();
@@ -397,12 +406,7 @@ mod index_executor {
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
             // and append them to runing tasks
             let mut actived_task = ActivedTaskFetcher::new(
-                self.config
-                    .clone()
-                    .unwrap()
-                    .registry
-                    .get_chain(source_chain)
-                    .unwrap(),
+                self.get_chain(source_chain).unwrap(),
                 AccountInfo::from(self.executor_account),
             )
             .fetch_task()
@@ -503,16 +507,14 @@ mod index_executor {
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
             let config = self.ensure_configured()?;
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
-            let ethereum = config
-                .registry
-                .clone()
+            let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
-            let phala = config
-                .registry
-                .clone()
-                .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            let phala = self
+                .get_chain(String::from("Phala"))
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
 
             // Ethereum -> Phala: ChainBridgeEvm2Phala
             let chainbridge_on_ethereum: H160 =
@@ -547,11 +549,10 @@ mod index_executor {
         fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
             let config = self.ensure_configured()?;
             let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
-            let ethereum = config
-                .registry
-                .clone()
+            let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
 
             dex_executors.push((
                 String::from("Phala"),

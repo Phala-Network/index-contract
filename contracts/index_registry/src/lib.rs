@@ -20,6 +20,7 @@ mod registry {
     pub struct Chain {
         pub id: u32,
         pub name: String,
+        pub endpoint: String,
         pub chain_type: u32,
     }
 
