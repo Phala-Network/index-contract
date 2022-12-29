@@ -10,27 +10,27 @@ use scale::{Decode, Encode};
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct BridgeStep {
     /// Asset id on source chain
-    from: Vec<u8>,
+    pub from: Vec<u8>,
     /// Name of source chain
-    source_chain: String,
+    pub source_chain: String,
     /// Asset on dest chain
-    to: Vec<u8>,
+    pub to: Vec<u8>,
     /// Name of dest chain
-    dest_chain: String,
+    pub dest_chain: String,
     /// Fee of the bridge represented by the transfer asset
-    fee: u128,
+    pub fee: u128,
     /// Capacity of the step
-    cap: u128,
+    pub cap: u128,
     /// Flow of the step
-    flow: u128,
+    pub flow: u128,
     /// Original relayer account balance of asset on source chain
     /// Should be set when initializing task
-    b0: Option<u128>,
+    pub b0: Option<u128>,
     /// Original relayer account balance of asset on dest chain
     /// Should be set when initializing task
-    b1: Option<u128>,
+    pub b1: Option<u128>,
     /// Bridge amount
-    amount: u128,
+    pub amount: u128,
 }
 
 impl Runner for BridgeStep {

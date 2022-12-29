@@ -1263,9 +1263,11 @@ dependencies = [
  "phat_offchain_rollup",
  "pink-extension 0.2.0",
  "pink-extension-runtime",
+ "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types",
  "scale-info",
+ "serde",
  "xcm",
 ]
 
