@@ -204,5 +204,124 @@ mod registry {
             let registry = Registry::new();
             assert_eq!(registry.admin, accounts.alice);
         }
+
+        #[ink::test]
+        fn test_get_registry_should_works() {
+            let accounts = default_accounts();
+            set_caller(accounts.alice);
+            let mut registry = Registry::new();
+
+            // we are not registering entities manually!
+            // just for demonstration.
+            // there is a specfic management tool for all this data management
+            let ethereum = Chain {
+                id: 1,
+                name: "Ethereum".to_string(),
+                chain_type: 1,
+                endpoint: "endpoint".to_string(),
+            };
+            let phala = Chain {
+                id: 2,
+                name: "Phala".to_string(),
+                chain_type: 2,
+                endpoint: "endpoint".to_string(),
+            };
+            let pha_on_ethereum = Asset {
+                id: 1,
+                chain_id: 1,
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
+                decimals: 18,
+                location: "Somewhere on Ethereum".to_string(),
+            };
+            let pha_on_phala = Asset {
+                id: 1,
+                chain_id: 2,
+                name: "Phala Token".to_string(),
+                symbol: "PHA".to_string(),
+                decimals: 12,
+                location: "Somewhere on Phala".to_string(),
+            };
+            let weth_on_ethereum = Asset {
+                id: 3,
+                chain_id: 1,
+                name: "Wrap Ether".to_string(),
+                symbol: "WETH".to_string(),
+                decimals: 18,
+                location: "Somewhere on Ethereum2".to_string(),
+            };
+            let weth_on_phala = Asset {
+                id: 4,
+                chain_id: 2,
+                name: "Phala Wrap Ether".to_string(),
+                symbol: "pWETH".to_string(),
+                decimals: 18,
+                location: "Somewhere on Phala2".to_string(),
+            };
+            let ethereum2phala_pha_pair = BridgePair {
+                id: 1,
+                asset0_id: 1,
+                asset1_id: 2,
+                bridge_id: 1,
+            };
+            let ethereum2phala_weth_pair = BridgePair {
+                id: 2,
+                asset0_id: 3,
+                asset1_id: 4,
+                bridge_id: 1,
+            };
+            let phala2ethereum_pha_pair = BridgePair {
+                id: 3,
+                asset0_id: 2,
+                asset1_id: 1,
+                bridge_id: 1,
+            };
+            let pha_weth_dex_pair = DexPair {
+                id: 1,
+                dex_id: 1,
+                pair_id: "pair_address".to_string(),
+                asset0_id: 1,
+                asset1_id: 3,
+            };
+            let bridge = Bridge {
+                id: 1,
+                name: "demo bridge".to_string(),
+                location: "xtoken://0x1213435".to_string(),
+            };
+            let dex = Dex {
+                id: 1,
+                name: "UniSwapV2".to_string(),
+                chain_id: 1,
+            };
+
+            // should have a jonction table but this structure suffices
+            let dex_indexer = DexIndexer {
+                id: 1,
+                url: "https://some-graph.network".to_string(),
+                dex_id: 1,
+            };
+
+            let graph = Graph {
+                chains: vec![ethereum, phala],
+                assets: vec![
+                    pha_on_ethereum,
+                    pha_on_phala,
+                    weth_on_ethereum,
+                    weth_on_phala,
+                ],
+                dexs: vec![dex],
+                bridges: vec![bridge],
+                dex_pairs: vec![pha_weth_dex_pair],
+                bridge_pairs: vec![
+                    ethereum2phala_pha_pair,
+                    ethereum2phala_weth_pair,
+                    phala2ethereum_pha_pair,
+                ],
+                dex_indexers: vec![dex_indexer],
+            };
+
+            _ = registry.set_graph(graph);
+            // TODO: assert something
+        }
     }
 }
