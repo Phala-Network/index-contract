@@ -2,6 +2,7 @@
 extern crate alloc;
 use ink_lang as ink;
 
+pub use registry::{Graph, Registry, RegistryRef};
 pub mod error;
 
 #[allow(clippy::large_enum_variant)]
@@ -17,75 +18,75 @@ mod registry {
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Chain {
-        id: i32,
-        name: String,
-        chain_type: i32,
+        pub id: u32,
+        pub name: String,
+        pub chain_type: u32,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Asset {
-        id: i32,
-        symbol: String,
-        name: String,
-        location: String,
-        decimals: i32,
-        chain_id: i32,
+        pub id: u32,
+        pub symbol: String,
+        pub name: String,
+        pub location: String,
+        pub decimals: u32,
+        pub chain_id: u32,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Dex {
-        id: i32,
-        name: String,
-        chain_id: i32,
+        pub id: u32,
+        pub name: String,
+        pub chain_id: u32,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct DexIndexer {
-        id: i32,
-        url: String,
-        dex_id: i32,
+        pub id: u32,
+        pub url: String,
+        pub dex_id: u32,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct DexPair {
-        id: i32,
-        asset0_id: i32,
-        asset1_id: i32,
-        dex_id: i32,
-        pair_id: String,
+        pub id: u32,
+        pub asset0_id: u32,
+        pub asset1_id: u32,
+        pub dex_id: u32,
+        pub pair_id: String,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Bridge {
-        id: i32,
-        name: String,
-        location: String,
+        pub id: u32,
+        pub name: String,
+        pub location: String,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct BridgePair {
-        id: i32,
-        asset0_id: i32,
-        asset1_id: i32,
-        bridge_id: i32,
+        pub id: u32,
+        pub asset0_id: u32,
+        pub asset1_id: u32,
+        pub bridge_id: u32,
     }
 
     #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Graph {
-        chains: Vec<Chain>,
-        assets: Vec<Asset>,
-        dexs: Vec<Dex>,
-        dex_pairs: Vec<DexPair>,
-        dex_indexers: Vec<DexIndexer>,
-        bridges: Vec<Bridge>,
-        bridge_pairs: Vec<BridgePair>,
+        pub chains: Vec<Chain>,
+        pub assets: Vec<Asset>,
+        pub dexs: Vec<Dex>,
+        pub dex_pairs: Vec<DexPair>,
+        pub dex_indexers: Vec<DexIndexer>,
+        pub bridges: Vec<Bridge>,
+        pub bridge_pairs: Vec<BridgePair>,
     }
 
     /// Event emitted when graph is set.

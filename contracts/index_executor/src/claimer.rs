@@ -1,5 +1,4 @@
 use alloc::string::String;
-use index_registry::types::{ChainInfo, ChainType};
 use scale::{Decode, Encode};
 
 use super::account::AccountInfo;

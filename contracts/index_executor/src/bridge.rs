@@ -2,7 +2,6 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index_registry::types::ChainType;
 use scale::{Decode, Encode};
 
 /// Definition of bridge operation step
