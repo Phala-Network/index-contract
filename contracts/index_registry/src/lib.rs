@@ -154,7 +154,7 @@ mod registry {
         /// Returs the interior graph, callable to all
         #[ink(message)]
         pub fn get_graph(&self) -> Graph {
-            return self.graph.clone();
+            self.graph.clone()
         }
     }
 

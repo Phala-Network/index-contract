@@ -26,10 +26,9 @@ pub struct Graph {
 impl Graph {
     pub fn get_chain(&self, name: String) -> Option<Chain> {
         let chains = &self.registered_chains;
-        let chain = chains
+        chains
             .iter()
             .position(|c| c.name == name)
-            .map(|idx| chains[idx].clone());
-        return chain;
+            .map(|idx| chains[idx].clone())
     }
 }
