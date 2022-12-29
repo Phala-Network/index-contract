@@ -262,7 +262,7 @@ mod index_executor {
                     };
                     arr[chain.id as usize] = item;
                 }
-                local_graph.registered_chains = arr;
+                local_graph.chains = arr;
             }
 
             {
@@ -288,7 +288,7 @@ mod index_executor {
                     };
                     arr[asset.id as usize] = item;
                 }
-                local_graph.registered_assets = arr;
+                local_graph.assets = arr;
             }
 
             {
@@ -303,7 +303,7 @@ mod index_executor {
                     };
                     arr[dex.id as usize] = item;
                 }
-                local_graph.registered_dexs = arr;
+                local_graph.dexs = arr;
             }
 
             {
@@ -318,7 +318,7 @@ mod index_executor {
                     };
                     arr[indexer.id as usize] = item;
                 }
-                local_graph.registered_dex_indexers = arr;
+                local_graph.dex_indexers = arr;
             }
 
             {
@@ -340,7 +340,7 @@ mod index_executor {
                     };
                     arr[pair.id as usize] = item;
                 }
-                local_graph.registered_dex_pairs = arr;
+                local_graph.dex_pairs = arr;
             }
 
             {
@@ -355,7 +355,7 @@ mod index_executor {
                     };
                     arr[bridge.id as usize] = item;
                 }
-                local_graph.registered_bridges = arr;
+                local_graph.bridges = arr;
             }
 
             {
@@ -371,7 +371,7 @@ mod index_executor {
                     };
                     arr[pair.id as usize] = item;
                 }
-                local_graph.registered_bridge_pairs = arr;
+                local_graph.bridge_pairs = arr;
             }
 
             self.raw_graph = local_graph.encode();

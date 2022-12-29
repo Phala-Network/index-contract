@@ -16,18 +16,18 @@ pub use self::{
 
 #[derive(Clone, Default, Encode, Decode, Debug)]
 pub struct Graph {
-    pub registered_chains: Vec<Chain>,
-    pub registered_assets: Vec<Asset>,
-    pub registered_dexs: Vec<Dex>,
-    pub registered_dex_pairs: Vec<DexPair>,
-    pub registered_dex_indexers: Vec<DexIndexer>,
-    pub registered_bridges: Vec<Bridge>,
-    pub registered_bridge_pairs: Vec<BridgePair>,
+    pub chains: Vec<Chain>,
+    pub assets: Vec<Asset>,
+    pub dexs: Vec<Dex>,
+    pub dex_pairs: Vec<DexPair>,
+    pub dex_indexers: Vec<DexIndexer>,
+    pub bridges: Vec<Bridge>,
+    pub bridge_pairs: Vec<BridgePair>,
 }
 
 impl Graph {
     pub fn get_chain(&self, name: String) -> Option<Chain> {
-        let chains = &self.registered_chains;
+        let chains = &self.chains;
         chains
             .iter()
             .position(|c| c.name == name)
