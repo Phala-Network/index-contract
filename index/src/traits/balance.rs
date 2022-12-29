@@ -14,6 +14,7 @@ use xcm::{
     },
 };
 
+use alloc::string::String;
 use crate::prelude::Error;
 
 /// Query the account balance of an asset under a multichain scenario is a mess,

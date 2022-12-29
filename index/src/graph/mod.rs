@@ -3,6 +3,8 @@ mod bridge;
 mod chain;
 mod dex;
 
+use alloc::string::String;
+use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
 pub use self::{

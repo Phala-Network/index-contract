@@ -1,4 +1,6 @@
 use crate::prelude::Error;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
