@@ -1,6 +1,6 @@
 use super::account::AccountInfo;
 use alloc::{boxed::Box, string::String, vec::Vec};
-use index::{prelude::*, graph::Graph};
+use index::{graph::Graph, prelude::*};
 
 pub struct Context {
     pub signer: [u8; 32],

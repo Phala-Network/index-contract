@@ -14,4 +14,3 @@ pub struct BridgePair {
     pub asset1_id: u32,
     pub bridge_id: u32,
 }
-
