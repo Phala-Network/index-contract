@@ -242,7 +242,6 @@ mod index_executor {
             let registry_graph = config.registry.clone().get_graph();
             let mut local_graph: Graph = Graph::default();
 
-            // consider replacing the following code with macros?
             {
                 let len = registry_graph.chains.len();
                 let mut arr: Vec<Chain> = Vec::new();
@@ -380,7 +379,6 @@ mod index_executor {
             Ok(())
         }
 
-        /// TODO
         /// For cross-contract call test
         #[ink(message)]
         pub fn get_graph(&self) -> Result<RegistryGraph> {
@@ -517,7 +515,7 @@ mod index_executor {
         fn create_bridge_executors(
             &self,
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
-            let config = self.ensure_configured()?;
+            // let config = self.ensure_configured()?;
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
             let ethereum = self
                 .get_chain(String::from("Ethereum"))
@@ -559,7 +557,7 @@ mod index_executor {
         }
 
         fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
-            let config = self.ensure_configured()?;
+            // let config = self.ensure_configured()?;
             let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
             let ethereum = self
                 .get_chain(String::from("Ethereum"))
@@ -582,24 +580,14 @@ mod index_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use dotenv::dotenv;
+        // use dotenv::dotenv;
         use index_registry::Registry;
         use ink::ToAccountId;
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
-        use pink_extension::PinkEnvironment;
+        // use pink_extension::PinkEnvironment;
         use xcm::latest::{prelude::*, MultiLocation};
 
-        fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
-            ink_env::test::default_accounts::<PinkEnvironment>()
-        }
-
-        fn set_caller(sender: AccountId) {
-            ink_env::test::set_caller::<PinkEnvironment>(sender);
-        }
-
-        // TODO: open up
-        /*
         #[ink::test]
         fn crosscontract_call_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
@@ -611,31 +599,12 @@ mod index_executor {
             ink_env::test::register_contract::<Executor>(hash2.as_ref());
 
             // Deploy Registry
-            let mut registry = RegistryRef::new()
+            let registry = RegistryRef::new()
                 .code_hash(hash1)
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Registry");
-            let ethereum = ChainInfo {
-                name: "Ethereum".to_string(),
-                chain_type: ChainType::Evm,
-                native: None,
-                stable: None,
-                endpoint: "endpoint".to_string(),
-                network: None,
-            };
-            assert_eq!(registry.register_chain(ethereum.clone()), Ok(()));
-            let usdc = AssetInfo {
-                name: "USD Coin".to_string(),
-                symbol: "USDC".to_string(),
-                decimals: 6,
-                location: b"Somewhere on Ethereum".to_vec(),
-            };
-            assert_eq!(
-                registry.register_asset("Ethereum".to_string(), usdc.clone()),
-                Ok(())
-            );
 
             // Deploy Executor
             let mut executor = ExecutorRef::new()
@@ -649,21 +618,19 @@ mod index_executor {
             // Make cross contract call from executor
             assert_eq!(
                 executor.get_graph().unwrap(),
-                Graph {
-                    assets: vec![AssetGraph {
-                        chain: ethereum.name,
-                        location: usdc.location,
-                        name: usdc.name,
-                        symbol: usdc.symbol,
-                        decimals: usdc.decimals,
-                    }],
-                    pairs: vec![],
+                RegistryGraph {
+                    chains: vec![],
+                    assets: vec![],
+                    dexs: vec![],
+                    dex_pairs: vec![],
+                    dex_indexers: vec![],
                     bridges: vec![],
+                    bridge_pairs: vec![],
                 }
             )
         }
 
-        //#[ink::test]
+        #[ink::test]
         fn rollup_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
 
@@ -672,23 +639,6 @@ mod index_executor {
             let hash2 = ink_env::Hash::try_from([20u8; 32]).unwrap();
             ink_env::test::register_contract::<Registry>(hash1.as_ref());
             ink_env::test::register_contract::<Executor>(hash2.as_ref());
-
-            // Deploy Registry
-            let mut registry = RegistryRef::new()
-                .code_hash(hash1)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Registry");
-            let khala = ChainInfo {
-                name: "Khala".to_string(),
-                chain_type: ChainType::Sub,
-                native: None,
-                stable: None,
-                endpoint: "http://127.0.0.1:39933".to_string(),
-                network: None,
-            };
-            assert_eq!(registry.register_chain(khala.clone()), Ok(()));
 
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
@@ -707,7 +657,6 @@ mod index_executor {
             // Comment because we can not test it in CI so far
             // assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
         }
-        */
 
         #[ink::test]
         fn dump_location() {

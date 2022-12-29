@@ -56,8 +56,8 @@ mod system_remark {
         use dotenv::dotenv;
         use hex_literal::hex;
         use ink_lang as ink;
-        use pink_web3::ethabi::Uint;
-        use std::time::SystemTime;
+        // use pink_web3::ethabi::Uint;
+        // use std::time::SystemTime;
 
         #[ink::test]
         /// We are not going to mock in this sample,

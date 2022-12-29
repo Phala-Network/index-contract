@@ -10,12 +10,12 @@ pub mod error;
 mod registry {
     use crate::error::Error;
     use alloc::{string::String, vec::Vec};
-    use index::ensure;
-    use ink_storage::traits::PackedAllocate;
+    // use index::ensure;
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
-    use ink_storage::Mapping;
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Chain {
         pub id: u32,
@@ -24,7 +24,9 @@ mod registry {
         pub chain_type: u32,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Asset {
         pub id: u32,
@@ -35,7 +37,9 @@ mod registry {
         pub chain_id: u32,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Dex {
         pub id: u32,
@@ -43,7 +47,9 @@ mod registry {
         pub chain_id: u32,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct DexIndexer {
         pub id: u32,
@@ -51,7 +57,9 @@ mod registry {
         pub dex_id: u32,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct DexPair {
         pub id: u32,
@@ -61,7 +69,9 @@ mod registry {
         pub pair_id: String,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Bridge {
         pub id: u32,
@@ -69,7 +79,9 @@ mod registry {
         pub location: String,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct BridgePair {
         pub id: u32,
@@ -78,7 +90,9 @@ mod registry {
         pub bridge_id: u32,
     }
 
-    #[derive(Debug, Clone, Default, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
+    #[derive(
+        Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
+    )]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Graph {
         pub chains: Vec<Chain>,
@@ -147,12 +161,13 @@ mod registry {
     #[cfg(test)]
     mod test {
         use super::*;
-        use dotenv::dotenv;
+        // use dotenv::dotenv;
         use ink_lang as ink;
-        use phala_pallet_common::WrapSlice;
+        // use phala_pallet_common::WrapSlice;
         use pink_extension::PinkEnvironment;
         use scale::Encode;
 
+        #[allow(dead_code)]
         type Event = <Registry as ink::reflect::ContractEventBase>::Type;
 
         fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
@@ -163,6 +178,7 @@ mod registry {
             ink_env::test::set_caller::<PinkEnvironment>(sender);
         }
 
+        #[allow(dead_code)]
         fn assert_events(mut expected: Vec<Event>) {
             let mut actual: Vec<ink_env::test::EmittedEvent> =
                 ink_env::test::recorded_events().collect();

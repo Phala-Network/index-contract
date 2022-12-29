@@ -1,5 +1,3 @@
-use scale::{Decode, Encode};
-
 #[derive(Debug, Clone, Default, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Bridge {

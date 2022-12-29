@@ -1,5 +1,3 @@
-use scale::{Decode, Encode};
-
 use crate::prelude::Error;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
