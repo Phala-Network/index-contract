@@ -22,8 +22,10 @@ mod index_executor {
         vec::Vec,
     };
     use hex_literal::hex;
+    use index::graph::ChainType;
+    use index::graph::{Asset, Bridge, BridgePair, Chain, Dex, DexIndexer, DexPair, Graph};
     use index::prelude::*;
-    use index_registry::{types::Graph, RegistryRef};
+    use index_registry::{Graph as RegistryGraph, RegistryRef};
     use ink_env::call::FromAccountId;
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use phat_offchain_rollup::clients::substrate::{
@@ -85,6 +87,7 @@ mod index_executor {
     pub struct Executor {
         pub admin: AccountId,
         pub config: Option<Config>,
+        pub raw_graph: Vec<u8>,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
         pub executor_account: [u8; 32],
@@ -115,11 +118,19 @@ mod index_executor {
             Self {
                 admin: Self::env().caller(),
                 config: None,
+                raw_graph: Vec::default(),
                 worker_prv_keys,
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
             }
+        }
+
+        pub fn get_chain(&self, name: String) -> Option<Chain> {
+            let bytes = self.raw_graph.clone();
+            let mut bytes = bytes.as_ref();
+            let graph = Graph::decode(&mut bytes).unwrap();
+            graph.get_chain(name)
         }
 
         #[ink(message)]
@@ -138,12 +149,10 @@ mod index_executor {
             let contract_id = self.env().account_id();
             // Get rpc info from registry
             let chain = self
-                .config
-                .clone()
-                .unwrap()
-                .registry
                 .get_chain("Khala".to_string())
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            //.map_or(|_| Error::ChainNotFound)?;
             let endpoint = chain.endpoint;
             // Check if the rollup is initialized properly
             let actual_owner = get_name_owner(&endpoint, &contract_id)
@@ -178,11 +187,10 @@ mod index_executor {
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             let config = self.ensure_configured()?;
             // Get rpc info from registry
-            let chain = config
-                .registry
-                .clone()
+            let chain = self
                 .get_chain("Khala".to_string())
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
@@ -228,11 +236,154 @@ mod index_executor {
             Ok(task_list)
         }
 
+        #[ink(message)]
+        pub fn sync_graph(&mut self) -> Result<()> {
+            let config = self.ensure_configured()?;
+            let registry_graph = config.registry.clone().get_graph();
+            let mut local_graph: Graph = Graph::default();
+
+            {
+                let len = registry_graph.chains.len();
+                let mut arr: Vec<Chain> = Vec::new();
+                arr.resize(len + 1, Chain::default());
+                for chain in registry_graph.chains {
+                    let item: Chain = Chain {
+                        id: chain.id,
+                        name: chain.name,
+                        endpoint: chain.endpoint,
+                        chain_type: {
+                            match chain.chain_type {
+                                // 0 => ChainType::Unknown,
+                                1 => ChainType::Evm,
+                                2 => ChainType::Sub,
+                                _ => panic!("Unsupported chain!"),
+                            }
+                        },
+                    };
+                    arr[chain.id as usize] = item;
+                }
+                local_graph.chains = arr;
+            }
+
+            {
+                let len = registry_graph.assets.len();
+                let mut arr: Vec<Asset> = Vec::new();
+                arr.resize(len + 1, Asset::default());
+                for asset in registry_graph.assets {
+                    let item = Asset {
+                        id: asset.id,
+                        symbol: asset.symbol,
+                        name: asset.name,
+                        // beware the special treatment for locations!
+                        // reason:
+                        //  ink! treats any string that starts with a 0x prefix as a hex string,
+                        //  if `location` starts with 0x then we will get an unreadable character string here,
+                        //  a workaround is to encode the location
+                        //      (and anything that is possibly a string prefixed with 0x) by hex-ing it,
+                        //      before putting it in the ink! storage;
+                        //  now in time of use, we decode the location by hex::decode()
+                        location: hex::decode(asset.location).unwrap(),
+                        decimals: asset.decimals,
+                        chain_id: asset.chain_id,
+                    };
+                    arr[asset.id as usize] = item;
+                }
+                local_graph.assets = arr;
+            }
+
+            {
+                let len = registry_graph.dexs.len();
+                let mut arr = Vec::new();
+                arr.resize(len + 1, Dex::default());
+                for dex in registry_graph.dexs {
+                    let item = Dex {
+                        id: dex.id,
+                        name: dex.name,
+                        chain_id: dex.chain_id,
+                    };
+                    arr[dex.id as usize] = item;
+                }
+                local_graph.dexs = arr;
+            }
+
+            {
+                let len = registry_graph.dex_indexers.len();
+                let mut arr = Vec::new();
+                arr.resize(len + 1, DexIndexer::default());
+                for indexer in registry_graph.dex_indexers {
+                    let item = DexIndexer {
+                        id: indexer.id,
+                        url: indexer.url,
+                        dex_id: indexer.dex_id,
+                    };
+                    arr[indexer.id as usize] = item;
+                }
+                local_graph.dex_indexers = arr;
+            }
+
+            {
+                let len = registry_graph.dex_pairs.len();
+                let mut arr = Vec::new();
+                arr.resize(len + 1, DexPair::default());
+                for pair in registry_graph.dex_pairs {
+                    let item = DexPair {
+                        id: pair.id,
+                        asset0_id: pair.asset0_id,
+                        asset1_id: pair.asset1_id,
+                        dex_id: pair.dex_id,
+                        // caveat, for now we have two kinds of pair_id:
+                        //  1. 0x1234...23
+                        //  2. lp:$TOEKN1/$TOKEN2
+                        // we need to hexify the first kind to get around the ink! string treatment,
+                        // to that end, we hexify all kinds of pair_id
+                        pair_id: hex::decode(pair.pair_id).unwrap(),
+                    };
+                    arr[pair.id as usize] = item;
+                }
+                local_graph.dex_pairs = arr;
+            }
+
+            {
+                let len = registry_graph.bridges.len();
+                let mut arr = Vec::new();
+                arr.resize(len + 1, Bridge::default());
+                for bridge in registry_graph.bridges {
+                    let item = Bridge {
+                        id: bridge.id,
+                        name: bridge.name,
+                        location: hex::decode(bridge.location).unwrap(),
+                    };
+                    arr[bridge.id as usize] = item;
+                }
+                local_graph.bridges = arr;
+            }
+
+            {
+                let len = registry_graph.bridge_pairs.len();
+                let mut arr = Vec::new();
+                arr.resize(len + 1, BridgePair::default());
+                for pair in registry_graph.bridge_pairs {
+                    let item = BridgePair {
+                        id: pair.id,
+                        asset0_id: pair.asset0_id,
+                        asset1_id: pair.asset1_id,
+                        bridge_id: pair.bridge_id,
+                    };
+                    arr[pair.id as usize] = item;
+                }
+                local_graph.bridge_pairs = arr;
+            }
+
+            self.raw_graph = local_graph.encode();
+
+            Ok(())
+        }
+
         /// For cross-contract call test
         #[ink(message)]
-        pub fn get_graph(&self) -> Result<Graph> {
+        pub fn get_graph(&self) -> Result<RegistryGraph> {
             let config = self.ensure_configured()?;
-            let graph = config.registry.clone().get_graph().unwrap();
+            let graph = config.registry.clone().get_graph();
             Ok(graph)
         }
 
@@ -257,12 +408,7 @@ mod index_executor {
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
             // and append them to runing tasks
             let mut actived_task = ActivedTaskFetcher::new(
-                self.config
-                    .clone()
-                    .unwrap()
-                    .registry
-                    .get_chain(source_chain)
-                    .unwrap(),
+                self.get_chain(source_chain).unwrap(),
                 AccountInfo::from(self.executor_account),
             )
             .fetch_task()
@@ -273,7 +419,11 @@ mod index_executor {
                 &Context {
                     // Don't need signer here
                     signer: [0; 32],
-                    registry: self.config.clone().unwrap().registry,
+                    graph: {
+                        let bytes = self.raw_graph.clone();
+                        let mut bytes = bytes.as_ref();
+                        Graph::decode(&mut bytes).unwrap()
+                    },
                     worker_accounts: self.worker_accounts.clone(),
                     bridge_executors: vec![],
                     dex_executors: vec![],
@@ -304,7 +454,11 @@ mod index_executor {
 
                 match task.execute(&Context {
                     signer: self.pub_to_prv(task.worker).unwrap(),
-                    registry: self.config.clone().unwrap().registry.clone(),
+                    graph: {
+                        let bytes = self.raw_graph.clone();
+                        let mut bytes = bytes.as_ref();
+                        Graph::decode(&mut bytes).unwrap()
+                    },
                     worker_accounts: self.worker_accounts.clone(),
                     bridge_executors: self.create_bridge_executors()?,
                     dex_executors: self.create_dex_executors()?,
@@ -361,18 +515,16 @@ mod index_executor {
         fn create_bridge_executors(
             &self,
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
-            let config = self.ensure_configured()?;
+            // let config = self.ensure_configured()?;
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
-            let ethereum = config
-                .registry
-                .clone()
+            let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
-            let phala = config
-                .registry
-                .clone()
-                .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            let phala = self
+                .get_chain(String::from("Phala"))
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
 
             // Ethereum -> Phala: ChainBridgeEvm2Phala
             let chainbridge_on_ethereum: H160 =
@@ -405,13 +557,12 @@ mod index_executor {
         }
 
         fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
-            let config = self.ensure_configured()?;
+            // let config = self.ensure_configured()?;
             let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
-            let ethereum = config
-                .registry
-                .clone()
+            let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map_err(|_| Error::ChainNotFound)?;
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
 
             dex_executors.push((
                 String::from("Phala"),
@@ -429,24 +580,13 @@ mod index_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use dotenv::dotenv;
-        use index_registry::{
-            types::{AssetGraph, AssetInfo, ChainInfo, ChainType, Graph},
-            Registry,
-        };
+        // use dotenv::dotenv;
+        use index_registry::Registry;
         use ink::ToAccountId;
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
-        use pink_extension::PinkEnvironment;
+        // use pink_extension::PinkEnvironment;
         use xcm::latest::{prelude::*, MultiLocation};
-
-        fn default_accounts() -> ink_env::test::DefaultAccounts<PinkEnvironment> {
-            ink_env::test::default_accounts::<PinkEnvironment>()
-        }
-
-        fn set_caller(sender: AccountId) {
-            ink_env::test::set_caller::<PinkEnvironment>(sender);
-        }
 
         #[ink::test]
         fn crosscontract_call_should_work() {
@@ -459,31 +599,12 @@ mod index_executor {
             ink_env::test::register_contract::<Executor>(hash2.as_ref());
 
             // Deploy Registry
-            let mut registry = RegistryRef::new()
+            let registry = RegistryRef::new()
                 .code_hash(hash1)
                 .endowment(0)
                 .salt_bytes([0u8; 0])
                 .instantiate()
                 .expect("failed to deploy Registry");
-            let ethereum = ChainInfo {
-                name: "Ethereum".to_string(),
-                chain_type: ChainType::Evm,
-                native: None,
-                stable: None,
-                endpoint: "endpoint".to_string(),
-                network: None,
-            };
-            assert_eq!(registry.register_chain(ethereum.clone()), Ok(()));
-            let usdc = AssetInfo {
-                name: "USD Coin".to_string(),
-                symbol: "USDC".to_string(),
-                decimals: 6,
-                location: b"Somewhere on Ethereum".to_vec(),
-            };
-            assert_eq!(
-                registry.register_asset("Ethereum".to_string(), usdc.clone()),
-                Ok(())
-            );
 
             // Deploy Executor
             let mut executor = ExecutorRef::new()
@@ -497,16 +618,14 @@ mod index_executor {
             // Make cross contract call from executor
             assert_eq!(
                 executor.get_graph().unwrap(),
-                Graph {
-                    assets: vec![AssetGraph {
-                        chain: ethereum.name,
-                        location: usdc.location,
-                        name: usdc.name,
-                        symbol: usdc.symbol,
-                        decimals: usdc.decimals,
-                    }],
-                    pairs: vec![],
+                RegistryGraph {
+                    chains: vec![],
+                    assets: vec![],
+                    dexs: vec![],
+                    dex_pairs: vec![],
+                    dex_indexers: vec![],
                     bridges: vec![],
+                    bridge_pairs: vec![],
                 }
             )
         }
@@ -520,23 +639,6 @@ mod index_executor {
             let hash2 = ink_env::Hash::try_from([20u8; 32]).unwrap();
             ink_env::test::register_contract::<Registry>(hash1.as_ref());
             ink_env::test::register_contract::<Executor>(hash2.as_ref());
-
-            // Deploy Registry
-            let mut registry = RegistryRef::new()
-                .code_hash(hash1)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Registry");
-            let khala = ChainInfo {
-                name: "Khala".to_string(),
-                chain_type: ChainType::Sub,
-                native: None,
-                stable: None,
-                endpoint: "http://127.0.0.1:39933".to_string(),
-                network: None,
-            };
-            assert_eq!(registry.register_chain(khala.clone()), Ok(()));
 
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];

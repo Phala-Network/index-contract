@@ -1,80 +1,42 @@
-extern crate alloc;
-
-use crate::chain_store::ChainStore;
-use crate::types::{
-    AssetInfo, AssetsRegisry, BalanceFetcher, ChainInfo, ChainInspector, ChainMutate,
-    Error as RegistryError,
+use pink_web3::{
+    api::Namespace,
+    contract::{Contract, Options},
+    ethabi::Address,
+    transports::{resolve_ready, PinkHttp},
+    Eth,
 };
-use alloc::{string::String, vec::Vec};
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
-use pink_web3::api::{Eth, Namespace};
-use pink_web3::contract::{Contract, Options};
-use pink_web3::transports::{resolve_ready, PinkHttp};
-use pink_web3::types::Address;
-use xcm::latest::{prelude::*, MultiLocation};
+use xcm::{
+    latest::{AssetId, MultiLocation},
+    v2::{
+        AssetId::Concrete,
+        Junction::{GeneralKey, Parachain},
+        Junctions,
+    },
+};
 
-#[derive(Clone, Debug, PartialEq, Eq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
-pub struct Chain {
-    pub store: ChainStore,
-}
+use crate::prelude::Error;
+use alloc::string::String;
 
-impl Chain {
-    /// Create an Chain entity
-    pub fn new(info: ChainInfo) -> Self {
-        Chain {
-            store: ChainStore::new(info),
-        }
-    }
-}
-
-impl ChainInspector for Chain {
-    fn get_info(&self) -> ChainInfo {
-        self.store.get_info()
-    }
-}
-
-impl ChainMutate for Chain {
-    fn set_native(&mut self, native: AssetInfo) {
-        self.store.set_native(native)
-    }
-
-    fn set_stable(&mut self, stable: AssetInfo) {
-        self.store.set_stable(stable)
-    }
-
-    fn set_endpoint(&mut self, endpoint: String) {
-        self.store.set_endpoint(endpoint)
-    }
-}
-
-impl AssetsRegisry for Chain {
-    /// Register the asset
-    fn register(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
-        self.store.register(asset)
-    }
-
-    /// Unregister the asset
-    fn unregister(&mut self, asset: AssetInfo) -> core::result::Result<(), RegistryError> {
-        self.store.unregister(asset)
-    }
-
-    /// Return all registerd assets
-    fn registered_assets(&self) -> Vec<AssetInfo> {
-        self.store.registered_assets()
-    }
-
-    fn lookup_by_name(&self, name: String) -> Option<AssetInfo> {
-        self.store.lookup_by_name(name)
-    }
-
-    fn lookup_by_symbol(&self, symbol: String) -> Option<AssetInfo> {
-        self.store.lookup_by_symbol(symbol)
-    }
-
-    fn lookup_by_location(&self, location: Vec<u8>) -> Option<AssetInfo> {
-        self.store.lookup_by_location(location)
-    }
+/// Query the account balance of an asset under a multichain scenario is a mess,
+/// not only because different chains have different account systems but also have
+/// different asset registry mechanism(e.g. Acala use Currency, Phala use pallet-assets
+/// manage registered foreign assets). Besides, query the native asset and foreign assets
+/// on a chain also different
+///
+/// Use `AssetId` and `MultiLocation` to represent indentification of the `asset` and `account` respectively
+/// is a good choice because developers can customize the way how they represent the `asset`
+/// `account`. For example, for `USDC` on Ethereum, bridge1 can represent it with
+/// `MultiLocation::new(1, X2(GeneralKey('Ethereum'), GeneralKey(usdc_addr))`, bridge2 can represent
+/// it with `MultiLocation::new(1, X3(Parachain(2004), GeneralIndex(0), GeneralKey(usdc_addr))`.
+///
+/// Both `AssetId` and `MultiLocation` are primitives introduced by XCM format.
+pub trait BalanceFetcher {
+    /// Return on-chain `asset` amount of `account`
+    fn balance_of(
+        &self,
+        asset: AssetId,
+        account: MultiLocation,
+    ) -> core::result::Result<u128, Error>;
 }
 
 pub struct EvmBalance {
@@ -146,21 +108,21 @@ impl BalanceFetcher for EvmBalance {
         &self,
         asset: AssetId,
         account: MultiLocation,
-    ) -> core::result::Result<u128, RegistryError> {
+    ) -> core::result::Result<u128, Error> {
         let transport = Eth::new(PinkHttp::new(self.endpoint.clone()));
         let token_address: Address = self
             .extract_token(&asset)
-            .ok_or(RegistryError::ExtractLocationFailed)?;
+            .ok_or(Error::ExtractLocationFailed)?;
         let account: Address = self
             .extract_account(&account)
-            .ok_or(RegistryError::ExtractLocationFailed)?;
+            .ok_or(Error::ExtractLocationFailed)?;
         let erc20 = Contract::from_json(
             transport,
             // PHA address
             token_address,
             include_bytes!("../../../index/src/abis/erc20-abi.json"),
         )
-        .map_err(|_| RegistryError::ConstructContractFailed)?;
+        .map_err(|_| Error::ConstructContractFailed)?;
         // TODO.wf handle potential failure smoothly instead of unwrap directly
         let result: u128 =
             resolve_ready(erc20.query("balanceOf", account, None, Options::default(), None))
@@ -187,9 +149,9 @@ impl BalanceFetcher for SubAssetsBalance {
         &self,
         _asset: AssetId,
         _account: MultiLocation,
-    ) -> core::result::Result<u128, RegistryError> {
+    ) -> core::result::Result<u128, Error> {
         // TODO.wf
-        Err(RegistryError::Unimplemented)
+        Err(Error::Unimplemented)
     }
 }
 
@@ -211,8 +173,8 @@ impl BalanceFetcher for SubCurrencyBalance {
         &self,
         _asset: AssetId,
         _account: MultiLocation,
-    ) -> core::result::Result<u128, RegistryError> {
+    ) -> core::result::Result<u128, Error> {
         // TODO.wf
-        Err(RegistryError::Unimplemented)
+        Err(Error::Unimplemented)
     }
 }

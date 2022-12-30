@@ -1,5 +1,5 @@
 use alloc::string::String;
-use index_registry::types::{ChainInfo, ChainType};
+use index::graph::{Chain, ChainType};
 use scale::{Decode, Encode};
 
 use super::account::AccountInfo;
@@ -30,9 +30,10 @@ impl Runner for ClaimStep {
     fn run(&self, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
         let chain = context
-            .registry
+            .graph
             .get_chain(self.chain.clone())
-            .map_err(|_| "MissingChain")?;
+            .map(Ok)
+            .unwrap_or(Err("MissingChain"))?;
 
         match chain.chain_type {
             ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer)?),
@@ -49,7 +50,7 @@ impl Runner for ClaimStep {
 impl ClaimStep {
     fn claim_evm_actived_tasks(
         &self,
-        _chain: ChainInfo,
+        _chain: Chain,
         _task_id: TaskId,
         _worker_key: &[u8; 32],
     ) -> Result<(), &'static str> {
@@ -64,11 +65,11 @@ impl ClaimStep {
 ///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L74
 /// If the given chain is Substrate based, fetch tasks from pallet storage through RPC request.
 pub struct ActivedTaskFetcher {
-    chain: ChainInfo,
+    chain: Chain,
     worker: AccountInfo,
 }
 impl ActivedTaskFetcher {
-    pub fn new(chain: ChainInfo, worker: AccountInfo) -> Self {
+    pub fn new(chain: Chain, worker: AccountInfo) -> Self {
         ActivedTaskFetcher { chain, worker }
     }
 
