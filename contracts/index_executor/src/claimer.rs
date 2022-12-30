@@ -98,11 +98,11 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Task, &'static str> {
+        // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = hex!("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5").into();
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
         let handler = Contract::from_json(
             transport,
-            // TODO: use handler from ChainInfo
             handler_on_goerli,
             include_bytes!("./abi/handler.json"),
         )
@@ -118,18 +118,18 @@ impl ActivedTaskFetcher {
         .unwrap();
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
-            request_id.clone(),
+            request_id,
             None,
             Options::default(),
             None,
         ))
         .unwrap();
-        println!("deposit data: {:?}", &deposit_data);
         deposit_data.to_task(&chain.name, request_id)
     }
 }
 
 // Define the structures to parse deposit data json
+#[allow(dead_code)]
 #[derive(Debug)]
 struct DepositData {
     sender: Address,
@@ -140,7 +140,7 @@ struct DepositData {
 }
 
 impl Detokenize for DepositData {
-    fn from_tokens(tokens: Vec<Token>) -> std::result::Result<Self, PinkError>
+    fn from_tokens(tokens: Vec<Token>) -> Result<Self, PinkError>
     where
         Self: Sized,
     {
@@ -184,117 +184,88 @@ impl Detokenize for DepositData {
 }
 
 impl DepositData {
-    fn to_task(&self, source_chain: &String, id: [u8; 32]) -> Result<Task, &'static str> {
+    fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
         let mut uninitialized_task: Task = Default::default();
-        println!("request data: {:?}", &self.request);
-        let request_data_json: RequestData =
-            pink_json::from_str(&self.request).map_err(|_| "Request data parse failed")?;
-        uninitialized_task.id = id.into();
+        let request_data_json: RequestDataJson = pink_json::from_str(&self.request).unwrap();
+        uninitialized_task.id = id;
         // Preset
-        uninitialized_task.source = source_chain.clone();
+        uninitialized_task.source = source_chain.into();
         uninitialized_task.sender = self.sender.as_bytes().into();
         uninitialized_task.recipient = self.recipient.clone();
         // Insert claim step
         uninitialized_task.steps.push(Step {
             meta: StepMeta::Claim(ClaimStep {
-                chain: source_chain.clone(),
-                id: id.into(),
+                chain: source_chain.into(),
+                id,
             }),
-            chain: source_chain.clone(),
+            chain: source_chain.into(),
             nonce: None,
         });
-        for op in request_data_json.op.iter() {
-            match op {
-                Operation::Swap(swap_op) => {
-                    uninitialized_task.steps.push(Step {
-                        meta: StepMeta::Swap(SwapStep {
-                            spend_asset: swap_op.data.spend_asset.as_bytes().into(),
-                            receive_asset: swap_op.data.receive_asset.as_bytes().into(),
-                            chain: swap_op.data.chain.clone(),
-                            dex: swap_op.data.dex.clone(),
-                            cap: swap_op.data.cap,
-                            flow: swap_op.data.flow,
-                            impact: swap_op.data.impact,
-                            b0: swap_op.data.b0,
-                            b1: swap_op.data.b1,
-                            spend: swap_op.data.spend,
-                        }),
-                        chain: swap_op.data.chain.clone(),
-                        nonce: None,
-                    });
-                }
-                Operation::Bridge(bridge_op) => uninitialized_task.steps.push(Step {
-                    meta: StepMeta::Bridge(BridgeStep {
-                        from: bridge_op.data.from.as_bytes().into(),
-                        source_chain: bridge_op.data.source_chain.clone(),
-                        to: bridge_op.data.to.as_bytes().into(),
-                        dest_chain: bridge_op.data.dest_chain.clone(),
-                        fee: bridge_op.data.fee,
-                        cap: bridge_op.data.cap,
-                        flow: bridge_op.data.flow,
-                        b0: bridge_op.data.b0,
-                        b1: bridge_op.data.b1,
-                        amount: bridge_op.data.amount,
+        for op in request_data_json.iter() {
+            if op.op_type == *"swap" {
+                uninitialized_task.steps.push(Step {
+                    meta: StepMeta::Swap(SwapStep {
+                        spend_asset: op.spend_asset.as_bytes().into(),
+                        receive_asset: op.receive_asset.as_bytes().into(),
+                        chain: op.source_chain.clone(),
+                        dex: op.dex.clone(),
+                        cap: self.u128_from_string(&op.cap)?,
+                        flow: self.u128_from_string(&op.flow)?,
+                        impact: self.u128_from_string(&op.impact)?,
+                        b0: None,
+                        b1: None,
+                        spend: self.u128_from_string(&op.spend)?,
                     }),
-                    chain: bridge_op.data.source_chain.clone(),
+                    chain: op.source_chain.clone(),
                     nonce: None,
-                }),
+                });
+            } else if op.op_type == *"bridge" {
+                uninitialized_task.steps.push(Step {
+                    meta: StepMeta::Bridge(BridgeStep {
+                        from: op.spend_asset.as_bytes().into(),
+                        source_chain: op.source_chain.clone(),
+                        to: op.receive_asset.as_bytes().into(),
+                        dest_chain: op.dest_chain.clone(),
+                        fee: self.u128_from_string(&op.fee)?,
+                        cap: self.u128_from_string(&op.cap)?,
+                        flow: self.u128_from_string(&op.flow)?,
+                        b0: None,
+                        b1: None,
+                        amount: self.u128_from_string(&op.spend)?,
+                    }),
+                    chain: op.source_chain.clone(),
+                    nonce: None,
+                })
+            } else {
+                return Err("Unrecognized op type");
             }
         }
 
         Ok(uninitialized_task)
     }
+
+    fn u128_from_string(&self, amount: &str) -> Result<u128, &'static str> {
+        use fixed::types::U128F0 as Fp;
+        let fixed_u128 = Fp::from_str(amount).or(Err("U128ConversionFailed"))?;
+        Ok(fixed_u128.to_num())
+    }
 }
 
-#[derive(Deserialize)]
-struct RequestData {
-    op: Vec<Operation>,
-}
+type RequestDataJson = Vec<OperationJson>;
 
 #[derive(Deserialize)]
-enum Operation {
-    Swap(SwapOperation),
-    Bridge(BridgeOperation),
-}
-
-#[derive(Deserialize)]
-struct SwapOperation {
+struct OperationJson {
     op_type: String,
-    data: SwapOperationData,
-}
-
-#[derive(Deserialize)]
-struct SwapOperationData {
+    source_chain: String,
+    dest_chain: String,
     spend_asset: Address,
     receive_asset: Address,
-    chain: String,
     dex: String,
-    cap: u128,
-    flow: u128,
-    impact: u128,
-    b0: Option<u128>,
-    b1: Option<u128>,
-    spend: u128,
-}
-
-#[derive(Deserialize)]
-struct BridgeOperation {
-    op_type: String,
-    data: BridgeOperationData,
-}
-
-#[derive(Deserialize)]
-struct BridgeOperationData {
-    from: Address,
-    source_chain: String,
-    to: Address,
-    dest_chain: String,
-    fee: u128,
-    cap: u128,
-    flow: u128,
-    b0: Option<u128>,
-    b1: Option<u128>,
-    amount: u128,
+    fee: String,
+    cap: String,
+    flow: String,
+    impact: String,
+    spend: String,
 }
 
 #[cfg(test)]
@@ -326,7 +297,22 @@ mod tests {
         }
         .fetch_task()
         .unwrap();
-        println!("Evm task: {:?}", &task);
         assert_eq!(task.steps.len(), 3);
+        match (
+            task.steps[0].meta.clone(),
+            task.steps[1].meta.clone(),
+            task.steps[2].meta.clone(),
+        ) {
+            (
+                StepMeta::Claim(claim_step),
+                StepMeta::Swap(swap_meta),
+                StepMeta::Bridge(bridge_meta),
+            ) => {
+                assert_eq!(claim_step.chain, String::from("Ethereum"));
+                assert_eq!(swap_meta.spend, 100_000_000_000_000_000_000 as u128);
+                assert_eq!(bridge_meta.amount, 12_000_000);
+            }
+            _ => assert!(false),
+        }
     }
 }
