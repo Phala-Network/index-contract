@@ -22,7 +22,7 @@ use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
 /// For example, call RPC method defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L63
+///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L108
 ///
 /// Return account nonce that related to this transaction
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -74,8 +74,8 @@ impl ClaimStep {
 /// Fetch actived requests from blockchains and construct a `Task` from it.
 /// If the given chain is EVM based, fetch requests from solidity-based smart contract storage through RPC request.
 /// For example, call RPC methods defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L70
-///     https://github.com/Phala-Network/index-solidity/blob/07584ede4d6631c97dabc9ba52509c36d4fceb5b/contracts/Aggregator.sol#L74
+///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L147
+///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L165
 /// If the given chain is Substrate based, fetch requests from pallet storage through RPC request.
 pub struct ActivedTaskFetcher {
     chain: Chain,
