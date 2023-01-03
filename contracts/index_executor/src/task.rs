@@ -13,6 +13,8 @@ use scale::{Decode, Encode};
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum TaskStatus {
     /// Task initial confirmed by user on source chain.
+    Actived,
+    /// Task has been initialized, e.g. being applied nonce.
     Initialized,
     /// Task is being executing with step index.
     /// Transaction can be indentified by worker account nonce on specific chain
@@ -34,7 +36,7 @@ pub struct Task {
     // Task status
     pub status: TaskStatus,
     // Source chain name
-    pub source: Vec<u8>,
+    pub source: String,
     /// All steps to included in the task
     pub steps: Vec<Step>,
     /// Current step index that is executing
@@ -43,6 +45,21 @@ pub struct Task {
     pub sender: Vec<u8>,
     /// Recipient address on dest chain
     pub recipient: Vec<u8>,
+}
+
+impl Default for Task {
+    fn default() -> Self {
+        Self {
+            id: [0; 32],
+            worker: [0; 32],
+            status: TaskStatus::Actived,
+            source: String::default(),
+            steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: vec![],
+        }
+    }
 }
 
 impl Task {
