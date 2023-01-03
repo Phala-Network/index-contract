@@ -646,7 +646,7 @@ mod index_executor {
     mod tests {
         use super::*;
         // use dotenv::dotenv;
-        use index_registry::Registry;
+        use index_registry::{Chain as RegistryChain, Graph, Registry};
         use ink::ToAccountId;
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
@@ -724,11 +724,30 @@ mod index_executor {
         fn setup_worker_accounts_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
 
-            let registry = deploy_registry();
+            let mut registry = deploy_registry();
+            assert_eq!(
+                registry.set_graph(Graph {
+                    chains: vec![RegistryChain {
+                        id: 1,
+                        name: String::from("Khala"),
+                        endpoint: String::from("http://127.0.0.1:39933"),
+                        // 2 for Sub
+                        chain_type: 2,
+                    }],
+                    assets: vec![],
+                    dexs: vec![],
+                    dex_pairs: vec![],
+                    dex_indexers: vec![],
+                    bridges: vec![],
+                    bridge_pairs: vec![],
+                }),
+                Ok(())
+            );
             let mut executor = deploy_executor();
             // Initial rollup
             // Comment because we can not test it in CI so far
             assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
+            assert_eq!(executor.sync_graph(), Ok(()));
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
             let onchain_free_accounts = executor.get_free_worker_account().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
