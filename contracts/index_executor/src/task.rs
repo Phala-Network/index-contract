@@ -215,4 +215,10 @@ impl OnchainAccounts {
         }
         vec![]
     }
+
+    pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
+        client
+            .session()
+            .put(&b"free_accounts".to_vec(), accounts.encode());
+    }
 }

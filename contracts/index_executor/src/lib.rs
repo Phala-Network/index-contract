@@ -39,7 +39,7 @@ mod index_executor {
     use crate::cache::*;
     use crate::claimer::ActivedTaskFetcher;
     use crate::context::Context;
-    use crate::task::{OnchainTasks, Task, TaskId, TaskStatus};
+    use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -180,6 +180,51 @@ mod index_executor {
                 })
                 .or(Err(Error::FailedToClaimName))?;
             }
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn setup_worker_accounts(&mut self) -> Result<()> {
+            let config = self.ensure_configured()?;
+            // Get rpc info from registry
+            let chain = self
+                .get_chain("Khala".to_string())
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            let contract_id = self.env().account_id();
+            let mut client = SubstrateRollupClient::new(
+                &chain.endpoint,
+                config.pallet_id.unwrap(),
+                &contract_id,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
+
+            // Setup worker accounts if it hasn't been set yet.
+            if OnchainAccounts::lookup_free_accounts(&mut client).len() == 0 {
+                OnchainAccounts::set_worker_accounts(
+                    &mut client,
+                    self.worker_accounts
+                        .clone()
+                        .into_iter()
+                        .map(|account| account.account32.clone())
+                        .collect(),
+                );
+                // Submit the transaction if it's not empty
+                let maybe_submittable = client
+                    .commit()
+                    .log_err("failed to commit")
+                    .or(Err(Error::FailedToCommitTx))?;
+
+                // Submit to blockchain
+                if let Some(submittable) = maybe_submittable {
+                    let _tx_id = submittable
+                        .submit(&self.executor_account, 0)
+                        .log_err("failed to submit rollup tx")
+                        .or(Err(Error::FailedToSendTransaction))?;
+                }
+            }
+
             Ok(())
         }
 
@@ -399,6 +444,26 @@ mod index_executor {
             self.worker_accounts.clone()
         }
 
+        /// Return worker accounts information
+        #[ink(message)]
+        pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
+            let config = self.ensure_configured()?;
+            // Get rpc info from registry
+            let chain = self
+                .get_chain("Khala".to_string())
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            let contract_id = self.env().account_id();
+            let mut client = SubstrateRollupClient::new(
+                &chain.endpoint,
+                config.pallet_id.unwrap(),
+                &contract_id,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
+            Ok(OnchainAccounts::lookup_free_accounts(&mut client))
+        }
+
         /// Search actived tasks from source chain and upload them to rollup storage
         pub fn fetch_task(
             &self,
@@ -588,31 +653,46 @@ mod index_executor {
         // use pink_extension::PinkEnvironment;
         use xcm::latest::{prelude::*, MultiLocation};
 
+        fn deploy_registry() -> RegistryRef {
+            // Register contracts
+            let hash = ink_env::Hash::try_from([10u8; 32]).unwrap();
+            ink_env::test::register_contract::<Registry>(hash.as_ref());
+
+            // Deploy Registry
+            RegistryRef::new()
+                .code_hash(hash)
+                .endowment(0)
+                .salt_bytes([0u8; 0])
+                .instantiate()
+                .expect("failed to deploy Registry")
+        }
+
+        fn deploy_executor() -> ExecutorRef {
+            // Register contracts
+            let hash = ink_env::Hash::try_from([20u8; 32]).unwrap();
+            ink_env::test::register_contract::<Executor>(hash.as_ref());
+
+            // Insert empty record in advance
+            let empty_tasks: Vec<TaskId> = vec![];
+            pink_extension::ext()
+                .cache_set(b"running_tasks", &empty_tasks.encode())
+                .unwrap();
+
+            // Deploy Executor
+            ExecutorRef::new()
+                .code_hash(hash)
+                .endowment(0)
+                .salt_bytes([0u8; 0])
+                .instantiate()
+                .expect("failed to deploy Executor")
+        }
+
         #[ink::test]
         fn crosscontract_call_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
 
-            // Register contracts
-            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
-            let hash2 = ink_env::Hash::try_from([20u8; 32]).unwrap();
-            ink_env::test::register_contract::<Registry>(hash1.as_ref());
-            ink_env::test::register_contract::<Executor>(hash2.as_ref());
-
-            // Deploy Registry
-            let registry = RegistryRef::new()
-                .code_hash(hash1)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Registry");
-
-            // Deploy Executor
-            let mut executor = ExecutorRef::new()
-                .code_hash(hash2)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Executor");
+            let registry = deploy_registry();
+            let mut executor = deploy_executor();
             assert_eq!(executor.config(registry.to_account_id(), None), Ok(()));
 
             // Make cross contract call from executor
@@ -633,29 +713,30 @@ mod index_executor {
         #[ink::test]
         fn rollup_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-
-            // Register contracts
-            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
-            let hash2 = ink_env::Hash::try_from([20u8; 32]).unwrap();
-            ink_env::test::register_contract::<Registry>(hash1.as_ref());
-            ink_env::test::register_contract::<Executor>(hash2.as_ref());
-
-            // Insert empty record in advance
-            let empty_tasks: Vec<TaskId> = vec![];
-            pink_extension::ext()
-                .cache_set(b"running_tasks", &empty_tasks.encode())
-                .unwrap();
-
-            // Deploy Executor
-            let mut _executor = ExecutorRef::new()
-                .code_hash(hash2)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Executor");
+            // let registry = deploy_registry();
+            let mut _executor = deploy_executor();
             // Initial rollup
             // Comment because we can not test it in CI so far
             // assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
+        }
+
+        #[ink::test]
+        fn setup_worker_accounts_should_work() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+
+            let registry = deploy_registry();
+            let mut executor = deploy_executor();
+            // Initial rollup
+            // Comment because we can not test it in CI so far
+            assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
+            assert_eq!(executor.setup_worker_accounts(), Ok(()));
+            let onchain_free_accounts = executor.get_free_worker_account().unwrap();
+            let local_worker_accounts: Vec<[u8; 32]> = executor
+                .get_worker_account()
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect();
+            assert_eq!(onchain_free_accounts, local_worker_accounts);
         }
 
         #[ink::test]
