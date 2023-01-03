@@ -134,12 +134,20 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn config(&mut self, registry: AccountId, pallet_id: Option<u8>) -> Result<()> {
+        pub fn config(
+            &mut self,
+            registry: AccountId,
+            rollup_endpoint: String,
+            pallet_id: Option<u8>,
+        ) -> Result<()> {
             self.ensure_owner()?;
             self.config = Some(Config {
                 registry: RegistryRef::from_account_id(registry),
                 pallet_id,
             });
+
+            // Read graph data from registry contract
+            self.sync_graph()?;
 
             // If we don't give the pallet_id, skip rollup configuration
             if pallet_id.is_none() {
@@ -147,15 +155,8 @@ mod index_executor {
             }
 
             let contract_id = self.env().account_id();
-            // Get rpc info from registry
-            let chain = self
-                .get_chain("Khala".to_string())
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
-            //.map_or(|_| Error::ChainNotFound)?;
-            let endpoint = chain.endpoint;
             // Check if the rollup is initialized properly
-            let actual_owner = get_name_owner(&endpoint, &contract_id)
+            let actual_owner = get_name_owner(&rollup_endpoint, &contract_id)
                 .log_err("failed to get name owner")
                 .or(Err(Error::FailedToGetNameOwner))?;
             if let Some(owner) = actual_owner {
@@ -693,7 +694,10 @@ mod index_executor {
 
             let registry = deploy_registry();
             let mut executor = deploy_executor();
-            assert_eq!(executor.config(registry.to_account_id(), None), Ok(()));
+            assert_eq!(
+                executor.config(registry.to_account_id(), String::from("khala rpc"), None),
+                Ok(())
+            );
 
             // Make cross contract call from executor
             assert_eq!(
@@ -717,7 +721,14 @@ mod index_executor {
             let mut _executor = deploy_executor();
             // Initial rollup
             // Comment because we can not test it in CI so far
-            // assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
+            // assert_eq!(
+            //     executor.config(
+            //         registry.to_account_id(),
+            //         String::from("http://127.0.0.1:39933"),
+            //         Some(100)
+            //     ),
+            //     Ok(())
+            // );
         }
 
         #[ink::test]
@@ -746,8 +757,14 @@ mod index_executor {
             let mut executor = deploy_executor();
             // Initial rollup
             // Comment because we can not test it in CI so far
-            assert_eq!(executor.config(registry.to_account_id(), Some(100)), Ok(()));
-            assert_eq!(executor.sync_graph(), Ok(()));
+            assert_eq!(
+                executor.config(
+                    registry.to_account_id(),
+                    String::from("http://127.0.0.1:39933"),
+                    Some(100)
+                ),
+                Ok(())
+            );
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
             let onchain_free_accounts = executor.get_free_worker_account().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
