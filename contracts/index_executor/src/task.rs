@@ -222,3 +222,33 @@ impl OnchainAccounts {
             .put(&b"free_accounts".to_vec(), accounts.encode());
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dotenv::dotenv;
+    use hex_literal::hex;
+    use index::graph::Chain;
+    use ink_lang as ink;
+
+    #[ink::test]
+    fn test_get_evm_account_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let goerli = Chain {
+            id: 1,
+            name: String::from("Goerli"),
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            chain_type: ChainType::Evm,
+        };
+        assert_eq!(
+            goerli
+                .get_nonce(hex!("0E275F8839b788B2674935AD97C01cF73A9E8c41").into())
+                .unwrap(),
+            2
+        );
+    }
+}
