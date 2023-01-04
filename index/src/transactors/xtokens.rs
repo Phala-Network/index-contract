@@ -20,7 +20,7 @@ impl XtokenClient {
         parents: u8,
         parachain: u32,
         network: u8,
-        recipient: [u8; 32],
+        recipient: Vec<u8>,
     ) -> core::result::Result<H256, Error> {
         let weight: u64 = 6000000000;
         let location = Token::Tuple(vec![
@@ -42,10 +42,10 @@ impl XtokenClient {
                     {
                         let mut bytes: Vec<u8> = vec![];
                         let mut enum_id = (1 as u8).to_be_bytes().to_vec();
-                        let mut recipient_vec = recipient.to_vec();
                         let mut network_vec = network.to_be_bytes().to_vec();
+                        let mut recipient = recipient;
                         bytes.append(&mut enum_id);
-                        bytes.append(&mut recipient_vec);
+                        bytes.append(&mut recipient);
                         bytes.append(&mut network_vec);
                         bytes
                     },
@@ -55,7 +55,6 @@ impl XtokenClient {
         let amount: U256 = amount.into();
         let params = (token_address, amount, location, weight);
 
-        dbg!(signer.address());
         // Estiamte gas before submission
         let gas = resolve_ready(self.contract.estimate_gas(
             "transfer",
@@ -75,6 +74,7 @@ impl XtokenClient {
             signer,
         ))
         .expect("FIXME: submit failed");
+        dbg!(tx_id);
         Ok(tx_id)
     }
 }
