@@ -23,7 +23,7 @@ impl Moonbeam2PhalaExecutor {
         let bridge_contract = XtokenClient {
             contract: Contract::from_json(
                 eth,
-                bridge_address,
+                xtoken_address,
                 include_bytes!("../../abis/xtokens-abi.json"),
             )
             .expect("Bad abi data"),
