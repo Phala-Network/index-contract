@@ -17,6 +17,8 @@ pub enum Error {
     InvalidBody,
     InvalidSignature,
     Ss58,
+    FailedToGetGas,
+    FailedToSubmitTransaction,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]

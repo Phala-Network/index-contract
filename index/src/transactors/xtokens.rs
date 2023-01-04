@@ -65,7 +65,7 @@ impl XtokenClient {
             signer.address(),
             Options::default(),
         ))
-        .expect("FIXME: failed to estiamte gas");
+        .map_err(|_| Error::FailedToGetGas)?;
 
         // Actually submit the tx (no guarantee for success)
         let tx_id = resolve_ready(self.contract.signed_call(
@@ -74,7 +74,7 @@ impl XtokenClient {
             Options::with(|opt| opt.gas = Some(gas)),
             signer,
         ))
-        .expect("FIXME: submit failed");
+        .map_err(|_| Error::FailedToSubmitTransaction)?;
 
         Ok(tx_id)
     }
