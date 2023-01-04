@@ -35,7 +35,7 @@ impl ChainBridgeEvm2Phala {
             contract: Contract::from_json(
                 eth,
                 bridge_address,
-                include_bytes!("../abis/chainbridge-abi.json"),
+                include_bytes!("../../abis/chainbridge-abi.json"),
             )
             .expect("Bad abi data"),
         };
