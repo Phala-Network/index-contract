@@ -1,9 +1,8 @@
-// use dyn_clone::DynClone;
-
-use crate::{prelude::Error, transactors::ChainBridgeClient, utils::ToArray};
-use pink_web3::contract::tokens::{Tokenizable, Tokenize};
+use crate::prelude::BridgeExecutor;
+use crate::transactors::XtokenClient;
+use crate::{prelude::Error, utils::ToArray};
 use pink_web3::contract::Options;
-use pink_web3::ethabi::{Address, Bytes, Token};
+use pink_web3::ethabi::{Address, Token};
 use pink_web3::signing::Key;
 use pink_web3::transports::resolve_ready;
 use pink_web3::{
@@ -12,93 +11,13 @@ use pink_web3::{
     keys::pink::KeyPair,
     transports::PinkHttp,
 };
-use primitive_types::{H160, H256, U256};
+use primitive_types::{H256, U256};
 use scale::Encode;
 use xcm::v0::NetworkId;
 use xcm::v1::{Junction, Junctions, MultiLocation};
 use xcm::v2::{Weight, WeightLimit};
 
-pub trait BridgeExecutor /* : DynClone */ {
-    fn transfer(
-        &self,
-        signer: [u8; 32],
-        recipient: Vec<u8>,
-        amount: u128,
-    ) -> core::result::Result<H256, Error>;
-}
-
-pub struct XtokenClient {
-    pub contract: Contract<PinkHttp>,
-}
-
-impl XtokenClient {
-    pub fn transfer(
-        &self,
-        signer: KeyPair,
-        token_address: Address,
-        amount: u128,
-        parents: u8,
-        parachain: u32,
-        network: u8,
-        recipient: [u8; 32],
-    ) -> core::result::Result<H256, Error> {
-        let weight: u64 = 6000000000;
-        let location = Token::Tuple(vec![
-            Token::Uint(parents.into()),
-            Token::Array(vec![
-                Token::Bytes(
-                    // Parachain(#[codec(compact)] u32),
-                    {
-                        let mut bytes: Vec<u8> = vec![];
-                        let mut enum_id = (0 as u8).to_be_bytes().to_vec();
-                        let mut chain_id = parachain.to_be_bytes().to_vec();
-                        bytes.append(&mut enum_id);
-                        bytes.append(&mut chain_id);
-                        bytes
-                    },
-                ),
-                Token::Bytes(
-                    // AccountId32 { network: NetworkId, id: [u8; 32] },
-                    {
-                        let mut bytes: Vec<u8> = vec![];
-                        let mut enum_id = (1 as u8).to_be_bytes().to_vec();
-                        let mut recipient_vec = recipient.to_vec();
-                        let mut network_vec = network.to_be_bytes().to_vec();
-                        bytes.append(&mut enum_id);
-                        bytes.append(&mut recipient_vec);
-                        bytes.append(&mut network_vec);
-                        bytes
-                    },
-                ),
-            ]),
-        ]);
-        let amount: U256 = amount.into();
-        let params = (token_address, amount, location, weight);
-
-        dbg!(signer.address());
-        // Estiamte gas before submission
-        let gas = resolve_ready(self.contract.estimate_gas(
-            "transfer",
-            params.clone(),
-            signer.address(),
-            Options::default(),
-        ))
-        .expect("FIXME: failed to estiamte gas");
-
-        dbg!(&gas);
-
-        // Actually submit the tx (no guarantee for success)
-        let tx_id = resolve_ready(self.contract.signed_call(
-            "transfer",
-            params,
-            Options::with(|opt| opt.gas = Some(gas)),
-            signer,
-        ))
-        .expect("FIXME: submit failed");
-        Ok(tx_id)
-    }
-}
-
+#[derive(Clone)]
 pub struct Moonbeam2PhalaExecutor {
     // (asset_contract_address, resource_id)
     //assets: (Address, [u8; 32]),
@@ -129,9 +48,10 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
     fn transfer(
         &self,
         signer: [u8; 32],
+        asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
-    ) -> core::result::Result<H256, Error> {
+    ) -> core::result::Result<(), Error> {
         let signer = KeyPair::from(signer);
         let recipient_32: [u8; 32] = recipient.to_array();
         let interior = Junctions::X2(
@@ -142,7 +62,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
             },
         );
         dbg!(hex::encode(Junction::Parachain(2035).encode()));
-        let tx_id = self
+        _ = self
             .bridge_contract
             .transfer(
                 signer,
@@ -154,7 +74,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
                 recipient_32,
             )
             .unwrap();
-        Ok(tx_id)
+        Ok(())
     }
 }
 
@@ -181,7 +101,9 @@ mod tests {
         let recipient =
             hex::decode("da1ada496c0e6e3c122aa17f51ccd7254782effab31b24575d54e0350e7f2f6a")
                 .unwrap();
-        let tx_id = exec.transfer(signer, recipient, 1_000_000_000_000).unwrap();
+        let tx_id = exec
+            .transfer(signer, recipient, vec![], 1_000_000_000_000)
+            .unwrap();
         dbg!(tx_id);
     }
 }
