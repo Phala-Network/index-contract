@@ -20,6 +20,8 @@ use scale::Encode;
 use subrpc::{create_transaction, send_transaction};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
+mod moonbeam_to_phala;
+
 #[derive(Clone)]
 pub struct ChainBridgeEvm2Phala {
     // (asset_contract_address, resource_id)
@@ -35,7 +37,7 @@ impl ChainBridgeEvm2Phala {
             contract: Contract::from_json(
                 eth,
                 bridge_address,
-                include_bytes!("../abis/chainbridge-abi.json"),
+                include_bytes!("../../abis/chainbridge-abi.json"),
             )
             .expect("Bad abi data"),
         };
