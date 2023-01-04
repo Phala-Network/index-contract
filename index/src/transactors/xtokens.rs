@@ -12,6 +12,7 @@ pub struct XtokenClient {
 }
 
 impl XtokenClient {
+    #![allow(clippy::too_many_arguments)]
     pub fn transfer(
         &self,
         signer: KeyPair,
@@ -30,7 +31,7 @@ impl XtokenClient {
                     // Parachain(#[codec(compact)] u32),
                     {
                         let mut bytes: Vec<u8> = vec![];
-                        let mut enum_id = (0 as u8).to_be_bytes().to_vec();
+                        let mut enum_id = 0_u8.to_be_bytes().to_vec();
                         let mut chain_id = parachain.to_be_bytes().to_vec();
                         bytes.append(&mut enum_id);
                         bytes.append(&mut chain_id);
@@ -41,7 +42,7 @@ impl XtokenClient {
                     // AccountId32 { network: NetworkId, id: [u8; 32] },
                     {
                         let mut bytes: Vec<u8> = vec![];
-                        let mut enum_id = (1 as u8).to_be_bytes().to_vec();
+                        let mut enum_id = 1_u8.to_be_bytes().to_vec();
                         let mut network_vec = network.to_be_bytes().to_vec();
                         let mut recipient = recipient;
                         bytes.append(&mut enum_id);

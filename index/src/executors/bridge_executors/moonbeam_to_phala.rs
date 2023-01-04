@@ -85,13 +85,13 @@ mod tests {
         let recipient =
             hex::decode("da1ada496c0e6e3c122aa17f51ccd7254782effab31b24575d54e0350e7f2f6a")
                 .unwrap();
-        _ = exec
-            .transfer(
-                signer,
-                hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced").unwrap(),
-                recipient,
-                1_000_000_000_000,
-            )
-            .unwrap();
+        exec.transfer(
+            signer,
+            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced").unwrap(),
+            recipient,
+            1_000_000_000_000,
+        )
+        .unwrap();
+        // test txn: https://moonbeam.moonscan.io/tx/0x47a5fdea2e3bb807296b7d7c5e708b4db5a0aca732ef37ee0e173df3d3942872
     }
 }
