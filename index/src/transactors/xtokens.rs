@@ -1,4 +1,6 @@
 use crate::prelude::Error;
+use alloc::vec;
+use alloc::vec::Vec;
 use pink_web3::contract::Options;
 use pink_web3::ethabi::{Address, Token};
 use pink_web3::signing::Key;
@@ -65,8 +67,6 @@ impl XtokenClient {
         ))
         .expect("FIXME: failed to estiamte gas");
 
-        dbg!(&gas);
-
         // Actually submit the tx (no guarantee for success)
         let tx_id = resolve_ready(self.contract.signed_call(
             "transfer",
@@ -75,7 +75,7 @@ impl XtokenClient {
             signer,
         ))
         .expect("FIXME: submit failed");
-        dbg!(tx_id);
+
         Ok(tx_id)
     }
 }

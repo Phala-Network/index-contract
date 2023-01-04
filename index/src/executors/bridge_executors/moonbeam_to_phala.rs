@@ -1,6 +1,7 @@
 use crate::prelude::BridgeExecutor;
 use crate::prelude::Error;
 use crate::transactors::XtokenClient;
+use alloc::vec::Vec;
 use pink_web3::ethabi::Address;
 
 use pink_web3::{
@@ -57,6 +58,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
                 recipient,
             )
             .unwrap();
+        // dbg!(tx_id);
         Ok(())
     }
 }
