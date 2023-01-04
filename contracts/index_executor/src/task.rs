@@ -226,10 +226,38 @@ impl OnchainAccounts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::account::AccountInfo;
+    use crate::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::graph::Chain;
+    use index::graph::{Chain, ChainType, Graph};
     use ink_lang as ink;
+    use phat_offchain_rollup::clients::substrate::{
+        claim_name, get_name_owner, SubstrateRollupClient,
+    };
+    use primitive_types::H160;
+
+    fn config_rollup(rollup_endpoint: String, executor: [u8; 32]) -> Result<(), &'static str> {
+        // Check if the rollup is initialized properly
+        let actual_owner = get_name_owner(&rollup_endpoint, &executor.try_into().unwrap()).unwrap();
+        if let Some(owner) = actual_owner {
+            let pubkey = pink_extension::ext()
+                .get_public_key(pink_extension::chain_extension::SigType::Sr25519, &executor);
+            if owner.encode() != pubkey {
+                return Err("Slot owner dismatch");
+            }
+        } else {
+            // Not initialized. Let's claim the name.
+            claim_name(
+                &rollup_endpoint,
+                100,
+                &executor.try_into().unwrap(),
+                &executor,
+            )
+            .unwrap();
+        }
+        Ok(())
+    }
 
     #[ink::test]
     fn test_get_evm_account_nonce() {
@@ -250,5 +278,119 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[ink::test]
+    fn task_init_should_work() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // Prepare executor account
+        let executor_key =
+            pink_web3::keys::pink::KeyPair::derive_keypair(b"executor").private_key();
+
+        // Prepare worker accounts
+        let mut worker_accounts: Vec<AccountInfo> = vec![];
+        for index in 0..10 {
+            let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
+                &[b"worker".to_vec(), [index].to_vec()].concat(),
+            )
+            .private_key();
+            worker_accounts.push(AccountInfo::from(private_key));
+        }
+
+        // Config rollup
+        assert_eq!(
+            config_rollup(String::from("http://127.0.0.1:39933"), executor_key),
+            Ok(())
+        );
+
+        // Create rollup client
+        let contract_id = executor_key.try_into().unwrap();
+        let mut client =
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+        // Setup initial worker accounts to rollup storage
+        OnchainAccounts::set_worker_accounts(
+            &mut client,
+            worker_accounts
+                .clone()
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect(),
+        );
+
+        // Fetch actived task from chain
+        let pre_mock_executor_address: H160 =
+            hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let mut task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Ethereum"),
+                chain_type: ChainType::Evm,
+                endpoint: String::from(
+                    "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+                ),
+            },
+            executor: AccountInfo {
+                account20: pre_mock_executor_address.into(),
+                account32: [0; 32],
+            },
+        }
+        .fetch_task()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+
+        // Init task
+        task.init(
+            &Context {
+                signer: [0; 32],
+                graph: Graph {
+                    chains: vec![
+                        Chain {
+                            id: 1,
+                            name: String::from("Khala"),
+                            endpoint: String::from("http://127.0.0.1:39933"),
+                            chain_type: ChainType::Sub,
+                        },
+                        Chain {
+                            id: 2,
+                            name: String::from("Ethereum"),
+                            endpoint: String::from("https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2"),
+                            chain_type: ChainType::Evm,
+                        }
+                    ],
+                    assets: vec![],
+                    dexs: vec![],
+                    dex_pairs: vec![],
+                    dex_indexers: vec![],
+                    bridges: vec![],
+                    bridge_pairs: vec![],
+                },
+                worker_accounts: worker_accounts.clone(),
+                bridge_executors: vec![],
+                dex_executors: vec![],
+            },
+            &mut client,
+        );
+        // Submit the transaction if it's not empty
+        let maybe_submittable = client.commit().unwrap();
+        // Submit to blockchain
+        if let Some(submittable) = maybe_submittable {
+            let _tx_id = submittable.submit(&executor_key, 0).unwrap();
+        }
+
+        // Now let's query if the task is exist in rollup storage with another rollup client
+        let mut another_client =
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+        let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
+        assert_eq!(onchain_task.status, TaskStatus::Initialized);
+        assert_eq!(
+            onchain_task.worker,
+            worker_accounts.last().unwrap().account32
+        );
+        assert_eq!(onchain_task.steps.len(), 3);
+        assert_eq!(onchain_task.steps[0].nonce, Some(0));
+        assert_eq!(onchain_task.steps[1].nonce, Some(1));
+        assert_eq!(onchain_task.steps[2].nonce, Some(2));
     }
 }
