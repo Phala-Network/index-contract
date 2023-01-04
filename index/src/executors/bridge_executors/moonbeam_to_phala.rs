@@ -18,7 +18,7 @@ pub struct Moonbeam2PhalaExecutor {
 
 impl Moonbeam2PhalaExecutor {
     #[allow(dead_code)]
-    pub fn new(rpc: &str, bridge_address: Address) -> Self {
+    pub fn new(rpc: &str, xtoken_address: Address) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
         let bridge_contract = XtokenClient {
             contract: Contract::from_json(
