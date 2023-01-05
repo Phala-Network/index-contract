@@ -40,6 +40,7 @@ pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate", "logging"] }
+pink-subrpc = { version = "0.1.0", default-features = false }
 
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.

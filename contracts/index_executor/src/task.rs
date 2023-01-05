@@ -235,11 +235,37 @@ mod tests {
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
+    use pink_subrpc as subrpc;
     use primitive_types::H160;
 
+    fn set_balance(rpc: &str, recipient: [u8; 32], amount: u128) -> Result<(), &'static str> {
+        // Secret key of test account `//Alice`
+        let sk_alice = hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
+        let signed_tx = subrpc::create_transaction(
+            &sk_alice,
+            "khala",
+            rpc,
+            // Balance: https://github.com/Phala-Network/phala-blockchain/blob/0355b5f3d9691d5ccc4fd70c9f4a9c877687ea33/standalone/runtime/src/lib.rs#L1513
+            7,
+            // transfer()
+            0,
+            (recipient, amount),
+        )
+        .or(Err("FailedToCreateTransaction"))?;
+
+        let _ = subrpc::send_transaction(rpc, &signed_tx).or(Err("FailedToSendTransaction"))?;
+
+        Ok(())
+    }
+
     fn config_rollup(rollup_endpoint: String, executor: [u8; 32]) -> Result<(), &'static str> {
+        let executor_pub: [u8; 32] = pink_extension::ext()
+            .get_public_key(pink_extension::chain_extension::SigType::Sr25519, &executor)
+            .try_into()
+            .unwrap();
         // Check if the rollup is initialized properly
-        let actual_owner = get_name_owner(&rollup_endpoint, &executor.try_into().unwrap()).unwrap();
+        let actual_owner =
+            get_name_owner(&rollup_endpoint, &executor_pub.try_into().unwrap()).unwrap();
         if let Some(owner) = actual_owner {
             let pubkey = pink_extension::ext()
                 .get_public_key(pink_extension::chain_extension::SigType::Sr25519, &executor);
@@ -251,7 +277,7 @@ mod tests {
             claim_name(
                 &rollup_endpoint,
                 100,
-                &executor.try_into().unwrap(),
+                &executor_pub.try_into().unwrap(),
                 &executor,
             )
             .unwrap();
@@ -288,7 +314,22 @@ mod tests {
         // Prepare executor account
         let executor_key =
             pink_web3::keys::pink::KeyPair::derive_keypair(b"executor").private_key();
-
+        let executor_pub: [u8; 32] = pink_extension::ext()
+            .get_public_key(
+                pink_extension::chain_extension::SigType::Sr25519,
+                &executor_key,
+            )
+            .try_into()
+            .unwrap();
+        // Transfer 10 PHA from alice to executor account to pay transaction fee
+        assert_eq!(
+            set_balance(
+                "http://127.0.0.1:39933",
+                executor_pub,
+                10_000_000_000_000u128
+            ),
+            Ok(())
+        );
         // Prepare worker accounts
         let mut worker_accounts: Vec<AccountInfo> = vec![];
         for index in 0..10 {
@@ -306,7 +347,7 @@ mod tests {
         );
 
         // Create rollup client
-        let contract_id = executor_key.try_into().unwrap();
+        let contract_id = executor_pub.try_into().unwrap();
         let mut client =
             SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
         // Setup initial worker accounts to rollup storage
