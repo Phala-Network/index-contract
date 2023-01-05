@@ -63,10 +63,8 @@ impl BridgeExecutor for Phala2AcalaExecutor {
             (multi_asset, dest, dest_weight),
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id = send_transaction(&self.rpc, &signed_tx).map_err(|err| {
-            dbg!(err);
-            Error::SubRPCRequestFailed
-        })?;
+        let _tx_id =
+            send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
 
         Ok(())
     }
