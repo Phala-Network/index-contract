@@ -35,12 +35,12 @@ index = { path = "../../index", default-features = false }
 index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
+env_logger = "0.9"
 hex-literal = "0.3"
 pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate", "logging"] }
-pink-subrpc = { version = "0.1.0", default-features = false }
 
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.
