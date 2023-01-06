@@ -39,6 +39,10 @@ features = ["disable_panic_handler", "disable_oom", "disable_allocator"]
 
 [dev-dependencies]
 pink-extension-runtime = "0.2.0"
+hex-literal = "0.3"
+dotenv = "0.15.0"
+ink_lang = { version = "3", default-features = false }
+ink_env = { version = "3", default-features = false }
 
 [lib]
 name = "index"

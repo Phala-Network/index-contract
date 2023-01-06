@@ -39,7 +39,42 @@ impl NonceFetcher for Chain {
                     .map_err(|_| Error::FetchDataFailed)?;
                 nonce.try_into().expect("Nonce onverflow")
             }
-            ChainType::Sub => return Err(Error::Unimplemented),
+            ChainType::Sub => {
+                let version = get_ss58addr_version("kusama").unwrap();
+                let public_key: [u8; 32] =
+                    hex_literal::hex!("8266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314");
+                let addr = public_key.to_ss58check_with_version(version.prefix());
+                let _next_nonce = get_next_nonce("https://kusama-rpc.polkadot.io", &addr).unwrap();
+            },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dotenv::dotenv;
+    use hex_literal::hex;
+    use ink_lang as ink;
+
+    #[ink::test]
+    fn test_get_evm_account_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let goerli = Chain {
+            id: 1,
+            name: String::from("Goerli"),
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            chain_type: ChainType::Evm,
+        };
+        assert_eq!(
+            goerli
+                .get_nonce(hex!("0E275F8839b788B2674935AD97C01cF73A9E8c41").into())
+                .unwrap(),
+            2
+        );
     }
 }
