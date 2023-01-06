@@ -714,23 +714,24 @@ mod index_executor {
             )
         }
 
+        #[ignore]
         #[ink::test]
         fn rollup_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-            // let registry = deploy_registry();
-            let mut _executor = deploy_executor();
+            let registry = deploy_registry();
+            let mut executor = deploy_executor();
             // Initial rollup
-            // Comment because we can not test it in CI so far
-            // assert_eq!(
-            //     executor.config(
-            //         registry.to_account_id(),
-            //         String::from("http://127.0.0.1:39933"),
-            //         Some(100)
-            //     ),
-            //     Ok(())
-            // );
+            assert_eq!(
+                executor.config(
+                    registry.to_account_id(),
+                    String::from("http://127.0.0.1:39933"),
+                    Some(100)
+                ),
+                Ok(())
+            );
         }
 
+        #[ignore]
         #[ink::test]
         fn setup_worker_accounts_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
@@ -754,25 +755,24 @@ mod index_executor {
                 }),
                 Ok(())
             );
-            let mut _executor = deploy_executor();
+            let mut executor = deploy_executor();
             // Initial rollup
-            // Comment because we can not test it in CI so far
-            // assert_eq!(
-            //     executor.config(
-            //         registry.to_account_id(),
-            //         String::from("http://127.0.0.1:39933"),
-            //         Some(100)
-            //     ),
-            //     Ok(())
-            // );
-            // assert_eq!(executor.setup_worker_accounts(), Ok(()));
-            // let onchain_free_accounts = executor.get_free_worker_account().unwrap();
-            // let local_worker_accounts: Vec<[u8; 32]> = executor
-            //     .get_worker_account()
-            //     .into_iter()
-            //     .map(|account| account.account32.clone())
-            //     .collect();
-            // assert_eq!(onchain_free_accounts, local_worker_accounts);
+            assert_eq!(
+                executor.config(
+                    registry.to_account_id(),
+                    String::from("http://127.0.0.1:39933"),
+                    Some(100)
+                ),
+                Ok(())
+            );
+            assert_eq!(executor.setup_worker_accounts(), Ok(()));
+            let onchain_free_accounts = executor.get_free_worker_account().unwrap();
+            let local_worker_accounts: Vec<[u8; 32]> = executor
+                .get_worker_account()
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect();
+            assert_eq!(onchain_free_accounts, local_worker_accounts);
         }
 
         #[ink::test]
