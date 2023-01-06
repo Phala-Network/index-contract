@@ -281,6 +281,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[ink::test]
     fn task_init_should_work() {
         dotenv().ok();
@@ -386,15 +387,18 @@ mod tests {
             &mut client,
         );
 
-        // let maybe_submittable = client.commit().unwrap();
-        // if let Some(submittable) = maybe_submittable {
-        //     let _tx_id = submittable.submit(&sk_alice, 1).unwrap();
-        // }
+        let maybe_submittable = client.commit().unwrap();
+        if let Some(submittable) = maybe_submittable {
+            let _tx_id = submittable.submit(&sk_alice, 1).unwrap();
+        }
+
+        // Wait 3 seconds
+        std::thread::sleep(std::time::Duration::from_millis(3000));
 
         // Now let's query if the task is exist in rollup storage with another rollup client
-        // let mut another_client =
-        //     SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
-        let onchain_task = OnchainTasks::lookup_task(&mut client, &task.id).unwrap();
+        let mut another_client =
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+        let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(
             onchain_task.worker,
@@ -404,10 +408,5 @@ mod tests {
         assert_eq!(onchain_task.steps[0].nonce, Some(0));
         assert_eq!(onchain_task.steps[1].nonce, Some(1));
         assert_eq!(onchain_task.steps[2].nonce, Some(2));
-
-        let maybe_submittable = client.commit().unwrap();
-        if let Some(submittable) = maybe_submittable {
-            let _tx_id = submittable.submit(&sk_alice, 1).unwrap();
-        }
     }
 }
