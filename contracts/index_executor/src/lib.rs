@@ -202,13 +202,13 @@ mod index_executor {
             .or(Err(Error::FailedToCreateClient))?;
 
             // Setup worker accounts if it hasn't been set yet.
-            if OnchainAccounts::lookup_free_accounts(&mut client).len() == 0 {
+            if OnchainAccounts::lookup_free_accounts(&mut client).is_empty() {
                 OnchainAccounts::set_worker_accounts(
                     &mut client,
                     self.worker_accounts
                         .clone()
                         .into_iter()
-                        .map(|account| account.account32.clone())
+                        .map(|account| account.account32)
                         .collect(),
                 );
                 // Submit the transaction if it's not empty
