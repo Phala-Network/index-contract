@@ -43,6 +43,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
     ) -> core::result::Result<(), Error> {
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
+        // TODO: better error handling
         _ = self
             .bridge_contract
             .transfer(
