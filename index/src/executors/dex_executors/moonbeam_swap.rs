@@ -1,5 +1,6 @@
 extern crate alloc;
 use core::ops::Add;
+use core::str::FromStr;
 
 use crate::traits::{common::Error, executor::DexExecutor};
 use crate::transactors::UniswapV2Client;
@@ -12,7 +13,7 @@ use pink_web3::{
     keys::pink::KeyPair,
     transports::PinkHttp,
 };
-use primitive_types::U256;
+use primitive_types::{H160, U256};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -51,20 +52,25 @@ impl DexExecutor for MoonbeamDexExecutor {
         let asset0 = Address::from_slice(&asset0);
         let asset1 = Address::from_slice(&asset1);
         let to = Address::from_slice(&recipient);
-        let path = [asset0, asset1];
-        let amount_out = U256::from(0);
+        let wglmr = H160::from_str("0xacc15dc74880c9944775448304b263d191c6077f").unwrap();
+        let path = vec![asset0, wglmr, asset1];
+        let amount_out = U256::from(1);
         let amount_in = U256::from(spend);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
         let deadline = U256::from(time + 60 * 30);
         _ = self
             .dex_contract
-            .swap(signer, amount_in, amount_out, path, to, deadline);
+            .swap(signer, amount_in, amount_out, path, to, deadline)?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::ToArray;
+    use core::str::FromStr;
+    use primitive_types::H160;
+
     use super::*;
 
     #[test]
@@ -75,5 +81,31 @@ mod tests {
         assert!(epoch > 1673262288822 && epoch < 1773262288822);
         let shrunk = epoch / 1000;
         assert!(shrunk > 1673261721);
+    }
+
+    #[test]
+    fn stella_swap_works() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let executor = MoonbeamDexExecutor::new(
+            "https://moonbeam.public.blastapi.io",
+            // https://docs.stellaswap.com/developers/smart-contracts#router-smart-contract-details
+            H160::from_str("0x70085a09D30D6f8C4ecF6eE10120d1847383BB57").unwrap(),
+        );
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+        let recipient = hex::decode("Ff2109923cE53C04f88aF0deBB411A8b51654f3B").unwrap();
+
+        let usdc = hex::decode("931715FEE2d06333043d11F658C8CE934aC61D0c").unwrap();
+        let xc_dot = hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap();
+
+        // 0.001 usdc is pretty generous for a test
+        let spend: u128 = 1_000;
+        // https://moonbeam.moonscan.io/tx/0x727b7e9b4d889762050c310942ea1818f8c32fd483e973e42c77ce034e37a5c6
+        executor
+            .swap(signer, usdc, xc_dot, spend, recipient)
+            .unwrap();
     }
 }

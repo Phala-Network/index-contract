@@ -20,7 +20,7 @@ impl UniswapV2Client {
         signer: KeyPair,
         amount_in: U256,
         amount_out: U256,
-        path: [Address; 2],
+        path: Vec<Address>,
         to: Address,
         deadline: U256,
     ) -> core::result::Result<H256, Error> {
@@ -42,6 +42,8 @@ impl UniswapV2Client {
             signer,
         ))
         .map_err(|_| Error::FailedToSubmitTransaction)?;
+
+        dbg!(tx_id);
 
         Ok(tx_id)
     }
