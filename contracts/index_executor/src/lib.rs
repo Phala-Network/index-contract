@@ -342,7 +342,7 @@ mod index_executor {
                     let item = Dex {
                         id: dex.id,
                         name: dex.name.clone(),
-                        chain_id: dex.chain_id.clone(),
+                        chain_id: dex.chain_id,
                     };
                     arr[dex.id as usize] = item;
                 }
