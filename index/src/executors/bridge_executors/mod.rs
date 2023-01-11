@@ -20,6 +20,7 @@ use scale::Encode;
 use subrpc::{create_transaction, send_transaction};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
+mod moonbeam_to_acala;
 mod moonbeam_to_phala;
 mod phala_to_acala;
 
