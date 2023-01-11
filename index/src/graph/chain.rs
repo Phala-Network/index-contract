@@ -17,6 +17,14 @@ pub enum ChainType {
     Sub,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum ForeignAssetModule {
+    #[default]
+    PalletAsset,
+    PalletCurrency,
+}
+
 #[derive(Debug, Clone, Default, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Chain {
@@ -24,6 +32,9 @@ pub struct Chain {
     pub name: String,
     pub endpoint: String,
     pub chain_type: ChainType,
+    // Encoded native asset location for Sub-chains
+    pub native_asset: Option<Vec<u8>>,
+    pub foreign_asset: Option<ForeignAssetModule>,
 }
 
 /// Query on-chain `account` nonce
@@ -51,12 +62,25 @@ impl NonceFetcher for Chain {
     }
 }
 
+/// Query on-chain account balance of an asset
+pub trait BalanceFetcher {
+    fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error>;
+}
+
+impl BalanceFetcher for Chain {
+    fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error> {
+        Ok(0u128)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use dotenv::dotenv;
     use hex_literal::hex;
     use ink_lang as ink;
+    use scale::Encode;
+    use xcm::v1::{prelude::*, MultiLocation};
 
     #[ink::test]
     fn test_get_evm_account_nonce() {
@@ -70,6 +94,8 @@ mod tests {
                 "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
             ),
             chain_type: ChainType::Evm,
+            native_asset: None,
+            foreign_asset: None,
         };
         assert_eq!(
             goerli
@@ -89,6 +115,8 @@ mod tests {
             name: String::from("Khala"),
             endpoint: String::from("https://khala.api.onfinality.io:443/public-ws"),
             chain_type: ChainType::Sub,
+            native_asset: Some(MultiLocation::new(1, X1(Parachain(2035))).encode()),
+            foreign_asset: Some(ForeignAssetModule::PalletAsset),
         };
         assert_eq!(
             khala

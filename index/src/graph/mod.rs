@@ -1,6 +1,7 @@
 mod asset;
 mod bridge;
 mod chain;
+mod constants;
 mod dex;
 
 use alloc::string::String;
