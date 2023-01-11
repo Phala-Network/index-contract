@@ -52,8 +52,9 @@ impl DexExecutor for MoonbeamDexExecutor {
         let asset0 = Address::from_slice(&asset0);
         let asset1 = Address::from_slice(&asset1);
         let to = Address::from_slice(&recipient);
-        let wglmr = H160::from_str("0xacc15dc74880c9944775448304b263d191c6077f").unwrap();
-        let path = vec![asset0, wglmr, asset1];
+        //let wglmr = H160::from_str("0xacc15dc74880c9944775448304b263d191c6077f").unwrap();
+        //let path = vec![asset0, wglmr, asset1];
+        let path = vec![asset0, asset1];
         let amount_out = U256::from(1);
         let amount_in = U256::from(spend);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
@@ -98,14 +99,16 @@ mod tests {
         let signer: [u8; 32] = secret_bytes.to_array();
         let recipient = hex::decode("Ff2109923cE53C04f88aF0deBB411A8b51654f3B").unwrap();
 
-        let usdc = hex::decode("931715FEE2d06333043d11F658C8CE934aC61D0c").unwrap();
+        //let usdc = hex::decode("931715FEE2d06333043d11F658C8CE934aC61D0c").unwrap();
         let xc_dot = hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap();
+        let wglmr = hex::decode("Acc15dC74880C9944775448304B263D191c6077F").unwrap();
 
-        // 0.001 usdc is pretty generous for a test
-        let spend: u128 = 1_000;
+        // 0.001 wglmr
+        let spend: u128 = 1_000_000_000_000_000;
         // https://moonbeam.moonscan.io/tx/0x727b7e9b4d889762050c310942ea1818f8c32fd483e973e42c77ce034e37a5c6
+        // https://moonbeam.moonscan.io/tx/0x742504fe490ecb8ab968ecdbdde2aa774d4eca43c0eb73ad539e9bb974011722
         executor
-            .swap(signer, usdc, xc_dot, spend, recipient)
+            .swap(signer, wglmr, xc_dot, spend, recipient)
             .unwrap();
     }
 }
