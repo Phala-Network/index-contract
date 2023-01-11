@@ -35,6 +35,7 @@ index = { path = "../../index", default-features = false }
 index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
+env_logger = "0.9"
 hex-literal = "0.3"
 pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"

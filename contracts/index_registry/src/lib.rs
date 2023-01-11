@@ -2,7 +2,7 @@
 extern crate alloc;
 use ink_lang as ink;
 
-pub use registry::{Graph, Registry, RegistryRef};
+pub use registry::{Chain, Graph, Registry, RegistryRef};
 pub mod error;
 
 #[allow(clippy::large_enum_variant)]
