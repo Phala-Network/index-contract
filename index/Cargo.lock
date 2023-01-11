@@ -1057,7 +1057,7 @@ dependencies = [
  "ink_env",
  "ink_lang",
  "parity-scale-codec",
- "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-extension 0.2.0",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-subrpc",
@@ -1552,9 +1552,9 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.30.1"
+version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d864c91689fdc196779b98dba0aceac6118594c2df6ee5d943eb6a8df4d107a"
+checksum = "2b8c786513eb403643f2a88c244c2aaa270ef2153f55094587d0c48a3cf22a83"
 dependencies = [
  "memchr",
 ]
@@ -1774,23 +1774,7 @@ dependencies = [
  "ink_storage",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "scale-info",
-]
-
-[[package]]
-name = "pink-extension"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=update-subrpc#675eddf7d2e64e649200ae9cde12a86e769208be"
-dependencies = [
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_primitives",
- "ink_storage",
- "log",
- "parity-scale-codec",
- "pink-extension-macro 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=update-subrpc)",
+ "pink-extension-macro 0.2.0",
  "scale-info",
 ]
 
@@ -1827,21 +1811,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-extension-macro"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=update-subrpc#675eddf7d2e64e649200ae9cde12a86e769208be"
-dependencies = [
- "heck",
- "ink_lang_ir",
- "ink_lang_macro",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
- "unzip3",
-]
-
-[[package]]
 name = "pink-extension-runtime"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1851,7 +1820,7 @@ dependencies = [
  "hex_fmt",
  "log",
  "once_cell",
- "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-extension 0.2.0",
  "reqwest",
  "reqwest-env-proxy",
  "ring",
@@ -1880,15 +1849,16 @@ dependencies = [
 
 [[package]]
 name = "pink-subrpc"
-version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=update-subrpc#675eddf7d2e64e649200ae9cde12a86e769208be"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "894aada2c438b4079282c5a074e9443ceb8b053c36a170318d81a83eb63bfa5b"
 dependencies = [
  "base58",
  "hex",
  "hex-literal",
  "impl-serde 0.4.0",
  "parity-scale-codec",
- "pink-extension 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=update-subrpc)",
+ "pink-extension 0.2.0",
  "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types",
  "scale-info",
