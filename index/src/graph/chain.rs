@@ -7,6 +7,8 @@ use pink_web3::{
     types::Address,
 };
 
+use pink_subrpc::{get_next_nonce, get_ss58addr_version, Ss58Codec};
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum ChainType {
@@ -40,12 +42,13 @@ impl NonceFetcher for Chain {
                 nonce.try_into().expect("Nonce onverflow")
             }
             ChainType::Sub => {
-                let version = get_ss58addr_version("kusama").unwrap();
-                let public_key: [u8; 32] =
-                    hex_literal::hex!("8266b3183ccc58f3d145d7a4894547bd55d7739751dd15802f36ec8a0d7be314");
+                let version = get_ss58addr_version(&self.name).map_err(|_| Error::Ss58)?;
+                let public_key: [u8; 32] = account.try_into().map_err(|_| Error::InvalidAddress)?;
                 let addr = public_key.to_ss58check_with_version(version.prefix());
-                let _next_nonce = get_next_nonce("https://kusama-rpc.polkadot.io", &addr).unwrap();
-            },
+                let nonce =
+                    get_next_nonce(&self.endpoint, &addr).map_err(|_| Error::FetchDataFailed)?;
+                nonce
+            }
         })
     }
 }
@@ -73,6 +76,27 @@ mod tests {
         assert_eq!(
             goerli
                 .get_nonce(hex!("0E275F8839b788B2674935AD97C01cF73A9E8c41").into())
+                .unwrap(),
+            2
+        );
+    }
+
+    #[ink::test]
+    fn test_get_sub_account_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let khala = Chain {
+            id: 1,
+            name: String::from("Khala"),
+            endpoint: String::from("https://khala.api.onfinality.io:443/public-ws"),
+            chain_type: ChainType::Sub,
+        };
+        assert_eq!(
+            khala
+                .get_nonce(
+                    hex!("92436be04f9dc677f9f51b092161b6e5ba00163ad6328fb2c920fcb30b6c7362").into()
+                )
                 .unwrap(),
             2
         );

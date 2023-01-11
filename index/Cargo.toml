@@ -62,3 +62,6 @@ std = [
     "sp-runtime/std",
     "sp-io/std",
 ]
+
+[patch.crates-io]
+pink-subrpc = { git = "https://github.com/Phala-Network/phala-blockchain.git", branch = "update-subrpc" }

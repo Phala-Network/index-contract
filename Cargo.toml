@@ -24,3 +24,4 @@ ink_lang_macro = { git = "https://github.com/Phala-Network/ink.git", branch = "a
 serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }
 
 signature = { git = "https://github.com/RustCrypto/traits.git", tag = "signature-v1.3.1" }
+pink-subrpc = { git = "https://github.com/Phala-Network/phala-blockchain.git", branch = "update-subrpc" }
