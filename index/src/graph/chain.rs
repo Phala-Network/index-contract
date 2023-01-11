@@ -45,9 +45,7 @@ impl NonceFetcher for Chain {
                 let version = get_ss58addr_version(&self.name).map_err(|_| Error::Ss58)?;
                 let public_key: [u8; 32] = account.try_into().map_err(|_| Error::InvalidAddress)?;
                 let addr = public_key.to_ss58check_with_version(version.prefix());
-                let nonce =
-                    get_next_nonce(&self.endpoint, &addr).map_err(|_| Error::FetchDataFailed)?;
-                nonce
+                get_next_nonce(&self.endpoint, &addr).map_err(|_| Error::FetchDataFailed)?
             }
         })
     }
