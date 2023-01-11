@@ -32,7 +32,6 @@ pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
 
 index = { path = "../../index", default-features = false }
-index_registry = { path = "../index_registry", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
 env_logger = "0.9"
@@ -73,6 +72,5 @@ std = [
     "pink-web3/std",
     "pink-json/std",
     "index/std",
-    "index_registry/std",
 ]
 ink-as-dependency = []
