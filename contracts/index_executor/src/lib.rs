@@ -438,14 +438,6 @@ mod index_executor {
             self.registry_graph.clone()
         }
 
-        /// For cross-contract call test
-        // #[ink(message)]
-        // pub fn get_graph(&self) -> Result<RegistryGraph> {
-        //     let config = self.ensure_configured()?;
-        //     let graph = config.registry.clone().get_graph();
-        //     Ok(graph)
-        // }
-
         /// Return executor account information
         #[ink(message)]
         pub fn get_executor_account(&self) -> AccountInfo {
