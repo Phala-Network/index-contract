@@ -30,6 +30,38 @@ impl AcalaDexExecutor {
     }
 }
 
+impl AcalaDexExecutor {
+    fn aggregated_swap(
+        &self,
+        signer: [u8; 32],
+        path: Vec<u8>,
+        spend: u128,
+        _recipient: Vec<u8>,
+    ) -> core::result::Result<(), Error> {
+        let amount_out = Compact(1_u8);
+        let amount_in = Compact(spend);
+
+        let mut path = path.as_ref();
+        let path = Vec::<AggregatedSwapPath>::decode(&mut path).unwrap();
+        let signed_tx = create_transaction(
+            &signer,
+            "acala",
+            &self.rpc,
+            // the call index of acala dex module
+            //0x5b_u8,
+            // the call index of acala aggregateddex module
+            0x5d_u8,
+            0x0u8,
+            (path, amount_in, amount_out),
+        )
+        .map_err(|_| Error::InvalidSignature)?;
+        let _tx_id =
+            send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
+        dbg!(hex::encode(_tx_id));
+        Ok(())
+    }
+}
+
 impl DexExecutor for AcalaDexExecutor {
     fn swap(
         &self,
@@ -50,12 +82,15 @@ impl DexExecutor for AcalaDexExecutor {
         let token0 = CurrencyId::decode(&mut asset0).map_err(|_| Error::FailedToScaleDecode)?;
         let token1 = CurrencyId::decode(&mut asset1).map_err(|_| Error::FailedToScaleDecode)?;
         let path = vec![token0, token1];
+
         let signed_tx = create_transaction(
             &signer,
             "acala",
             &self.rpc,
             // the call index of acala dex module
-            0x5b_u8,
+            //0x5b_u8,
+            // the call index of acala aggregateddex module
+            0x5d_u8,
             0x0u8,
             (path, amount_in, amount_out),
         )
@@ -117,6 +152,13 @@ pub enum CurrencyId {
     Token(TokenSymbol),
 }
 
+#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, PartialOrd, Ord)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub enum AggregatedSwapPath {
+    Dex(Vec<CurrencyId>),
+    Taiga(u32, u32, u32),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,15 +206,20 @@ mod tests {
         let signer: [u8; 32] = secret_bytes.to_array();
         let recipient: Vec<u8> = vec![];
 
-        let token_aca = CurrencyId::Token(TokenSymbol::ACA);
+        let token_ldot = CurrencyId::Token(TokenSymbol::LDOT);
         let token_ausd = CurrencyId::Token(TokenSymbol::AUSD);
 
-        let asset0 = token_aca.encode();
-        let asset1 = token_ausd.encode();
+        let taiga_path = AggregatedSwapPath::Taiga(0, 0, 1);
+        let dex_path = AggregatedSwapPath::Dex(vec![token_ldot, token_ausd]);
 
-        let spend = 1_000_000_000;
+        let path = vec![taiga_path, dex_path];
+        let path = path.encode();
+
+        // 0.01 dot
+        let spend = 100_000_000;
+        // https://acala.subscan.io/extrinsic/0x14575ccbbddbef7189e9402317eb9ce1d84ee0d2ddd44cf9738071c07fbad793
         assert!(executor
-            .swap(signer, asset0, asset1, spend, recipient)
+            .aggregated_swap(signer, path, spend, recipient)
             .is_ok());
     }
 }
