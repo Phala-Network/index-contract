@@ -1,6 +1,15 @@
+use super::{AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData};
+use crate::constants::assets::*;
 use crate::prelude::Error;
 use alloc::string::String;
 use alloc::vec::Vec;
+use pink_subrpc::{
+    get_next_nonce, get_ss58addr_version, get_storage,
+    storage::{
+        storage_double_map_blake2_128_prefix, storage_map_blake2_128_prefix, storage_prefix,
+    },
+    Ss58Codec,
+};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{Contract, Options},
@@ -8,10 +17,11 @@ use pink_web3::{
     types::Address,
     Web3,
 };
-
-use super::constants::*;
-use pink_subrpc::{get_next_nonce, get_ss58addr_version, Ss58Codec};
 use primitive_types::U256;
+use scale::Encode;
+// TODO: Remove sp-runtime to decline size of wasm blob
+use sp_runtime::{traits::ConstU32, WeakBoundedVec};
+use xcm::v1::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -26,7 +36,7 @@ pub enum ChainType {
 pub enum ForeignAssetModule {
     #[default]
     PalletAsset,
-    PalletCurrency,
+    OrmlToken,
 }
 
 #[derive(Debug, Clone, Default, scale::Encode, scale::Decode)]
@@ -78,6 +88,30 @@ impl NonceFetcher for Chain {
     }
 }
 
+/// TODO: move to subrpc
+pub fn storage_double_map_blake2_128_twox64_prefix(
+    prefix: &[u8],
+    key1: &[u8],
+    key2: &[u8],
+) -> Vec<u8> {
+    let key1_hashed = sp_core_hashing::blake2_128(key1);
+    let key2_hashed = sp_core_hashing::twox_64(key2);
+
+    let mut final_key = Vec::with_capacity(
+        prefix.len()
+            + key1_hashed.as_ref().len()
+            + key1.len()
+            + key2_hashed.as_ref().len()
+            + key2.len(),
+    );
+    final_key.extend_from_slice(prefix);
+    final_key.extend_from_slice(key1_hashed.as_ref());
+    final_key.extend_from_slice(key1);
+    final_key.extend_from_slice(key2_hashed.as_ref());
+    final_key.extend_from_slice(key2);
+    final_key
+}
+
 /// Query on-chain account balance of an asset
 pub trait BalanceFetcher {
     fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error>;
@@ -119,10 +153,78 @@ impl BalanceFetcher for Chain {
                 }
             }
             ChainType::Sub => {
+                let public_key: [u8; 32] = account.try_into().map_err(|_| Error::InvalidAddress)?;
                 if self.is_native(&asset) {
-                    return Err(Error::Unimplemented);
+                    if let Some(raw_storage) = get_storage(
+                        &self.endpoint,
+                        &storage_map_blake2_128_prefix(
+                            &storage_prefix("System", "Account")[..],
+                            &public_key,
+                        ),
+                        None,
+                    )
+                    .map_err(|_| Error::FetchDataFailed)?
+                    {
+                        let account_info: AccountInfo<Index, AccountData<Balance>> =
+                            scale::Decode::decode(&mut raw_storage.as_slice())
+                                .map_err(|_| Error::DecodeStorageFailed)?;
+                        account_info.data.free
+                    } else {
+                        0u128
+                    }
                 } else {
-                    return Err(Error::Unimplemented);
+                    let asset_location: MultiLocation =
+                        scale::Decode::decode(&mut asset.as_slice())
+                            .map_err(|_| Error::InvalidMultilocation)?;
+                    match self.foreign_asset {
+                        Some(ForeignAssetModule::PalletAsset) => {
+                            let asset_id = Location2Assetid::new()
+                                .get_assetid(self.name.clone(), &asset_location)
+                                .ok_or(Error::AssetNotRecognized)?;
+                            if let Some(raw_storage) = get_storage(
+                                &self.endpoint,
+                                &storage_double_map_blake2_128_prefix(
+                                    &storage_prefix("Assets", "Account")[..],
+                                    &asset_id.to_le_bytes(),
+                                    &public_key,
+                                ),
+                                None,
+                            )
+                            .map_err(|_| Error::FetchDataFailed)?
+                            {
+                                let account_info: AssetAccount<Balance, Balance, ()> =
+                                    scale::Decode::decode(&mut raw_storage.as_slice())
+                                        .map_err(|_| Error::DecodeStorageFailed)?;
+                                account_info.balance
+                            } else {
+                                0u128
+                            }
+                        }
+                        Some(ForeignAssetModule::OrmlToken) => {
+                            let currency_id = Location2Currencyid::new()
+                                .get_currencyid(self.name.clone(), &asset_location)
+                                .ok_or(Error::AssetNotRecognized)?;
+                            if let Some(raw_storage) = get_storage(
+                                &self.endpoint,
+                                &storage_double_map_blake2_128_twox64_prefix(
+                                    &storage_prefix("Tokens", "Accounts")[..],
+                                    &public_key,
+                                    &currency_id.encode(),
+                                ),
+                                None,
+                            )
+                            .map_err(|_| Error::FetchDataFailed)?
+                            {
+                                let account_info: OrmlTokenAccountData<Balance> =
+                                    scale::Decode::decode(&mut raw_storage.as_slice())
+                                        .map_err(|_| Error::DecodeStorageFailed)?;
+                                account_info.free
+                            } else {
+                                0u128
+                            }
+                        }
+                        None => return Err(Error::Unimplemented),
+                    }
                 }
             }
         })
@@ -171,7 +273,7 @@ mod tests {
             name: String::from("Khala"),
             endpoint: String::from("https://khala.api.onfinality.io:443/public-ws"),
             chain_type: ChainType::Sub,
-            native_asset: MultiLocation::new(1, X1(Parachain(2035))).encode(),
+            native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
         };
         assert_eq!(
@@ -218,6 +320,61 @@ mod tests {
                 )
                 .unwrap(),
             5_000_000_000_000_000_000u128
+        );
+    }
+
+    #[ink::test]
+    fn test_get_sub_account_balance() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account32 = hex!("92436be04f9dc677f9f51b092161b6e5ba00163ad6328fb2c920fcb30b6c7362");
+        let khala = Chain {
+            id: 1,
+            name: String::from("Khala"),
+            endpoint: String::from("https://khala.api.onfinality.io:443/public-ws"),
+            chain_type: ChainType::Sub,
+            native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
+            foreign_asset: Some(ForeignAssetModule::PalletAsset),
+        };
+        let karura = Chain {
+            id: 2,
+            name: String::from("Karura"),
+            endpoint: String::from("https://karura-rpc.dwellir.com"),
+            chain_type: ChainType::Sub,
+            native_asset: MultiLocation::new(
+                1,
+                X2(
+                    Parachain(2000),
+                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+                        vec![0x00, 0x80],
+                        None,
+                    )),
+                ),
+            )
+            .encode(),
+            foreign_asset: Some(ForeignAssetModule::OrmlToken),
+        };
+        // Get native asset (PHA on Khala)
+        assert_eq!(
+            khala
+                .get_balance(khala.native_asset.clone(), account32.into())
+                .unwrap(),
+            96_879_782_174u128
+        );
+        // Get foreign asset managed by pallet-assets (KAR on Khala)
+        assert_eq!(
+            khala
+                .get_balance(karura.native_asset.clone(), account32.into())
+                .unwrap(),
+            40_000_000_000u128
+        );
+        // Get foreign asset managed by orml tokens (PHA on Karura)
+        assert_eq!(
+            karura
+                .get_balance(khala.native_asset.clone(), account32.into())
+                .unwrap(),
+            80_000_000_000u128
         );
     }
 }

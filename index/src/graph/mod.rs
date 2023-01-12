@@ -1,7 +1,7 @@
+mod account;
 mod asset;
 mod bridge;
 mod chain;
-mod constants;
 mod dex;
 
 use alloc::string::String;
@@ -9,6 +9,7 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
 pub use self::{
+    account::*,
     asset::Asset,
     bridge::{Bridge, BridgePair},
     chain::{Chain, ChainType, NonceFetcher},
