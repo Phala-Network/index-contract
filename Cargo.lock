@@ -1326,7 +1326,6 @@ dependencies = [
  "hex",
  "hex-literal",
  "index",
- "index_registry",
  "ink_env",
  "ink_lang",
  "ink_metadata",
@@ -1343,28 +1342,6 @@ dependencies = [
  "primitive-types",
  "scale-info",
  "serde",
- "xcm",
-]
-
-[[package]]
-name = "index_registry"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "hex-literal",
- "index",
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_primitives",
- "ink_storage",
- "parity-scale-codec",
- "phala-pallet-common",
- "pink-extension 0.2.0",
- "pink-extension-runtime",
- "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
- "scale-info",
- "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "xcm",
 ]
 
