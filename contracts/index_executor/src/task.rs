@@ -272,6 +272,8 @@ mod tests {
                 "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
             ),
             chain_type: ChainType::Evm,
+            native_asset: vec![0],
+            foreign_asset: None,
         };
         assert_eq!(
             goerli
@@ -344,6 +346,8 @@ mod tests {
                 endpoint: String::from(
                     "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
                 ),
+                native_asset: vec![0],
+                foreign_asset: None,
             },
             executor: AccountInfo {
                 account20: pre_mock_executor_address.into(),
@@ -365,12 +369,16 @@ mod tests {
                             name: String::from("Khala"),
                             endpoint: String::from("http://127.0.0.1:39933"),
                             chain_type: ChainType::Sub,
+                            native_asset: vec![0],
+                            foreign_asset: None,
                         },
                         Chain {
                             id: 2,
                             name: String::from("Ethereum"),
                             endpoint: String::from("https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2"),
                             chain_type: ChainType::Evm,
+                            native_asset: vec![0],
+                            foreign_asset: None,
                         }
                     ],
                     assets: vec![],

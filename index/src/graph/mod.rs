@@ -12,7 +12,7 @@ pub use self::{
     account::*,
     asset::Asset,
     bridge::{Bridge, BridgePair},
-    chain::{Chain, ChainType, NonceFetcher},
+    chain::{ForeignAssetModule, Chain, ChainType, NonceFetcher},
     dex::{Dex, DexIndexer, DexPair},
 };
 
