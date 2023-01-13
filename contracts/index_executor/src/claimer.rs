@@ -271,6 +271,7 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
 
@@ -289,6 +290,8 @@ mod tests {
                 endpoint: String::from(
                     "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
                 ),
+                native_asset: vec![0],
+                foreign_asset: None,
             },
             executor: AccountInfo {
                 account20: executor_address.into(),

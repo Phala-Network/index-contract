@@ -19,6 +19,8 @@ pub enum Error {
     Ss58,
     FailedToGetGas,
     FailedToSubmitTransaction,
+    DecodeStorageFailed,
+    AssetNotRecognized,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]

@@ -1,4 +1,4 @@
-use pink_subrpc::{create_transaction, send_transaction};
+use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
 use crate::constants::ACALA_PARACHAIN_ID;
 use crate::traits::{common::Error, executor::BridgeExecutor};
@@ -61,6 +61,7 @@ impl BridgeExecutor for Phala2AcalaExecutor {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
+            ExtraParam::default(),
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =

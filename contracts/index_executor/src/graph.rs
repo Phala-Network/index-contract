@@ -11,6 +11,8 @@ pub struct Chain {
     pub name: String,
     pub endpoint: String,
     pub chain_type: u32,
+    pub native_asset: Vec<u8>,
+    pub foreign_asset: u32,
 }
 
 #[derive(

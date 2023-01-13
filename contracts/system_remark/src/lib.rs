@@ -10,7 +10,7 @@ mod system_remark {
 
     use alloc::{string::String, vec::Vec};
     use scale::{Decode, Encode};
-    use subrpc::{create_transaction, send_transaction};
+    use subrpc::{create_transaction, send_transaction, ExtraParam};
 
     #[ink(storage)]
     pub struct Remarker {
@@ -43,8 +43,16 @@ mod system_remark {
             let rpc_node = "https://khala.api.onfinality.io:443/public-ws";
             let signer: [u8; 32] =
                 hex!("9eb2ee60393aeeec31709e256d448c9e40fa64233abf12318f63726e9c417b69");
-            let signed_tx =
-                create_transaction(&signer, "khala", rpc_node, 0u8, 1u8, remark).unwrap();
+            let signed_tx = create_transaction(
+                &signer,
+                "khala",
+                rpc_node,
+                0u8,
+                1u8,
+                remark,
+                ExtraParam::default(),
+            )
+            .unwrap();
             let tx_id = send_transaction(rpc_node, &signed_tx).unwrap();
             Ok(tx_id)
         }
