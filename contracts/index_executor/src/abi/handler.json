@@ -188,7 +188,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "requestId",
+        "type": "bytes32"
+      }
+    ],
     "name": "claim",
     "outputs": [],
     "stateMutability": "nonpayable",

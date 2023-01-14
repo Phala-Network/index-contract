@@ -3,6 +3,7 @@ use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
 use index::graph::ChainType;
+use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
 
 /// Definition of bridge operation step
@@ -34,12 +35,12 @@ pub struct BridgeStep {
 }
 
 impl Runner for BridgeStep {
-    fn runnable(&self) -> bool {
+    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool {
         // TODO: implement
         true
     }
 
-    fn run(&self, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `src_chain` and `des_chain`
@@ -62,7 +63,7 @@ impl Runner for BridgeStep {
         Ok(())
     }
 
-    fn check(&self, _nonce: u64) -> bool {
+    fn check(&self, _nonce: u64, context: &Context) -> bool {
         // TODO: implement
         false
     }

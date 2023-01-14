@@ -368,7 +368,20 @@ mod index_executor {
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
                         if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
-                            onchain_task.sync(client);
+                            onchain_task.sync(
+                                &Context {
+                                    signer: self.pub_to_prv(onchain_task.worker).unwrap(),
+                                    graph: {
+                                        let bytes = self.graph.clone();
+                                        let mut bytes = bytes.as_ref();
+                                        Graph::decode(&mut bytes).unwrap()
+                                    },
+                                    worker_accounts: self.worker_accounts.clone(),
+                                    bridge_executors: vec![],
+                                    dex_executors: vec![],
+                                },
+                                client,
+                            );
                             // Add task to local cache
                             let _ = TaskCache::add_task(&onchain_task);
                             Some(onchain_task)
@@ -378,17 +391,20 @@ mod index_executor {
                     })
                     .ok_or(Error::TaskNotFoundOnChain)?;
 
-                match task.execute(&Context {
-                    signer: self.pub_to_prv(task.worker).unwrap(),
-                    graph: {
-                        let bytes = self.graph.clone();
-                        let mut bytes = bytes.as_ref();
-                        Graph::decode(&mut bytes).unwrap()
+                match task.execute(
+                    &Context {
+                        signer: self.pub_to_prv(task.worker).unwrap(),
+                        graph: {
+                            let bytes = self.graph.clone();
+                            let mut bytes = bytes.as_ref();
+                            Graph::decode(&mut bytes).unwrap()
+                        },
+                        worker_accounts: self.worker_accounts.clone(),
+                        bridge_executors: self.create_bridge_executors()?,
+                        dex_executors: self.create_dex_executors()?,
                     },
-                    worker_accounts: self.worker_accounts.clone(),
-                    bridge_executors: self.create_bridge_executors()?,
-                    dex_executors: self.create_dex_executors()?,
-                }) {
+                    client,
+                ) {
                     Ok(TaskStatus::Completed) => {
                         // Remove task from blockchain and recycle worker account
                         task.destroy(client);

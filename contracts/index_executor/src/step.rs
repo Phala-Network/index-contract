@@ -4,6 +4,7 @@ use super::context::Context;
 use super::swap::SwapStep;
 use super::traits::Runner;
 use alloc::string::String;
+use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -26,27 +27,28 @@ pub struct Step {
 }
 
 impl Runner for Step {
-    fn runnable(&self) -> bool {
+    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool {
+        self.nonce.is_some()
+            && match &self.meta {
+                StepMeta::Claim(claim_step) => claim_step.runnable(client),
+                StepMeta::Swap(swap_step) => swap_step.runnable(client),
+                StepMeta::Bridge(bridge_step) => bridge_step.runnable(client),
+            }
+    }
+
+    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
         match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.runnable(),
-            StepMeta::Swap(swap_step) => swap_step.runnable(),
-            StepMeta::Bridge(bridge_step) => bridge_step.runnable(),
+            StepMeta::Claim(claim_step) => claim_step.run(nonce, context),
+            StepMeta::Swap(swap_step) => swap_step.run(nonce, context),
+            StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, context),
         }
     }
 
-    fn run(&self, context: &Context) -> Result<(), &'static str> {
+    fn check(&self, _nonce: u64, context: &Context) -> bool {
         match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.run(context),
-            StepMeta::Swap(swap_step) => swap_step.run(context),
-            StepMeta::Bridge(bridge_step) => bridge_step.run(context),
-        }
-    }
-
-    fn check(&self, _nonce: u64) -> bool {
-        match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.check(self.nonce.unwrap()),
-            StepMeta::Swap(swap_step) => swap_step.check(self.nonce.unwrap()),
-            StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap()),
+            StepMeta::Claim(claim_step) => claim_step.check(self.nonce.unwrap(), context),
+            StepMeta::Swap(swap_step) => swap_step.check(self.nonce.unwrap(), context),
+            StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap(), context),
         }
     }
 }

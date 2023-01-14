@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType};
+use index::graph::{Chain, ChainType, NonceFetcher};
 use scale::{Decode, Encode};
 
 use super::account::AccountInfo;
@@ -7,16 +7,20 @@ use super::bridge::BridgeStep;
 use super::context::Context;
 use super::step::{Step, StepMeta};
 use super::swap::SwapStep;
-use super::task::{Task, TaskId};
+use super::task::{OnchainTasks, Task, TaskId};
 use super::traits::Runner;
 use hex_literal::hex;
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
     ethabi::Token,
+    keys::pink::KeyPair,
+    signing::Key,
     transports::{resolve_ready, PinkHttp},
     types::Address,
 };
+
+use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use primitive_types::{H160, U256};
 use serde::Deserialize;
 
@@ -35,12 +39,12 @@ pub struct ClaimStep {
 }
 
 impl Runner for ClaimStep {
-    fn runnable(&self) -> bool {
-        // TODO: implement
-        true
+    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool {
+        // If task already exist in rollup storage, it is ready to be claimed
+        OnchainTasks::lookup_task(client, &self.id).is_some()
     }
 
-    fn run(&self, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
         let chain = context
             .graph
@@ -49,25 +53,68 @@ impl Runner for ClaimStep {
             .unwrap_or(Err("MissingChain"))?;
 
         match chain.chain_type {
-            ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer)?),
+            ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer, nonce)?),
             ChainType::Sub => Err("Unimplemented"),
         }
     }
 
-    fn check(&self, _nonce: u64) -> bool {
-        // TODO: implement
-        false
+    fn check(&self, nonce: u64, context: &Context) -> bool {
+        let worker = KeyPair::from(context.signer);
+        // Check if the transaction has been executed
+        let chain = context
+            .graph
+            // FIXME: Shouldn't unwrap directly, consider return change return type to Result<>
+            .get_chain(self.chain.clone())
+            .unwrap();
+        // FIXME: Shouldn't unwrap directly, consider return change return type to Result<>
+        let onchain_nonce = chain.get_nonce(worker.address().as_bytes().into()).unwrap();
+        (onchain_nonce - nonce) == 1
+
+        // TODO: Check if the transaction is successed or not
     }
 }
 
 impl ClaimStep {
     fn claim_evm_actived_tasks(
         &self,
-        _chain: Chain,
-        _task_id: TaskId,
-        _worker_key: &[u8; 32],
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
     ) -> Result<(), &'static str> {
-        Err("Unimplemented")
+        // TODO: use handler configed in `chain`
+        let handler_on_goerli: H160 = hex!("Bf30B9BD94C584d8449fDE4fa57F46c838b62dc2").into();
+        let transport = Eth::new(PinkHttp::new(&chain.endpoint));
+        let handler = Contract::from_json(
+            transport,
+            handler_on_goerli,
+            include_bytes!("./abi/handler.json"),
+        )
+        .map_err(|_| "ConstructContractFailed")?;
+        let worker = KeyPair::from(*worker_key);
+
+        // Estiamte gas before submission
+        let gas = resolve_ready(handler.estimate_gas(
+            "claim",
+            task_id,
+            worker.address(),
+            Options::default(),
+        ))
+        .map_err(|_| "GasEstimateFailed")?;
+
+        // Submit the claim transaction
+        let _tx_id = resolve_ready(handler.signed_call(
+            "claim",
+            task_id,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = Some(nonce.into());
+            }),
+            worker,
+        ))
+        .map_err(|_| "ClaimSubmitFailed")?;
+
+        Ok(())
     }
 }
 
@@ -271,9 +318,14 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::context::Context;
     use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
+    use index::{
+        graph::{Chain, ChainType, Graph},
+        utils::ToArray,
+    };
 
     #[test]
     fn test_fetch_task_from_evm() {
@@ -317,5 +369,59 @@ mod tests {
             }
             _ => assert!(false),
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_evm_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_key: [u8; 32] =
+            hex::decode("994efb9f9df9af03ad27553744a6492bfd8d1b22aa203769e75e200043110a48")
+                .unwrap()
+                .to_array();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        let goerli = Chain {
+            id: 0,
+            name: String::from("Goerli"),
+            chain_type: ChainType::Evm,
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            native_asset: vec![0],
+            foreign_asset: None,
+        };
+
+        let claim_step = ClaimStep {
+            chain: String::from("Goerli"),
+            id: hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+                .to_array(),
+        };
+        let context = Context {
+            signer: mock_worker_key,
+            graph: Graph {
+                chains: vec![goerli],
+                assets: vec![],
+                dexs: vec![],
+                bridges: vec![],
+                dex_pairs: vec![],
+                bridge_pairs: vec![],
+                dex_indexers: vec![],
+            },
+            worker_accounts: vec![],
+            bridge_executors: vec![],
+            dex_executors: vec![],
+        };
+        // Send claim transaction
+        assert_eq!(claim_step.run(nonce, &context,), Ok(()));
+
+        // Wait 60 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(60000));
+
+        assert_eq!(claim_step.check(nonce, &context), true);
     }
 }
