@@ -2,7 +2,7 @@ use super::{AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAcc
 use crate::constants::assets::*;
 use crate::prelude::Error;
 use alloc::string::String;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
     storage::{

@@ -1,6 +1,7 @@
 // TODO: Remove sp-runtime to decline size of wasm blob
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::{prelude::*, MultiLocation};
+use alloc::{vec, vec::Vec, string::{ToString, String}};
 
 // Chainbridge chain ID
 // pub(crate) const CHAINBRIDGE_ID_ETHEREUM: u8 = 0;
