@@ -1,7 +1,11 @@
 // TODO: Remove sp-runtime to decline size of wasm blob
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::{prelude::*, MultiLocation};
-use alloc::{vec, vec::Vec, string::{ToString, String}};
 
 // Chainbridge chain ID
 // pub(crate) const CHAINBRIDGE_ID_ETHEREUM: u8 = 0;
@@ -15,6 +19,7 @@ pub mod assets {
     use super::*;
 
     // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
+    #[allow(clippy::upper_case_acronyms, clippy::unnecessary_cast)]
     #[derive(Debug, scale::Encode, scale::Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
     pub enum CurrencyTokenSymbol {
         // 0 - 19: Acala & Polkadot native tokens
@@ -50,11 +55,13 @@ pub mod assets {
         Token(CurrencyTokenSymbol),
     }
 
+    #[allow(dead_code)]
     pub struct Assetid2Location {
         // (chain, (asset_id, asset_location))
         assets: Vec<(String, Vec<(u32, MultiLocation)>)>,
     }
     impl Assetid2Location {
+        #[allow(dead_code)]
         pub fn new() -> Self {
             Self {
                 assets: vec![
@@ -93,6 +100,7 @@ pub mod assets {
             }
         }
 
+        #[allow(dead_code)]
         pub fn get_location(&self, chain: String, asset_id: u32) -> Option<MultiLocation> {
             match self.assets.iter().position(|a| a.0 == chain) {
                 Some(idx0) => self.assets[idx0]
@@ -160,11 +168,13 @@ pub mod assets {
         }
     }
 
+    #[allow(dead_code)]
     pub struct Currencyid2Location {
         // (chain, currency_id, asset_location)
         assets: Vec<(String, Vec<(CurrencyId, MultiLocation)>)>,
     }
     impl Currencyid2Location {
+        #[allow(dead_code)]
         pub fn new() -> Self {
             Self {
                 assets: vec![
@@ -215,6 +225,7 @@ pub mod assets {
             }
         }
 
+        #[allow(dead_code)]
         pub fn get_location(
             &self,
             chain: String,

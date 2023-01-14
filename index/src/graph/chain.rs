@@ -19,8 +19,6 @@ use pink_web3::{
 };
 use primitive_types::U256;
 use scale::Encode;
-// TODO: Remove sp-runtime to decline size of wasm blob
-use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -238,6 +236,7 @@ mod tests {
     use hex_literal::hex;
     use ink_lang as ink;
     use scale::Encode;
+    use sp_runtime::{traits::ConstU32, WeakBoundedVec};
     use xcm::v1::{prelude::*, MultiLocation};
 
     #[ink::test]
@@ -372,7 +371,7 @@ mod tests {
         // Get foreign asset managed by orml tokens (PHA on Karura)
         assert_eq!(
             karura
-                .get_balance(khala.native_asset.clone(), account32.into())
+                .get_balance(khala.native_asset, account32.into())
                 .unwrap(),
             80_000_000_000u128
         );
