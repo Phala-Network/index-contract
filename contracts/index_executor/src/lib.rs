@@ -24,10 +24,7 @@ mod index_executor {
         vec::Vec,
     };
     use hex_literal::hex;
-    use index::graph::ChainType;
-    use index::graph::{
-        Asset, Bridge, BridgePair, Chain, Dex, DexIndexer, DexPair, ForeignAssetModule, Graph,
-    };
+    use index::graph::{Chain, Graph};
     use index::prelude::*;
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use phat_offchain_rollup::clients::substrate::{
@@ -59,6 +56,7 @@ mod index_executor {
         ReadCacheFailed,
         WriteCacheFailed,
         DecodeCacheFailed,
+        DecodeGraphFailed,
         TaskNotFoundInCache,
         TaskNotFoundOnChain,
         ExecuteFailed,
@@ -91,11 +89,7 @@ mod index_executor {
     pub struct Executor {
         pub admin: AccountId,
         pub config: Option<Config>,
-        // the graph before processing, is set directly by management clients
-        // but shouldn't be used directly in business
-        pub registry_graph: RegistryGraph,
-        // the graph after processing, can be used in business directly
-        pub raw_graph: Vec<u8>,
+        pub graph: Vec<u8>,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
         pub executor_account: [u8; 32],
@@ -126,8 +120,7 @@ mod index_executor {
             Self {
                 admin: Self::env().caller(),
                 config: None,
-                registry_graph: RegistryGraph::default(),
-                raw_graph: Vec::default(),
+                graph: Vec::default(),
                 worker_prv_keys,
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
@@ -136,7 +129,7 @@ mod index_executor {
         }
 
         pub fn get_chain(&self, name: String) -> Option<Chain> {
-            let bytes = self.raw_graph.clone();
+            let bytes = self.graph.clone();
             let mut bytes = bytes.as_ref();
             let graph = Graph::decode(&mut bytes).unwrap();
             graph.get_chain(name)
@@ -146,9 +139,6 @@ mod index_executor {
         pub fn config(&mut self, rollup_endpoint: String, pallet_id: Option<u8>) -> Result<()> {
             self.ensure_owner()?;
             self.config = Some(Config { pallet_id });
-
-            // synchronize between registry_graph and raw_graph
-            self.sync_graph()?;
 
             // If we don't give the pallet_id, skip rollup configuration
             if pallet_id.is_none() {
@@ -283,169 +273,24 @@ mod index_executor {
             Ok(task_list)
         }
 
-        #[ink(message)]
-        pub fn sync_graph(&mut self) -> Result<()> {
-            let mut local_graph: Graph = Graph::default();
-
-            {
-                let len = self.registry_graph.chains.len();
-                let mut arr: Vec<Chain> = Vec::new();
-                arr.resize(len + 1, Chain::default());
-                for chain in &self.registry_graph.chains {
-                    let item: Chain = Chain {
-                        id: chain.id,
-                        name: chain.name.clone(),
-                        endpoint: chain.endpoint.clone(),
-                        chain_type: {
-                            match chain.chain_type {
-                                // 0 => ChainType::Unknown,
-                                1 => ChainType::Evm,
-                                2 => ChainType::Sub,
-                                _ => panic!("Unsupported chain!"),
-                            }
-                        },
-                        native_asset: chain.native_asset.clone(),
-                        foreign_asset: {
-                            match chain.foreign_asset {
-                                1 => Some(ForeignAssetModule::PalletAsset),
-                                2 => Some(ForeignAssetModule::OrmlToken),
-                                _ => panic!("Unsupported chain!"),
-                            }
-                        },
-                    };
-                    arr[chain.id as usize] = item;
-                }
-                local_graph.chains = arr;
-            }
-
-            {
-                let len = self.registry_graph.assets.len();
-                let mut arr: Vec<Asset> = Vec::new();
-                arr.resize(len + 1, Asset::default());
-                for asset in &self.registry_graph.assets {
-                    let item = Asset {
-                        id: asset.id,
-                        symbol: asset.symbol.clone(),
-                        name: asset.name.clone(),
-                        // beware the special treatment for locations!
-                        // reason:
-                        //  ink! treats any string that starts with a 0x prefix as a hex string,
-                        //  if `location` starts with 0x then we will get an unreadable character string here,
-                        //  a workaround is to encode the location
-                        //      (and anything that is possibly a string prefixed with 0x) by hex-ing it,
-                        //      before putting it in the ink! storage;
-                        //  now in time of use, we decode the location by hex::decode()
-                        location: hex::decode(asset.location.clone()).unwrap(),
-                        decimals: asset.decimals,
-                        chain_id: asset.chain_id,
-                    };
-                    arr[asset.id as usize] = item;
-                }
-                local_graph.assets = arr;
-            }
-
-            {
-                let len = self.registry_graph.dexs.len();
-                let mut arr = Vec::new();
-                arr.resize(len + 1, Dex::default());
-                for dex in &self.registry_graph.dexs {
-                    let item = Dex {
-                        id: dex.id,
-                        name: dex.name.clone(),
-                        chain_id: dex.chain_id,
-                    };
-                    arr[dex.id as usize] = item;
-                }
-                local_graph.dexs = arr;
-            }
-
-            {
-                let len = self.registry_graph.dex_indexers.len();
-                let mut arr = Vec::new();
-                arr.resize(len + 1, DexIndexer::default());
-                for indexer in &self.registry_graph.dex_indexers {
-                    let item = DexIndexer {
-                        id: indexer.id,
-                        url: indexer.url.clone(),
-                        dex_id: indexer.dex_id,
-                    };
-                    arr[indexer.id as usize] = item;
-                }
-                local_graph.dex_indexers = arr;
-            }
-
-            {
-                let len = self.registry_graph.dex_pairs.len();
-                let mut arr = Vec::new();
-                arr.resize(len + 1, DexPair::default());
-                for pair in &self.registry_graph.dex_pairs {
-                    let item = DexPair {
-                        id: pair.id,
-                        asset0_id: pair.asset0_id,
-                        asset1_id: pair.asset1_id,
-                        dex_id: pair.dex_id,
-                        // caveat, for now we have two kinds of pair_id:
-                        //  1. 0x1234...23
-                        //  2. lp:$TOEKN1/$TOKEN2
-                        // we need to hexify the first kind to get around the ink! string treatment,
-                        // to that end, we hexify all kinds of pair_id
-                        pair_id: hex::decode(pair.pair_id.clone()).unwrap(),
-                    };
-                    arr[pair.id as usize] = item;
-                }
-                local_graph.dex_pairs = arr;
-            }
-
-            {
-                let len = self.registry_graph.bridges.len();
-                let mut arr = Vec::new();
-                arr.resize(len + 1, Bridge::default());
-                for bridge in &self.registry_graph.bridges {
-                    let item = Bridge {
-                        id: bridge.id,
-                        name: bridge.name.clone(),
-                        location: hex::decode(bridge.location.clone()).unwrap(),
-                    };
-                    arr[bridge.id as usize] = item;
-                }
-                local_graph.bridges = arr;
-            }
-
-            {
-                let len = self.registry_graph.bridge_pairs.len();
-                let mut arr = Vec::new();
-                arr.resize(len + 1, BridgePair::default());
-                for pair in &self.registry_graph.bridge_pairs {
-                    let item = BridgePair {
-                        id: pair.id,
-                        asset0_id: pair.asset0_id,
-                        asset1_id: pair.asset1_id,
-                        bridge_id: pair.bridge_id,
-                    };
-                    arr[pair.id as usize] = item;
-                }
-                local_graph.bridge_pairs = arr;
-            }
-
-            self.raw_graph = local_graph.encode();
-
-            Ok(())
-        }
-
         /// Sets the graph, callable only to a specifically crafted management tool,
         /// should not be called by anyone else
         #[ink(message)]
         pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
             self.ensure_owner()?;
-            self.registry_graph = graph;
+            self.graph = TryInto::<Graph>::try_into(graph)
+                .or(Err(Error::DecodeGraphFailed))
+                .encode();
             Self::env().emit_event(GraphSet {});
             Ok(())
         }
 
         /// Returs the interior graph, callable to all
         #[ink(message)]
-        pub fn get_graph(&self) -> RegistryGraph {
-            self.registry_graph.clone()
+        pub fn get_graph(&self) -> Result<RegistryGraph> {
+            let graph: Graph =
+                Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
+            Ok(graph.into())
         }
 
         /// Return executor account information
@@ -501,7 +346,7 @@ mod index_executor {
                     // Don't need signer here
                     signer: [0; 32],
                     graph: {
-                        let bytes = self.raw_graph.clone();
+                        let bytes = self.graph.clone();
                         let mut bytes = bytes.as_ref();
                         Graph::decode(&mut bytes).unwrap()
                     },
@@ -536,7 +381,7 @@ mod index_executor {
                 match task.execute(&Context {
                     signer: self.pub_to_prv(task.worker).unwrap(),
                     graph: {
-                        let bytes = self.raw_graph.clone();
+                        let bytes = self.graph.clone();
                         let mut bytes = bytes.as_ref();
                         Graph::decode(&mut bytes).unwrap()
                     },
@@ -665,129 +510,7 @@ mod index_executor {
         use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
-        use crate::graph::{
-            Asset as RegistryAsset, Bridge as RegistryBridge, BridgePair as RegistryBridgePair,
-            Chain as RegistryChain, Dex as RegistryDex, DexIndexer as RegistryDexIndexer,
-            DexPair as RegistryDexPair,
-        };
         use xcm::latest::{prelude::*, MultiLocation};
-
-        fn set_graph(executor: &mut ExecutorRef) {
-            // we are not registering entities manually!
-            // just for demonstration.
-            // there is a specfic management tool for all this data management
-            let ethereum = RegistryChain {
-                id: 1,
-                name: "Ethereum".to_string(),
-                chain_type: 1,
-                endpoint: "endpoint".to_string(),
-                native_asset: MultiLocation::new(0, Here).encode(),
-                foreign_asset: 1,
-            };
-            let phala = RegistryChain {
-                id: 2,
-                name: "Phala".to_string(),
-                chain_type: 2,
-                endpoint: "endpoint".to_string(),
-                native_asset: MultiLocation::new(0, Here).encode(),
-                foreign_asset: 1,
-            };
-            let pha_on_ethereum = RegistryAsset {
-                id: 1,
-                chain_id: 1,
-                name: "Phala Token".to_string(),
-                symbol: "PHA".to_string(),
-                decimals: 18,
-                location: "Somewhere on Ethereum".to_string(),
-            };
-            let pha_on_phala = RegistryAsset {
-                id: 1,
-                chain_id: 2,
-                name: "Phala Token".to_string(),
-                symbol: "PHA".to_string(),
-                decimals: 12,
-                location: "Somewhere on Phala".to_string(),
-            };
-            let weth_on_ethereum = RegistryAsset {
-                id: 3,
-                chain_id: 1,
-                name: "Wrap Ether".to_string(),
-                symbol: "WETH".to_string(),
-                decimals: 18,
-                location: "Somewhere on Ethereum2".to_string(),
-            };
-            let weth_on_phala = RegistryAsset {
-                id: 4,
-                chain_id: 2,
-                name: "Phala Wrap Ether".to_string(),
-                symbol: "pWETH".to_string(),
-                decimals: 18,
-                location: "Somewhere on Phala2".to_string(),
-            };
-            let ethereum2phala_pha_pair = RegistryBridgePair {
-                id: 1,
-                asset0_id: 1,
-                asset1_id: 2,
-                bridge_id: 1,
-            };
-            let ethereum2phala_weth_pair = RegistryBridgePair {
-                id: 2,
-                asset0_id: 3,
-                asset1_id: 4,
-                bridge_id: 1,
-            };
-            let phala2ethereum_pha_pair = RegistryBridgePair {
-                id: 3,
-                asset0_id: 2,
-                asset1_id: 1,
-                bridge_id: 1,
-            };
-            let pha_weth_dex_pair = RegistryDexPair {
-                id: 1,
-                dex_id: 1,
-                pair_id: "pair_address".to_string(),
-                asset0_id: 1,
-                asset1_id: 3,
-            };
-            let bridge = RegistryBridge {
-                id: 1,
-                name: "demo bridge".to_string(),
-                location: "xtoken://0x1213435".to_string(),
-            };
-            let dex = RegistryDex {
-                id: 1,
-                name: "UniSwapV2".to_string(),
-                chain_id: 1,
-            };
-
-            // should have a jonction table but this structure suffices
-            let dex_indexer = RegistryDexIndexer {
-                id: 1,
-                url: "https://some-graph.network".to_string(),
-                dex_id: 1,
-            };
-
-            let graph = RegistryGraph {
-                chains: vec![ethereum, phala],
-                assets: vec![
-                    pha_on_ethereum,
-                    pha_on_phala,
-                    weth_on_ethereum,
-                    weth_on_phala,
-                ],
-                dexs: vec![dex],
-                bridges: vec![bridge],
-                dex_pairs: vec![pha_weth_dex_pair],
-                bridge_pairs: vec![
-                    ethereum2phala_pha_pair,
-                    ethereum2phala_weth_pair,
-                    phala2ethereum_pha_pair,
-                ],
-                dex_indexers: vec![dex_indexer],
-            };
-
-            _ = executor.set_graph(graph);
-        }
 
         fn deploy_executor() -> ExecutorRef {
             // Register contracts
@@ -825,9 +548,26 @@ mod index_executor {
         #[ink::test]
         fn setup_worker_accounts_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-
+            use crate::graph::Chain as RegistryChain;
             let mut executor = deploy_executor();
-            set_graph(&mut executor);
+            executor
+                .set_graph(RegistryGraph {
+                    chains: vec![RegistryChain {
+                        id: 1,
+                        name: "Khala".to_string(),
+                        chain_type: 2,
+                        endpoint: "http://127.0.0.1:39933".to_string(),
+                        native_asset: MultiLocation::new(0, Here).encode(),
+                        foreign_asset: 1,
+                    }],
+                    assets: vec![],
+                    dexs: vec![],
+                    bridges: vec![],
+                    dex_pairs: vec![],
+                    bridge_pairs: vec![],
+                    dex_indexers: vec![],
+                })
+                .unwrap();
             // Initial rollup
             assert_eq!(
                 executor.config(String::from("http://127.0.0.1:39933"), Some(100)),
