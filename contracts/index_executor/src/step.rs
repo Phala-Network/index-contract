@@ -58,4 +58,12 @@ impl Runner for Step {
             StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap(), context),
         }
     }
+
+    fn sync_check(&self, _nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        match &self.meta {
+            StepMeta::Claim(claim_step) => claim_step.sync_check(self.nonce.unwrap(), context),
+            StepMeta::Swap(swap_step) => swap_step.sync_check(self.nonce.unwrap(), context),
+            StepMeta::Bridge(bridge_step) => bridge_step.sync_check(self.nonce.unwrap(), context),
+        }
+    }
 }

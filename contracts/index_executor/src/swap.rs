@@ -134,4 +134,8 @@ impl Runner for SwapStep {
             .map_err(|_| "FetchBalanceFailed")?;
         Ok((self.b0.unwrap() - onchain_balance) == self.spend)
     }
+
+    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        self.check(nonce, context)
+    }
 }

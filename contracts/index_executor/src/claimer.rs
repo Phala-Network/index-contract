@@ -70,13 +70,16 @@ impl Runner for ClaimStep {
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        // FIXME: Shouldn't unwrap directly, consider return change return type to Result<>
         let onchain_nonce = chain
             .get_nonce(worker.address().as_bytes().into())
             .map_err(|_| "FetchNonceFailed")?;
         Ok((onchain_nonce - nonce) == 1)
 
         // TODO: Check if the transaction is successed or not
+    }
+
+    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        self.check(nonce, context)
     }
 }
 

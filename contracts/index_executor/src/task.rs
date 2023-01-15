@@ -100,7 +100,7 @@ impl Task {
     // Recover execution status according to on-chain storage
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         for step in self.steps.iter() {
-            if step.check(step.nonce.unwrap(), context) == Ok(true) {
+            if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
                 self.execute_index += 1;
                 // If all step executed successfully, set task as `Completed`
                 if self.execute_index as usize == self.steps.len() {

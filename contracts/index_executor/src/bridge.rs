@@ -132,4 +132,9 @@ impl Runner for BridgeStep {
             .map_err(|_| "FetchBalanceFailed")?;
         Ok((self.b0.unwrap() - onchain_balance) == self.amount)
     }
+
+    fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
+        Ok(true)
+        // TODO: implement
+    }
 }
