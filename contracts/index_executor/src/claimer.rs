@@ -39,9 +39,13 @@ pub struct ClaimStep {
 }
 
 impl Runner for ClaimStep {
-    fn runnable(&self, client: &mut SubstrateRollupClient) -> Result<bool, &'static str> {
+    fn runnable(
+        &self,
+        context: &Context,
+        client: Option<&mut SubstrateRollupClient>,
+    ) -> Result<bool, &'static str> {
         // If task already exist in rollup storage, it is ready to be claimed
-        Ok(OnchainTasks::lookup_task(client, &self.id).is_some())
+        Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {

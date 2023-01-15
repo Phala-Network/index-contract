@@ -36,7 +36,11 @@ pub struct BridgeStep {
 }
 
 impl Runner for BridgeStep {
-    fn runnable(&self, _client: &mut SubstrateRollupClient) -> Result<bool, &'static str> {
+    fn runnable(
+        &self,
+        _context: &Context,
+        _client: Option<&mut SubstrateRollupClient>,
+    ) -> Result<bool, &'static str> {
         // TODO: implement
         Ok(true)
     }

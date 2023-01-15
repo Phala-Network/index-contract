@@ -36,7 +36,11 @@ pub struct SwapStep {
 }
 
 impl Runner for SwapStep {
-    fn runnable(&self, _client: &mut SubstrateRollupClient) -> Result<bool, &'static str> {
+    fn runnable(
+        &self,
+        context: &Context,
+        _client: Option<&mut SubstrateRollupClient>,
+    ) -> Result<bool, &'static str> {
         // TODO: implement
         Ok(true)
     }

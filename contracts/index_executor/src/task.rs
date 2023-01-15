@@ -134,7 +134,7 @@ impl Task {
             }
         }
 
-        if self.steps[self.execute_index as usize].runnable(client) == Ok(true) {
+        if self.steps[self.execute_index as usize].runnable(context, Some(client)) == Ok(true) {
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             self.steps[self.execute_index as usize].run(nonce, context)?;
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
