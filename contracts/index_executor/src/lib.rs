@@ -60,7 +60,6 @@ mod index_executor {
         DecodeGraphFailed,
         TaskNotFoundInCache,
         TaskNotFoundOnChain,
-        ExecuteFailed,
         Unimplemented,
     }
 
@@ -187,7 +186,7 @@ mod index_executor {
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.unwrap(),
+                config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
             )
             .log_err("failed to create rollup client")
@@ -232,7 +231,7 @@ mod index_executor {
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.unwrap(),
+                config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
             )
             .log_err("failed to create rollup client")
@@ -269,7 +268,7 @@ mod index_executor {
             let decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
                 .map_err(|_| Error::DecodeCacheFailed)?;
             for task_id in decoded_tasks {
-                task_list.push(TaskCache::get_task(&task_id).unwrap());
+                task_list.push(TaskCache::get_task(&task_id).ok_or(Error::TaskNotFoundInCache)?);
             }
             Ok(task_list)
         }
@@ -313,12 +312,11 @@ mod index_executor {
             // Get rpc info from registry
             let chain = self
                 .get_chain("Khala".to_string())
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
+                .ok_or(Error::ChainNotFound)?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.unwrap(),
+                config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
             )
             .log_err("failed to create rollup client")
@@ -335,7 +333,7 @@ mod index_executor {
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
             // and append them to runing tasks
             let mut actived_task = ActivedTaskFetcher::new(
-                self.get_chain(source_chain).unwrap(),
+                self.get_chain(source_chain).ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(self.executor_account),
             )
             .fetch_task()
@@ -466,12 +464,10 @@ mod index_executor {
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
             let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
+                .ok_or(Error::ChainNotFound)?;
             let phala = self
                 .get_chain(String::from("Phala"))
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
+                .ok_or(Error::ChainNotFound)?;
 
             // Ethereum -> Phala: ChainBridgeEvm2Phala
             let chainbridge_on_ethereum: H160 =
@@ -508,8 +504,7 @@ mod index_executor {
             let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
             let ethereum = self
                 .get_chain(String::from("Ethereum"))
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
+                .ok_or(Error::ChainNotFound)?;
 
             dex_executors.push((
                 String::from("Phala"),
