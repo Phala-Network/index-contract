@@ -64,19 +64,23 @@ impl Default for Task {
 
 impl Task {
     // Initialize task
-    pub fn init(&mut self, context: &Context, client: &mut SubstrateRollupClient) {
+    pub fn init(
+        &mut self,
+        context: &Context,
+        client: &mut SubstrateRollupClient,
+    ) -> Result<(), &'static str> {
         let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
             // Task already saved, return
-            return;
+            return Ok(());
         }
         if let Some(account) = free_accounts.pop() {
             // Apply a worker account
             self.worker = account;
-            // Aplly worker nonce for each step in task
-            self.aplly_nonce(context, client);
+            // Apply worker nonce for each step in task
+            self.aplly_nonce(context, client)?;
             // TODO: query initial balance of worker account and setup to specific step
             self.status = TaskStatus::Initialized;
             self.execute_index = 0;
@@ -86,7 +90,7 @@ impl Task {
             client.session().put(&self.id.to_vec(), self.encode());
         } else {
             // We can not handle more tasks any more
-            return;
+            return Ok(());
         }
 
         client
@@ -95,11 +99,13 @@ impl Task {
         client
             .session()
             .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
+        Ok(())
     }
 
     // Recover execution status according to on-chain storage
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         for step in self.steps.iter() {
+            // A initialized task must have nonce applied
             if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
                 self.execute_index += 1;
                 // If all step executed successfully, set task as `Completed`
@@ -127,6 +133,7 @@ impl Task {
 
         // If step already executed successfully, execute next step
         if self.steps[self.execute_index as usize].check(
+            // An executing task must have nonce applied
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
         ) == Ok(true)
@@ -138,6 +145,7 @@ impl Task {
                 return Ok(self.status.clone());
             }
 
+            // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             // FIXME: handle returned error
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
@@ -173,23 +181,35 @@ impl Task {
         }
     }
 
-    fn aplly_nonce(&mut self, context: &Context, _client: &SubstrateRollupClient) {
+    fn aplly_nonce(
+        &mut self,
+        context: &Context,
+        _client: &SubstrateRollupClient,
+    ) -> Result<(), &'static str> {
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
         for step in self.steps.iter_mut() {
-            let nonce = nonce_map.get(&step.chain).or_else(|| {
-                let chain = context.graph.get_chain(step.chain.clone()).unwrap();
-                let account_info = context.get_account(self.worker).unwrap();
-                let account = match chain.chain_type {
-                    ChainType::Evm => account_info.account20.to_vec(),
-                    ChainType::Sub => account_info.account32.to_vec(),
-                    // ChainType::Unknown => panic!("chain not supported!"),
-                };
-                chain.get_nonce(account).ok()
-            });
-            step.nonce = nonce;
+            let nonce = match nonce_map.get(&step.chain) {
+                Some(nonce) => nonce,
+                None => {
+                    let chain = context
+                        .graph
+                        .get_chain(step.chain.clone())
+                        .ok_or("MissingChain")?;
+                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                    let account = match chain.chain_type {
+                        ChainType::Evm => account_info.account20.to_vec(),
+                        ChainType::Sub => account_info.account32.to_vec(),
+                        // ChainType::Unknown => panic!("chain not supported!"),
+                    };
+                    chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?
+                }
+            };
+            step.nonce = Some(nonce);
             // Increase nonce by 1
-            nonce_map.insert(step.chain.clone(), &(nonce.unwrap() + 1));
+            nonce_map.insert(step.chain.clone(), &(nonce + 1));
         }
+
+        Ok(())
     }
 }
 
@@ -371,7 +391,7 @@ mod tests {
         assert_eq!(task.steps.len(), 3);
 
         // Init task
-        task.init(
+        assert_eq!(task.init(
             &Context {
                 signer: [0; 32],
                 graph: Graph {
@@ -405,7 +425,7 @@ mod tests {
                 dex_executors: vec![],
             },
             &mut client,
-        );
+        ), Ok(()));
 
         let maybe_submittable = client.commit().unwrap();
         if let Some(submittable) = maybe_submittable {

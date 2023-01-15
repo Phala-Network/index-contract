@@ -53,6 +53,7 @@ mod index_executor {
         FailedToCommitTx,
         FailedToSendTransaction,
         FailedToFetchTask,
+        FailedToInitTask,
         ReadCacheFailed,
         WriteCacheFailed,
         DecodeCacheFailed,
@@ -341,21 +342,23 @@ mod index_executor {
             .map_err(|_| Error::FailedToFetchTask)?;
 
             // Initialize task, and save it to on-chain storage
-            actived_task.init(
-                &Context {
-                    // Don't need signer here
-                    signer: [0; 32],
-                    graph: {
-                        let bytes = self.graph.clone();
-                        let mut bytes = bytes.as_ref();
-                        Graph::decode(&mut bytes).unwrap()
+            actived_task
+                .init(
+                    &Context {
+                        // Don't need signer here
+                        signer: [0; 32],
+                        graph: {
+                            let bytes = self.graph.clone();
+                            let mut bytes = bytes.as_ref();
+                            Graph::decode(&mut bytes).unwrap()
+                        },
+                        worker_accounts: self.worker_accounts.clone(),
+                        bridge_executors: vec![],
+                        dex_executors: vec![],
                     },
-                    worker_accounts: self.worker_accounts.clone(),
-                    bridge_executors: vec![],
-                    dex_executors: vec![],
-                },
-                client,
-            );
+                    client,
+                )
+                .map_err(|_| Error::FailedToInitTask)?;
 
             Ok(())
         }
