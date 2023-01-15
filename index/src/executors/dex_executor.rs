@@ -1,6 +1,7 @@
 extern crate alloc;
 use crate::traits::{common::Error, executor::DexExecutor};
 use alloc::vec::Vec;
+use pink_subrpc::ExtraParam;
 use pink_web3::types::Address;
 
 #[allow(dead_code)]
@@ -26,6 +27,7 @@ impl DexExecutor for UniswapV2Executor {
         _asset1: Vec<u8>,
         _spend: u128,
         _recipient: Vec<u8>,
+        _extra: ExtraParam,
     ) -> core::result::Result<(), Error> {
         // Create UniswapV2 router contract entity
 

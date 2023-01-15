@@ -1365,6 +1365,7 @@ dependencies = [
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
+ "pink-subrpc 0.2.0",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",
@@ -2131,7 +2132,7 @@ dependencies = [
 [[package]]
 name = "pink-extension"
 version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=subrpc-remove-digest#b8a47839a4db14fba4f5f431066f6a815aaba3ab"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -2140,7 +2141,7 @@ dependencies = [
  "ink_storage",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=subrpc-remove-digest)",
+ "pink-extension-macro 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=master)",
  "scale-info",
 ]
 
@@ -2179,7 +2180,7 @@ dependencies = [
 [[package]]
 name = "pink-extension-macro"
 version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=subrpc-remove-digest#b8a47839a4db14fba4f5f431066f6a815aaba3ab"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
 dependencies = [
  "heck",
  "ink_lang_ir",
@@ -2250,14 +2251,14 @@ dependencies = [
 [[package]]
 name = "pink-subrpc"
 version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=subrpc-remove-digest#b8a47839a4db14fba4f5f431066f6a815aaba3ab"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
 dependencies = [
  "base58",
  "hex",
  "hex-literal",
  "impl-serde 0.4.0",
  "parity-scale-codec",
- "pink-extension 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=subrpc-remove-digest)",
+ "pink-extension 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=master)",
  "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.12.1",
  "scale-info",
@@ -2797,6 +2798,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-extension-runtime",
+ "pink-subrpc 0.2.0",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",

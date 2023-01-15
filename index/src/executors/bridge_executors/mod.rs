@@ -65,6 +65,7 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
+        extra: ExtraParam,
     ) -> core::result::Result<(), Error> {
         let signer = KeyPair::from(signer);
         let recipient: [u8; 32] = recipient.try_into().expect("Invalid recipient");
@@ -79,9 +80,13 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         let rid = self
             .lookup_rid(asset.into())
             .ok_or(Error::InvalidMultilocation)?;
-        _ = self
-            .bridge_contract
-            .deposit(signer, rid.into(), U256::from(amount), dest.encode())?;
+        _ = self.bridge_contract.deposit(
+            signer,
+            rid.into(),
+            U256::from(amount),
+            dest.encode(),
+            extra.nonce,
+        )?;
         Ok(())
     }
 }
@@ -113,6 +118,7 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
+        extra: ExtraParam,
     ) -> core::result::Result<(), Error> {
         let asset_location: MultiLocation =
             Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
@@ -141,7 +147,7 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
-            ExtraParam::default(),
+            extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =

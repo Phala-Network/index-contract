@@ -4,6 +4,7 @@ use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
 use index::graph::ChainType;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
 /// Definition of swap operation step
@@ -40,7 +41,7 @@ impl Runner for SwapStep {
         true
     }
 
-    fn run(&self, _nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `chain` from registry
@@ -64,6 +65,11 @@ impl Runner for SwapStep {
                 self.receive_asset.clone(),
                 self.spend,
                 recipient,
+                ExtraParam {
+                    tip: 0,
+                    nonce: Some(nonce),
+                    era: None,
+                },
             )
             .map_err(|_| "SwapFailed")?;
         Ok(())

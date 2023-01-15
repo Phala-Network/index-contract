@@ -10,6 +10,7 @@ mod semi_bridge {
     use index::prelude::*;
     use index::utils::ToArray;
     use ink_storage::traits::{PackedLayout, SpreadLayout};
+    use pink_subrpc::ExtraParam;
     use pink_web3::keys::pink::KeyPair;
     use pink_web3::signing::Key;
     use primitive_types::{H160, H256, U256};
@@ -126,6 +127,7 @@ mod semi_bridge {
                 token_contract.as_bytes().to_vec(),
                 recipient,
                 amount.try_into().expect("Amount converted failed"),
+                ExtraParam::default(),
             );
             Ok(())
         }

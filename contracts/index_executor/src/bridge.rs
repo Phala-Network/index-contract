@@ -4,6 +4,7 @@ use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
 use index::graph::ChainType;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
 /// Definition of bridge operation step
@@ -40,7 +41,7 @@ impl Runner for BridgeStep {
         true
     }
 
-    fn run(&self, _nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `src_chain` and `des_chain`
@@ -58,7 +59,17 @@ impl Runner for BridgeStep {
         };
         // Do bridge transfer operation
         executor
-            .transfer(signer, self.from.clone(), recipient, self.amount)
+            .transfer(
+                signer,
+                self.from.clone(),
+                recipient,
+                self.amount,
+                ExtraParam {
+                    tip: 0,
+                    nonce: Some(nonce),
+                    era: None,
+                },
+            )
             .map_err(|_| "BridgeFailed")?;
         Ok(())
     }

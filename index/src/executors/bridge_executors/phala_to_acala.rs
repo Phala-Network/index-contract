@@ -35,6 +35,7 @@ impl BridgeExecutor for Phala2AcalaExecutor {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
+        extra: ExtraParam,
     ) -> core::result::Result<(), Error> {
         let asset_location: MultiLocation =
             Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
@@ -61,7 +62,7 @@ impl BridgeExecutor for Phala2AcalaExecutor {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
-            ExtraParam::default(),
+            extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =
@@ -98,7 +99,13 @@ mod tests {
         let asset = asset.encode();
         // example: https://phala.subscan.io/extrinsic/1620712-2
         // note that network problems can cause Error::InvalidSignature, no idea why
-        exec.transfer(signer, asset, recipient, 1_000_000_000_000)
-            .unwrap();
+        exec.transfer(
+            signer,
+            asset,
+            recipient,
+            1_000_000_000_000,
+            ExtraParam::default(),
+        )
+        .unwrap();
     }
 }

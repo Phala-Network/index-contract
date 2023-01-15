@@ -2,6 +2,7 @@ extern crate alloc;
 use super::common::Error;
 use alloc::vec::Vec;
 use dyn_clone::DynClone;
+use pink_subrpc::ExtraParam;
 
 pub trait BridgeExecutor: DynClone {
     fn transfer(
@@ -10,6 +11,7 @@ pub trait BridgeExecutor: DynClone {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
+        extra: ExtraParam,
     ) -> core::result::Result<(), Error>;
 }
 
@@ -21,5 +23,6 @@ pub trait DexExecutor: DynClone {
         asset1: Vec<u8>,
         spend: u128,
         recipient: Vec<u8>,
+        extra: ExtraParam,
     ) -> core::result::Result<(), Error>;
 }
