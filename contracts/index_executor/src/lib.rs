@@ -368,6 +368,8 @@ mod index_executor {
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
                         if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
+                            // The state of task saved in rollup storage is `Initialized`, to understand
+                            // the current state we must sync state according to on-chain history
                             onchain_task.sync(
                                 &Context {
                                     signer: self.pub_to_prv(onchain_task.worker).unwrap(),

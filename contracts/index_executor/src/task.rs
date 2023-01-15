@@ -120,6 +120,11 @@ impl Task {
         context: &Context,
         client: &mut SubstrateRollupClient,
     ) -> Result<TaskStatus, &'static str> {
+        // To avoid unnecessary remote check, we check index in advance
+        if self.execute_index as usize == self.steps.len() {
+            return Ok(TaskStatus::Completed);
+        }
+
         // If step already executed successfully, execute next step
         if self.steps[self.execute_index as usize].check(
             self.steps[self.execute_index as usize].nonce.unwrap(),
@@ -132,15 +137,15 @@ impl Task {
                 self.status = TaskStatus::Completed;
                 return Ok(self.status.clone());
             }
-        }
 
-        let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
-        // FIXME: handle return error
-        if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
-            == Ok(true)
-        {
-            self.steps[self.execute_index as usize].run(nonce, context)?;
-            self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+            // FIXME: handle returned error
+            if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+                == Ok(true)
+            {
+                self.steps[self.execute_index as usize].run(nonce, context)?;
+                self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+            }
         }
         Ok(self.status.clone())
     }
