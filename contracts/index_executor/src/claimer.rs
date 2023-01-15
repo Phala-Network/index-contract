@@ -39,9 +39,9 @@ pub struct ClaimStep {
 }
 
 impl Runner for ClaimStep {
-    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool {
+    fn runnable(&self, client: &mut SubstrateRollupClient) -> Result<bool, &'static str> {
         // If task already exist in rollup storage, it is ready to be claimed
-        OnchainTasks::lookup_task(client, &self.id).is_some()
+        Ok(OnchainTasks::lookup_task(client, &self.id).is_some())
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
@@ -58,17 +58,18 @@ impl Runner for ClaimStep {
         }
     }
 
-    fn check(&self, nonce: u64, context: &Context) -> bool {
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker = KeyPair::from(context.signer);
         // Check if the transaction has been executed
         let chain = context
             .graph
-            // FIXME: Shouldn't unwrap directly, consider return change return type to Result<>
             .get_chain(self.chain.clone())
-            .unwrap();
+            .ok_or("MissingChain")?;
         // FIXME: Shouldn't unwrap directly, consider return change return type to Result<>
-        let onchain_nonce = chain.get_nonce(worker.address().as_bytes().into()).unwrap();
-        (onchain_nonce - nonce) == 1
+        let onchain_nonce = chain
+            .get_nonce(worker.address().as_bytes().into())
+            .map_err(|_| "FetchNonceFailed")?;
+        Ok((onchain_nonce - nonce) == 1)
 
         // TODO: Check if the transaction is successed or not
     }
@@ -423,6 +424,6 @@ mod tests {
         // Wait 60 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(60000));
 
-        assert_eq!(claim_step.check(nonce, &context), true);
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
     }
 }

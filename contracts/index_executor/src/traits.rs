@@ -7,10 +7,10 @@ pub trait Runner {
     /// it should be `unrunable`.
     /// If the transaction failed to execute, it should be `unrunable`.
     /// Else the job should be `runnable`.
-    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool;
+    fn runnable(&self, client: &mut SubstrateRollupClient) -> Result<bool, &'static str>;
     /// Execute a job, basically send a transaction to blockchain.
     fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str>;
     /// Check if a job is already executed successfully.
     /// Only when the transaction was successfully executed, it can return `true`
-    fn check(&self, nonce: u64, context: &Context) -> bool;
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str>;
 }

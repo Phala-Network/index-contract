@@ -36,9 +36,9 @@ pub struct SwapStep {
 }
 
 impl Runner for SwapStep {
-    fn runnable(&self, _client: &mut SubstrateRollupClient) -> bool {
+    fn runnable(&self, _client: &mut SubstrateRollupClient) -> Result<bool, &'static str> {
         // TODO: implement
-        true
+        Ok(true)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
@@ -75,8 +75,8 @@ impl Runner for SwapStep {
         Ok(())
     }
 
-    fn check(&self, _nonce: u64, _context: &Context) -> bool {
+    fn check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
         // TODO: implement
-        false
+        Ok(false)
     }
 }

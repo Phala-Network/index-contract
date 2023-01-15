@@ -100,7 +100,7 @@ impl Task {
     // Recover execution status according to on-chain storage
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         for step in self.steps.iter() {
-            if step.check(step.nonce.unwrap(), context) {
+            if step.check(step.nonce.unwrap(), context) == Ok(true) {
                 self.execute_index += 1;
                 // If all step executed successfully, set task as `Completed`
                 if self.execute_index as usize == self.steps.len() {
@@ -124,7 +124,8 @@ impl Task {
         if self.steps[self.execute_index as usize].check(
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
-        ) {
+        ) == Ok(true)
+        {
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
             if self.execute_index as usize == self.steps.len() {
@@ -133,7 +134,7 @@ impl Task {
             }
         }
 
-        if self.steps[self.execute_index as usize].runnable(client) {
+        if self.steps[self.execute_index as usize].runnable(client) == Ok(true) {
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             self.steps[self.execute_index as usize].run(nonce, context)?;
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
