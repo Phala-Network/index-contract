@@ -26,7 +26,7 @@ use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
 /// For example, call RPC method defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L108
+///     https://github.com/Phala-Network/index-solidity/blob/0a1efe4b228185a37635dd872e1130eb3564ef6a/contracts/Handler.sol#L108
 ///
 /// Return account nonce that related to this transaction
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -84,7 +84,7 @@ impl ClaimStep {
     ) -> Result<(), &'static str> {
         // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = hex!("Bf30B9BD94C584d8449fDE4fa57F46c838b62dc2").into();
-        let transport = Eth::new(PinkHttp::new(&chain.endpoint));
+        let transport = Eth::new(PinkHttp::new(chain.endpoint));
         let handler = Contract::from_json(
             transport,
             handler_on_goerli,

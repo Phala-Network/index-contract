@@ -35,12 +35,12 @@ pub struct SwapStep {
 }
 
 impl Runner for SwapStep {
-    fn runnable(&self, client: &mut SubstrateRollupClient) -> bool {
+    fn runnable(&self, _client: &mut SubstrateRollupClient) -> bool {
         // TODO: implement
         true
     }
 
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, _nonce: u64, context: &Context) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `chain` from registry
@@ -69,7 +69,7 @@ impl Runner for SwapStep {
         Ok(())
     }
 
-    fn check(&self, _nonce: u64, context: &Context) -> bool {
+    fn check(&self, _nonce: u64, _context: &Context) -> bool {
         // TODO: implement
         false
     }
