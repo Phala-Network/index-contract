@@ -29,6 +29,7 @@ pub struct Step {
 impl Runner for Step {
     fn runnable(
         &self,
+        nonce: u64,
         context: &Context,
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
@@ -36,9 +37,9 @@ impl Runner for Step {
             return Err("MissingNonce");
         }
         match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.runnable(context, client),
-            StepMeta::Swap(swap_step) => swap_step.runnable(context, client),
-            StepMeta::Bridge(bridge_step) => bridge_step.runnable(context, client),
+            StepMeta::Claim(claim_step) => claim_step.runnable(nonce, context, client),
+            StepMeta::Swap(swap_step) => swap_step.runnable(nonce, context, client),
+            StepMeta::Bridge(bridge_step) => bridge_step.runnable(nonce, context, client),
         }
     }
 

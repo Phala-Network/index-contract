@@ -134,8 +134,11 @@ impl Task {
             }
         }
 
-        if self.steps[self.execute_index as usize].runnable(context, Some(client)) == Ok(true) {
-            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+        let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+        // FIXME: handle return error
+        if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+            == Ok(true)
+        {
             self.steps[self.execute_index as usize].run(nonce, context)?;
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
         }

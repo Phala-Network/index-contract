@@ -9,6 +9,7 @@ pub trait Runner {
     /// Else the job should be `runnable`.
     fn runnable(
         &self,
+        nonce: u64,
         context: &Context,
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str>;

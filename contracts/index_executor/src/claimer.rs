@@ -41,7 +41,8 @@ pub struct ClaimStep {
 impl Runner for ClaimStep {
     fn runnable(
         &self,
-        context: &Context,
+        _nonce: u64,
+        _context: &Context,
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
         // If task already exist in rollup storage, it is ready to be claimed
