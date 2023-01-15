@@ -42,8 +42,8 @@ impl Runner for BridgeStep {
     // the nonce we apply to the step, that means the transaction revalant to the step already been executed.
     // In this situation we return false.
     //
-    // second by checking the `from` asset balance of the worker account on the source chain, if the balance is
-    // great than or equal to the `amount` to bridge, we think we can safely execute bridge transaction
+    // second by checking the `spend_asset` balance of the worker account on the source chain, if the balance is
+    // great than or equal to the `spend`, we think we can safely execute swap transaction
     fn runnable(
         &self,
         nonce: u64,
@@ -53,8 +53,7 @@ impl Runner for BridgeStep {
         let source_chain = context
             .graph
             .get_chain(self.source_chain.clone())
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
+            .ok_or("MissingChain")?;
         let worker_account: Vec<u8> = match source_chain.chain_type {
             ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
             ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
@@ -84,8 +83,7 @@ impl Runner for BridgeStep {
         let chain = context
             .graph
             .get_chain(self.dest_chain.clone())
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
+            .ok_or("MissingChain")?;
         let recipient = match chain.chain_type {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
@@ -107,8 +105,31 @@ impl Runner for BridgeStep {
         Ok(())
     }
 
-    fn check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
-        // TODO: implement
-        Ok(false)
+    // By checking the nonce we can known whether the transaction has been executed or not,
+    // and with help of off-chain indexer, we can get the relevant transaction's execution result.
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        let source_chain = context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?;
+        let worker_account: Vec<u8> = match source_chain.chain_type {
+            ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
+            ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
+        };
+
+        // TODO. query off-chain indexer directly get the execution result
+        // Check nonce
+        let onchain_nonce = source_chain
+            .get_nonce(worker_account.clone())
+            .map_err(|_| "FetchNonceFailed")?;
+        if onchain_nonce <= nonce {
+            return Ok(false);
+        }
+
+        // Check balance change on source chain
+        let onchain_balance = source_chain
+            .get_balance(self.from.clone(), worker_account)
+            .map_err(|_| "FetchBalanceFailed")?;
+        Ok((self.b0.unwrap() - onchain_balance) == self.amount)
     }
 }
