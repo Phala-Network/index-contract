@@ -60,6 +60,8 @@ crate-type = [
 default = ["std"]
 std = [
     "hex/std",
+    "serde/std",
+    "fixed/std",
     "ink_metadata/std",
     "ink_env/std",
     "ink_storage/std",
