@@ -246,16 +246,18 @@ impl Detokenize for DepositData {
 impl DepositData {
     fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
         let request_data_json: RequestDataJson = pink_json::from_str(&self.request).unwrap();
-        if request_data_json.len() < 1 {
+        if request_data_json.is_empty() {
             return Err("EmptyTask");
         }
 
-        let mut uninitialized_task: Task = Default::default();
-        uninitialized_task.id = id;
-        // Preset
-        uninitialized_task.source = source_chain.into();
-        uninitialized_task.sender = self.sender.as_bytes().into();
-        uninitialized_task.recipient = self.recipient.clone();
+        let mut uninitialized_task = Task {
+            id,
+            source: source_chain.into(),
+            sender: self.sender.as_bytes().into(),
+            recipient: self.recipient.clone(),
+            ..Default::default()
+        };
+
         // Insert claim step
         uninitialized_task.steps.push(Step {
             meta: StepMeta::Claim(ClaimStep {
@@ -267,6 +269,7 @@ impl DepositData {
             chain: source_chain.into(),
             nonce: None,
         });
+
         for op in request_data_json.iter() {
             if op.op_type == *"swap" {
                 uninitialized_task.steps.push(Step {
