@@ -17,7 +17,7 @@ use pink_web3::{
 use primitive_types::U256;
 use scale::Decode;
 use scale::Encode;
-use subrpc::{create_transaction, send_transaction};
+use subrpc::{create_transaction, send_transaction, ExtraParam};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
 mod moonbeam_to_phala;
@@ -141,6 +141,7 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
+            ExtraParam::default(),
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =

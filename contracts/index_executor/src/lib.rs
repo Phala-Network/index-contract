@@ -25,7 +25,9 @@ mod index_executor {
     };
     use hex_literal::hex;
     use index::graph::ChainType;
-    use index::graph::{Asset, Bridge, BridgePair, Chain, Dex, DexIndexer, DexPair, Graph};
+    use index::graph::{
+        Asset, Bridge, BridgePair, Chain, Dex, DexIndexer, DexPair, ForeignAssetModule, Graph,
+    };
     use index::prelude::*;
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use phat_offchain_rollup::clients::substrate::{
@@ -299,6 +301,14 @@ mod index_executor {
                                 // 0 => ChainType::Unknown,
                                 1 => ChainType::Evm,
                                 2 => ChainType::Sub,
+                                _ => panic!("Unsupported chain!"),
+                            }
+                        },
+                        native_asset: chain.native_asset.clone(),
+                        foreign_asset: {
+                            match chain.foreign_asset {
+                                1 => Some(ForeignAssetModule::PalletAsset),
+                                2 => Some(ForeignAssetModule::OrmlToken),
                                 _ => panic!("Unsupported chain!"),
                             }
                         },
@@ -671,12 +681,16 @@ mod index_executor {
                 name: "Ethereum".to_string(),
                 chain_type: 1,
                 endpoint: "endpoint".to_string(),
+                native_asset: MultiLocation::new(0, Here).encode(),
+                foreign_asset: 1,
             };
             let phala = RegistryChain {
                 id: 2,
                 name: "Phala".to_string(),
                 chain_type: 2,
                 endpoint: "endpoint".to_string(),
+                native_asset: MultiLocation::new(0, Here).encode(),
+                foreign_asset: 1,
             };
             let pha_on_ethereum = RegistryAsset {
                 id: 1,
