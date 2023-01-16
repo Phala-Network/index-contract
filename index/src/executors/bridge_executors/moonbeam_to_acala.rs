@@ -99,7 +99,7 @@ mod tests {
             1_000_000_000,
         )
         .unwrap();
-        // test txn:      
+        // test txn:
         // - https://moonbeam.subscan.io/xcm_message/polkadot-16d178dd10eb67113379520279b7cd5a8547999a
     }
 }
