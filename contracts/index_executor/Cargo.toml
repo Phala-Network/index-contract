@@ -78,3 +78,6 @@ std = [
     "index/std",
 ]
 ink-as-dependency = []
+
+[patch.crates-io]
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }
