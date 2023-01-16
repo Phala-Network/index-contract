@@ -215,4 +215,206 @@ impl OnchainAccounts {
         }
         vec![]
     }
+
+    pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
+        client
+            .session()
+            .put(&b"free_accounts".to_vec(), accounts.encode());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::account::AccountInfo;
+    use crate::claimer::ActivedTaskFetcher;
+    use dotenv::dotenv;
+    use hex_literal::hex;
+    use index::graph::{Chain, ChainType, Graph};
+    use ink_lang as ink;
+    use phat_offchain_rollup::clients::substrate::{
+        claim_name, get_name_owner, SubstrateRollupClient,
+    };
+    use primitive_types::H160;
+
+    fn config_rollup(
+        rollup_endpoint: String,
+        contract_id: &ink_env::AccountId,
+        submit_key: [u8; 32],
+    ) -> Result<(), &'static str> {
+        // Check if the rollup is initialized properly
+        let actual_owner = get_name_owner(&rollup_endpoint, contract_id).unwrap();
+        if let Some(owner) = actual_owner {
+            let pubkey = pink_extension::ext().get_public_key(
+                pink_extension::chain_extension::SigType::Sr25519,
+                &submit_key,
+            );
+            if owner.encode() != pubkey {
+                return Err("Slot owner dismatch");
+            }
+        } else {
+            // Not initialized. Let's claim the name.
+            claim_name(&rollup_endpoint, 100, &contract_id, &submit_key).unwrap();
+        }
+        Ok(())
+    }
+
+    #[ink::test]
+    fn test_get_evm_account_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+        let _ = env_logger::try_init();
+
+        let goerli = Chain {
+            id: 1,
+            name: String::from("Goerli"),
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            chain_type: ChainType::Evm,
+            native_asset: vec![0],
+            foreign_asset: None,
+        };
+        assert_eq!(
+            goerli
+                .get_nonce(hex!("0E275F8839b788B2674935AD97C01cF73A9E8c41").into())
+                .unwrap(),
+            2
+        );
+    }
+
+    #[ignore]
+    #[ink::test]
+    fn task_init_should_work() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+        // Secret key of test account `//Alice`
+        let sk_alice = hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
+        // Prepare executor account
+        let executor_key =
+            pink_web3::keys::pink::KeyPair::derive_keypair(b"executor").private_key();
+        let executor_pub: [u8; 32] = pink_extension::ext()
+            .get_public_key(
+                pink_extension::chain_extension::SigType::Sr25519,
+                &executor_key,
+            )
+            .try_into()
+            .unwrap();
+        let contract_id: ink_env::AccountId = executor_pub.into();
+
+        // Prepare worker accounts
+        let mut worker_accounts: Vec<AccountInfo> = vec![];
+        for index in 0..10 {
+            let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
+                &[b"worker".to_vec(), [index].to_vec()].concat(),
+            )
+            .private_key();
+            worker_accounts.push(AccountInfo::from(private_key));
+        }
+
+        // Config rollup, alice sent first transaction, nonce = 0
+        assert_eq!(
+            config_rollup(
+                String::from("http://127.0.0.1:39933"),
+                &contract_id,
+                sk_alice
+            ),
+            Ok(())
+        );
+
+        // Create rollup client
+        let mut client =
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+        // Setup initial worker accounts to rollup storage
+        OnchainAccounts::set_worker_accounts(
+            &mut client,
+            worker_accounts
+                .clone()
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect(),
+        );
+
+        // Fetch actived task from chain
+        let pre_mock_executor_address: H160 =
+            hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let mut task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Ethereum"),
+                chain_type: ChainType::Evm,
+                endpoint: String::from(
+                    "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+                ),
+                native_asset: vec![0],
+                foreign_asset: None,
+            },
+            executor: AccountInfo {
+                account20: pre_mock_executor_address.into(),
+                account32: [0; 32],
+            },
+        }
+        .fetch_task()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+
+        // Init task
+        task.init(
+            &Context {
+                signer: [0; 32],
+                graph: Graph {
+                    chains: vec![
+                        Chain {
+                            id: 1,
+                            name: String::from("Khala"),
+                            endpoint: String::from("http://127.0.0.1:39933"),
+                            chain_type: ChainType::Sub,
+                            native_asset: vec![0],
+                            foreign_asset: None,
+                        },
+                        Chain {
+                            id: 2,
+                            name: String::from("Ethereum"),
+                            endpoint: String::from("https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2"),
+                            chain_type: ChainType::Evm,
+                            native_asset: vec![0],
+                            foreign_asset: None,
+                        }
+                    ],
+                    assets: vec![],
+                    dexs: vec![],
+                    dex_pairs: vec![],
+                    dex_indexers: vec![],
+                    bridges: vec![],
+                    bridge_pairs: vec![],
+                },
+                worker_accounts: worker_accounts.clone(),
+                bridge_executors: vec![],
+                dex_executors: vec![],
+            },
+            &mut client,
+        );
+
+        let maybe_submittable = client.commit().unwrap();
+        if let Some(submittable) = maybe_submittable {
+            let _tx_id = submittable.submit(&sk_alice, 1).unwrap();
+        }
+
+        // Wait 3 seconds
+        std::thread::sleep(std::time::Duration::from_millis(3000));
+
+        // Now let's query if the task is exist in rollup storage with another rollup client
+        let mut another_client =
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+        let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
+        assert_eq!(onchain_task.status, TaskStatus::Initialized);
+        assert_eq!(
+            onchain_task.worker,
+            worker_accounts.last().unwrap().account32
+        );
+        assert_eq!(onchain_task.steps.len(), 3);
+        assert_eq!(onchain_task.steps[0].nonce, Some(0));
+        assert_eq!(onchain_task.steps[1].nonce, Some(1));
+        assert_eq!(onchain_task.steps[2].nonce, Some(2));
+    }
 }

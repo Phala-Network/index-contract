@@ -20,6 +20,8 @@ pub enum Error {
     FailedToGetGas,
     FailedToSubmitTransaction,
     FailedToScaleDecode,
+    DecodeStorageFailed,
+    AssetNotRecognized,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]

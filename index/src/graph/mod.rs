@@ -1,3 +1,4 @@
+mod account;
 mod asset;
 mod bridge;
 mod chain;
@@ -8,9 +9,10 @@ use alloc::vec::Vec;
 use scale::{Decode, Encode};
 
 pub use self::{
+    account::*,
     asset::Asset,
     bridge::{Bridge, BridgePair},
-    chain::{Chain, ChainType, NonceFetcher},
+    chain::{Chain, ChainType, ForeignAssetModule, NonceFetcher},
     dex::{Dex, DexIndexer, DexPair},
 };
 

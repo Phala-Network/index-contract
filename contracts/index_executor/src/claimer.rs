@@ -78,17 +78,17 @@ impl ClaimStep {
 ///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L165
 /// If the given chain is Substrate based, fetch requests from pallet storage through RPC request.
 pub struct ActivedTaskFetcher {
-    chain: Chain,
-    worker: AccountInfo,
+    pub chain: Chain,
+    pub executor: AccountInfo,
 }
 impl ActivedTaskFetcher {
-    pub fn new(chain: Chain, worker: AccountInfo) -> Self {
-        ActivedTaskFetcher { chain, worker }
+    pub fn new(chain: Chain, executor: AccountInfo) -> Self {
+        ActivedTaskFetcher { chain, executor }
     }
 
     pub fn fetch_task(&self) -> Result<Task, &'static str> {
         match self.chain.chain_type {
-            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.worker)?),
+            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.executor)?),
             ChainType::Sub => Err("Unimplemented"),
         }
     }
@@ -271,6 +271,7 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
 
@@ -280,7 +281,7 @@ mod tests {
 
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let executor_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
@@ -289,9 +290,11 @@ mod tests {
                 endpoint: String::from(
                     "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
                 ),
+                native_asset: vec![0],
+                foreign_asset: None,
             },
-            worker: AccountInfo {
-                account20: worker_address.into(),
+            executor: AccountInfo {
+                account20: executor_address.into(),
                 account32: [0; 32],
             },
         }
