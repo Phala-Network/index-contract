@@ -1,9 +1,9 @@
+use super::account::AccountInfo;
 use super::context::Context;
-use super::step::Step;
+use super::step::{Step, StepMeta};
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
-use index::graph::ChainType;
-use index::graph::NonceFetcher;
+use index::graph::{BalanceFetcher, ChainType, NonceFetcher};
 use ink_storage::Mapping;
 use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
@@ -145,6 +145,11 @@ impl Task {
                 return Ok(self.status.clone());
             }
 
+            // Settle before execute next step
+            let settle_balance = self.settle(context)?;
+            // Update balance that actually can be consumed
+            self.update_balance(settle_balance)?;
+
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             // FIXME: handle returned error
@@ -209,6 +214,99 @@ impl Task {
             nonce_map.insert(step.chain.clone(), &(nonce + 1));
         }
 
+        Ok(())
+    }
+
+    fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
+        if self.execute_index < 1 {
+            return Err("InvalidExecuteIndex");
+        }
+
+        let last_step = self.steps[(self.execute_index - 1) as usize].clone();
+        Ok(match last_step.meta {
+            StepMeta::Claim(claim_step) => {
+                let old_balance = claim_step.b0.ok_or("MisingOriginBalance")?;
+                let source_chain = context
+                    .graph
+                    .get_chain(claim_step.chain.clone())
+                    .ok_or("MissingChain")?;
+                let worker_account: Vec<u8> = match source_chain.chain_type {
+                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
+                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
+                };
+                let latest_balance = source_chain
+                    .get_balance(claim_step.asset, worker_account)
+                    .map_err(|_| "FetchBalanceFailed")?;
+
+                if latest_balance <= old_balance {
+                    return Err("UnknownError");
+                }
+                latest_balance - old_balance
+            }
+            StepMeta::Swap(swap_step) => {
+                let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
+                let source_chain = context
+                    .graph
+                    .get_chain(swap_step.chain.clone())
+                    .ok_or("MissingChain")?;
+                let worker_account: Vec<u8> = match source_chain.chain_type {
+                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
+                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
+                };
+                let latest_balance = source_chain
+                    .get_balance(swap_step.spend_asset, worker_account)
+                    .map_err(|_| "FetchBalanceFailed")?;
+
+                if latest_balance <= old_balance {
+                    return Err("UnknownError");
+                }
+                latest_balance - old_balance
+            }
+            StepMeta::Bridge(bridge_step) => {
+                // Old balance on dest chain
+                let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
+                let dest_chain = context
+                    .graph
+                    .get_chain(bridge_step.dest_chain.clone())
+                    .ok_or("MissingChain")?;
+                let worker_account: Vec<u8> = match dest_chain.chain_type {
+                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
+                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
+                };
+                let latest_balance = dest_chain
+                    .get_balance(bridge_step.to, worker_account)
+                    .map_err(|_| "FetchBalanceFailed")?;
+
+                if latest_balance <= old_balance {
+                    return Err("UnknownError");
+                }
+                latest_balance - old_balance
+            }
+        })
+    }
+
+    fn update_balance(&mut self, settle_balance: u128) -> Result<(), &'static str> {
+        if self.execute_index < 1 {
+            return Err("InvalidExecuteIndex");
+        }
+
+        match &mut self.steps[self.execute_index as usize].meta {
+            StepMeta::Swap(swap_step) => {
+                swap_step.spend = if settle_balance <= swap_step.flow {
+                    settle_balance
+                } else {
+                    swap_step.flow
+                };
+            }
+            StepMeta::Bridge(bridge_step) => {
+                bridge_step.amount = if settle_balance <= bridge_step.flow {
+                    settle_balance
+                } else {
+                    bridge_step.flow
+                };
+            }
+            _ => return Err("UnexpectedStep"),
+        }
         Ok(())
     }
 }

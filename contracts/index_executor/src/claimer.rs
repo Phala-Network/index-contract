@@ -36,6 +36,10 @@ pub struct ClaimStep {
     pub chain: String,
     /// Task Id
     pub id: TaskId,
+    /// Asset that will transfer to worker account during claim
+    pub asset: Vec<u8>,
+    /// Original relayer account balance of received asset
+    pub b0: Option<u128>,
 }
 
 impl Runner for ClaimStep {
@@ -241,8 +245,12 @@ impl Detokenize for DepositData {
 
 impl DepositData {
     fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
-        let mut uninitialized_task: Task = Default::default();
         let request_data_json: RequestDataJson = pink_json::from_str(&self.request).unwrap();
+        if request_data_json.len() < 1 {
+            return Err("EmptyTask");
+        }
+
+        let mut uninitialized_task: Task = Default::default();
         uninitialized_task.id = id;
         // Preset
         uninitialized_task.source = source_chain.into();
@@ -253,6 +261,8 @@ impl DepositData {
             meta: StepMeta::Claim(ClaimStep {
                 chain: source_chain.into(),
                 id,
+                asset: request_data_json[0].spend_asset.as_bytes().into(),
+                b0: None,
             }),
             chain: source_chain.into(),
             nonce: None,
@@ -409,6 +419,8 @@ mod tests {
             id: hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap()
                 .to_array(),
+            asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
+            b0: None,
         };
         let context = Context {
             signer: mock_worker_key,
