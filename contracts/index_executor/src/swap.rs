@@ -2,7 +2,7 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index::graph::{BalanceFetcher, ChainType, NonceFetcher};
+use index::graph::ChainType;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -50,26 +50,16 @@ impl Runner for SwapStep {
         context: &Context,
         _client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
-        let source_chain = context
-            .graph
-            .get_chain(self.chain.clone())
-            .ok_or("MissingChain")?;
-        let worker_account: Vec<u8> = match source_chain.chain_type {
-            ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-            ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-        };
+        let worker_account = AccountInfo::from(context.signer);
 
         // 1. Check nonce
-        let onchain_nonce = source_chain
-            .get_nonce(worker_account.clone())
-            .map_err(|_| "FetchNonceFailed")?;
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
         if onchain_nonce > nonce {
             return Err("StepAlreadyExecuted");
         }
         // 2. Check balance
-        let onchain_balance = source_chain
-            .get_balance(self.spend_asset.clone(), worker_account)
-            .map_err(|_| "FetchBalanceFailed")?;
+        let onchain_balance =
+            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
         Ok(onchain_balance >= self.spend)
     }
 
@@ -110,28 +100,18 @@ impl Runner for SwapStep {
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        let source_chain = context
-            .graph
-            .get_chain(self.chain.clone())
-            .ok_or("MissingChain")?;
-        let worker_account: Vec<u8> = match source_chain.chain_type {
-            ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-            ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-        };
+        let worker_account = AccountInfo::from(context.signer);
 
         // TODO. query off-chain indexer directly get the execution result
         // Check nonce
-        let onchain_nonce = source_chain
-            .get_nonce(worker_account.clone())
-            .map_err(|_| "FetchNonceFailed")?;
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
         if onchain_nonce <= nonce {
             return Ok(false);
         }
 
         // Check balance change on source chain
-        let onchain_balance = source_chain
-            .get_balance(self.spend_asset.clone(), worker_account)
-            .map_err(|_| "FetchBalanceFailed")?;
+        let onchain_balance =
+            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
         Ok((self.b0.unwrap() - onchain_balance) == self.spend)
     }
 

@@ -3,7 +3,7 @@ use super::context::Context;
 use super::step::{Step, StepMeta};
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
-use index::graph::{BalanceFetcher, ChainType, NonceFetcher};
+use index::graph::{ChainType, NonceFetcher};
 use ink_storage::Mapping;
 use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
@@ -223,21 +223,13 @@ impl Task {
         }
 
         let last_step = self.steps[(self.execute_index - 1) as usize].clone();
+        let worker_account = AccountInfo::from(context.signer);
         Ok(match last_step.meta {
             StepMeta::Claim(claim_step) => {
                 let old_balance = claim_step.b0.ok_or("MisingOriginBalance")?;
-                let source_chain = context
-                    .graph
-                    .get_chain(claim_step.chain.clone())
-                    .ok_or("MissingChain")?;
-                let worker_account: Vec<u8> = match source_chain.chain_type {
-                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-                };
-                let latest_balance = source_chain
-                    .get_balance(claim_step.asset, worker_account)
-                    .map_err(|_| "FetchBalanceFailed")?;
-
+                let latest_balance =
+                    worker_account.get_balance(claim_step.chain, claim_step.asset, context)?;
+                // FIXME: what if some bad guy transfer this asset into worker account
                 if latest_balance <= old_balance {
                     return Err("UnknownError");
                 }
@@ -245,18 +237,12 @@ impl Task {
             }
             StepMeta::Swap(swap_step) => {
                 let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
-                let source_chain = context
-                    .graph
-                    .get_chain(swap_step.chain.clone())
-                    .ok_or("MissingChain")?;
-                let worker_account: Vec<u8> = match source_chain.chain_type {
-                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-                };
-                let latest_balance = source_chain
-                    .get_balance(swap_step.receive_asset, worker_account)
-                    .map_err(|_| "FetchBalanceFailed")?;
-
+                let latest_balance = worker_account.get_balance(
+                    swap_step.chain,
+                    swap_step.receive_asset,
+                    context,
+                )?;
+                // FIXME: what if some bad guy transfer this asset into worker account
                 if latest_balance <= old_balance {
                     return Err("UnknownError");
                 }
@@ -265,18 +251,9 @@ impl Task {
             StepMeta::Bridge(bridge_step) => {
                 // Old balance on dest chain
                 let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
-                let dest_chain = context
-                    .graph
-                    .get_chain(bridge_step.dest_chain.clone())
-                    .ok_or("MissingChain")?;
-                let worker_account: Vec<u8> = match dest_chain.chain_type {
-                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-                };
-                let latest_balance = dest_chain
-                    .get_balance(bridge_step.to, worker_account)
-                    .map_err(|_| "FetchBalanceFailed")?;
-
+                let latest_balance =
+                    worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
+                // FIXME: what if some bad guy transfer this asset into worker account
                 if latest_balance <= old_balance {
                     return Err("UnknownError");
                 }
@@ -293,7 +270,7 @@ impl Task {
         if self.execute_index < 1 {
             return Err("InvalidExecuteIndex");
         }
-
+        let worker_account = AccountInfo::from(context.signer);
         match &mut self.steps[self.execute_index as usize].meta {
             StepMeta::Swap(swap_step) => {
                 swap_step.spend = if settle_balance <= swap_step.flow {
@@ -303,17 +280,11 @@ impl Task {
                 };
 
                 // Update receive asset the original balance of worker account
-                let source_chain = context
-                    .graph
-                    .get_chain(swap_step.chain.clone())
-                    .ok_or("MissingChain")?;
-                let worker_account: Vec<u8> = match source_chain.chain_type {
-                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-                };
-                let latest_balance = source_chain
-                    .get_balance(swap_step.receive_asset.clone(), worker_account)
-                    .map_err(|_| "FetchBalanceFailed")?;
+                let latest_balance = worker_account.get_balance(
+                    swap_step.chain.clone(),
+                    swap_step.receive_asset.clone(),
+                    context,
+                )?;
                 swap_step.b1 = Some(latest_balance)
             }
             StepMeta::Bridge(bridge_step) => {
@@ -324,17 +295,11 @@ impl Task {
                 };
 
                 // Update bridge asset on dest chain the original balance of worker account
-                let dest_chain = context
-                    .graph
-                    .get_chain(bridge_step.dest_chain.clone())
-                    .ok_or("MissingChain")?;
-                let worker_account: Vec<u8> = match dest_chain.chain_type {
-                    ChainType::Evm => AccountInfo::from(context.signer).account20.into(),
-                    ChainType::Sub => AccountInfo::from(context.signer).account32.into(),
-                };
-                let latest_balance = dest_chain
-                    .get_balance(bridge_step.to.clone(), worker_account)
-                    .map_err(|_| "FetchBalanceFailed")?;
+                let latest_balance = worker_account.get_balance(
+                    bridge_step.dest_chain.clone(),
+                    bridge_step.to.clone(),
+                    context,
+                )?;
                 bridge_step.b1 = Some(latest_balance)
             }
             _ => return Err("UnexpectedStep"),
