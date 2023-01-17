@@ -1,8 +1,8 @@
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
-use crate::constants::assets::CurrencyId;
+use crate::assets::{AggregatedSwapPath, CurrencyId};
+use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
-use crate::{constants::assets::AggregatedSwapPath, prelude::DexExecutor};
 use alloc::{
     string::{String, ToString},
     vec,
@@ -104,7 +104,7 @@ impl DexExecutor for AcalaDexExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::assets::{CurrencyId, TokenSymbol};
+    use crate::assets::{CurrencyId, TokenSymbol};
     use crate::utils::ToArray;
     use scale::Compact;
     use scale::Encode;
