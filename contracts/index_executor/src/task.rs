@@ -482,6 +482,7 @@ mod tests {
             },
         }
         .fetch_task()
+        .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
 

@@ -146,7 +146,7 @@ impl ActivedTaskFetcher {
         ActivedTaskFetcher { chain, executor }
     }
 
-    pub fn fetch_task(&self) -> Result<Task, &'static str> {
+    pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
             ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.executor)?),
             ChainType::Sub => Err("Unimplemented"),
@@ -157,7 +157,7 @@ impl ActivedTaskFetcher {
         &self,
         chain: &Chain,
         worker: &AccountInfo,
-    ) -> Result<Task, &'static str> {
+    ) -> Result<Option<Task>, &'static str> {
         // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = hex!("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5").into();
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
@@ -175,7 +175,10 @@ impl ActivedTaskFetcher {
             Options::default(),
             None,
         ))
-        .unwrap();
+        .map_err(|_| "FailedGetLastActivedRequest")?;
+        if request_id == [0; 32] {
+            return Ok(None);
+        }
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
             request_id,
@@ -183,8 +186,8 @@ impl ActivedTaskFetcher {
             Options::default(),
             None,
         ))
-        .unwrap();
-        deposit_data.to_task(&chain.name, request_id)
+        .map_err(|_| "FailedGetRequestData")?;
+        Ok(Some(deposit_data.to_task(&chain.name, request_id)?))
     }
 }
 
@@ -373,6 +376,7 @@ mod tests {
             },
         }
         .fetch_task()
+        .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
         match (
