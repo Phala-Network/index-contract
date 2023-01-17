@@ -541,7 +541,7 @@ mod index_executor {
                         name: "Khala".to_string(),
                         chain_type: 2,
                         endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: MultiLocation::new(0, Here).encode(),
+                        native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
                         foreign_asset: 1,
                     }],
                     assets: vec![],
