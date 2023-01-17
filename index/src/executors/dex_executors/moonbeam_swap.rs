@@ -1,6 +1,4 @@
 extern crate alloc;
-use core::ops::Add;
-use core::str::FromStr;
 
 use crate::traits::{common::Error, executor::DexExecutor};
 use crate::transactors::UniswapV2Client;
@@ -13,7 +11,7 @@ use pink_web3::{
     keys::pink::KeyPair,
     transports::PinkHttp,
 };
-use primitive_types::{H160, U256};
+use primitive_types::U256;
 
 #[allow(dead_code)]
 #[derive(Clone)]

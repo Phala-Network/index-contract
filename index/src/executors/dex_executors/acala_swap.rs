@@ -1,17 +1,13 @@
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
-use crate::constants::ACALA_PARACHAIN_ID;
 use crate::prelude::DexExecutor;
-use crate::traits::{common::Error, executor::BridgeExecutor};
-use crate::utils::ToArray;
+use crate::traits::common::Error;
 use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
 use scale::Decode;
 use scale::{Compact, Encode};
-
-use xcm::v1::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
 
 #[derive(Clone)]
 pub struct AcalaDexExecutor {
@@ -31,6 +27,7 @@ impl AcalaDexExecutor {
 }
 
 impl AcalaDexExecutor {
+    #[allow(dead_code)]
     fn aggregated_swap(
         &self,
         signer: [u8; 32],
@@ -119,6 +116,9 @@ impl DexExecutor for AcalaDexExecutor {
 // 168 - 255: Kusama parachain tokens
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[repr(u8)]
+#[allow(clippy::upper_case_acronyms)]
+#[allow(clippy::unnecessary_cast)]
 pub enum TokenSymbol {
     // 0 - 19: Acala & Polkadot native tokens
     ACA = 0,
@@ -164,6 +164,7 @@ pub enum AggregatedSwapPath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::ToArray;
     use scale::Compact;
     use scale::Encode;
 

@@ -1,12 +1,11 @@
 use crate::prelude::Error;
-use alloc::vec;
 use alloc::vec::Vec;
 use pink_web3::contract::Options;
-use pink_web3::ethabi::{Address, Token};
+use pink_web3::ethabi::Address;
 use pink_web3::signing::Key;
 use pink_web3::transports::resolve_ready;
 use pink_web3::{contract::Contract, keys::pink::KeyPair, transports::PinkHttp};
-use primitive_types::{H160, H256, U256};
+use primitive_types::{H256, U256};
 
 #[derive(Clone)]
 pub struct UniswapV2Client {
