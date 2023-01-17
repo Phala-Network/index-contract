@@ -142,6 +142,7 @@ mod index_executor {
 
             // If we don't give the pallet_id, skip rollup configuration
             if pallet_id.is_none() {
+                pink_extension::warn!("Missing pallet id, return");
                 return Ok(());
             }
 
@@ -160,6 +161,10 @@ mod index_executor {
                 }
             } else {
                 // Not initialized. Let's claim the name.
+                pink_extension::debug!(
+                    "Start to claim rollup name for contract id: {:?}",
+                    &contract_id
+                );
                 claim_name(
                     &rollup_endpoint,
                     self.config.clone().unwrap().pallet_id.unwrap(),
@@ -167,7 +172,11 @@ mod index_executor {
                     &self.executor_account,
                 )
                 .log_err("failed to claim name")
-                .map(|_tx_hash| {
+                .map(|tx_hash| {
+                    pink_extension::debug!(
+                        "Send transaction to claim name: {:?}",
+                        hex::encode(tx_hash)
+                    );
                     // Do nothing so far
                 })
                 .or(Err(Error::FailedToClaimName))?;
@@ -194,6 +203,9 @@ mod index_executor {
 
             // Setup worker accounts if it hasn't been set yet.
             if OnchainAccounts::lookup_free_accounts(&mut client).is_empty() {
+                pink_extension::debug!(
+                    "No onchain worker account exist, start setting throug rollup"
+                );
                 OnchainAccounts::set_worker_accounts(
                     &mut client,
                     self.worker_accounts
@@ -210,10 +222,14 @@ mod index_executor {
 
                 // Submit to blockchain
                 if let Some(submittable) = maybe_submittable {
-                    let _tx_id = submittable
+                    let tx_id = submittable
                         .submit(&self.executor_account, 0)
                         .log_err("failed to submit rollup tx")
                         .or(Err(Error::FailedToSendTransaction))?;
+                    pink_extension::debug!(
+                        "Send transaction to set worker account: {:?}",
+                        hex::encode(tx_id)
+                    );
                 }
             }
 
@@ -250,10 +266,14 @@ mod index_executor {
 
             // Submit to blockchain
             if let Some(submittable) = maybe_submittable {
-                let _tx_id = submittable
+                let tx_id = submittable
                     .submit(&self.executor_account, 0)
                     .log_err("failed to submit rollup tx")
                     .or(Err(Error::FailedToSendTransaction))?;
+                pink_extension::debug!(
+                    "Send transaction to update rollup storage: {:?}",
+                    hex::encode(tx_id)
+                );
             }
             Ok(())
         }
@@ -330,33 +350,43 @@ mod index_executor {
             client: &mut SubstrateRollupClient,
             source_chain: String,
         ) -> Result<()> {
+            pink_extension::debug!("Fetch actived task from {:?}", &source_chain);
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
             // and append them to runing tasks
-            let mut actived_task = ActivedTaskFetcher::new(
-                self.get_chain(source_chain).ok_or(Error::ChainNotFound)?,
+            let actived_task = ActivedTaskFetcher::new(
+                self.get_chain(source_chain.clone())
+                    .ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(self.executor_account),
             )
             .fetch_task()
             .map_err(|_| Error::FailedToFetchTask)?;
-
-            // Initialize task, and save it to on-chain storage
-            actived_task
-                .init(
-                    &Context {
-                        // Don't need signer here
-                        signer: [0; 32],
-                        graph: {
-                            let bytes = self.graph.clone();
-                            let mut bytes = bytes.as_ref();
-                            Graph::decode(&mut bytes).unwrap()
+            if let Some(mut actived_task) = actived_task {
+                // Initialize task, and save it to on-chain storage
+                actived_task
+                    .init(
+                        &Context {
+                            // Don't need signer here
+                            signer: [0; 32],
+                            graph: {
+                                let bytes = self.graph.clone();
+                                let mut bytes = bytes.as_ref();
+                                Graph::decode(&mut bytes).unwrap()
+                            },
+                            worker_accounts: self.worker_accounts.clone(),
+                            bridge_executors: vec![],
+                            dex_executors: vec![],
                         },
-                        worker_accounts: self.worker_accounts.clone(),
-                        bridge_executors: vec![],
-                        dex_executors: vec![],
-                    },
-                    client,
-                )
-                .map_err(|_| Error::FailedToInitTask)?;
+                        client,
+                    )
+                    .map_err(|_| Error::FailedToInitTask)?;
+                pink_extension::info!(
+                    "An actived task was found on {:?}, initialized task data: {:?}",
+                    &source_chain,
+                    &actived_task
+                );
+            } else {
+                pink_extension::debug!("No actived task found from {:?}", &source_chain);
+            }
 
             Ok(())
         }
@@ -365,9 +395,14 @@ mod index_executor {
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
+                pink_extension::debug!(
+                    "Found one pending tasks exist in rollup storge, task id: {:?}",
+                    &id
+                );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
+                        pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &id);
                         if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
                             // The state of task saved in rollup storage is `Initialized`, to understand
                             // the current state we must sync state according to on-chain history
@@ -387,6 +422,7 @@ mod index_executor {
                             );
                             // Add task to local cache
                             let _ = TaskCache::add_task(&onchain_task);
+                            pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
                             Some(onchain_task)
                         } else {
                             None
@@ -394,6 +430,10 @@ mod index_executor {
                     })
                     .ok_or(Error::TaskNotFoundOnChain)?;
 
+                pink_extension::info!(
+                    "Start execute next step of task, execute worker account: {:?}",
+                    &task.worker
+                );
                 match task.execute(
                     &Context {
                         signer: self.pub_to_prv(task.worker).unwrap(),
@@ -409,14 +449,28 @@ mod index_executor {
                     client,
                 ) {
                     Ok(TaskStatus::Completed) => {
+                        pink_extension::info!(
+                            "Task execution completed, delete it from rollup storage: {:?}",
+                            hex::encode(task.id)
+                        );
                         // Remove task from blockchain and recycle worker account
                         task.destroy(client);
                         // If task already delete from rollup storage, delete it from local cache
                         if OnchainTasks::lookup_task(client, id).is_none() {
+                            pink_extension::info!(
+                                "Task delete from rollup storage, remove it from local cache: {:?}",
+                                hex::encode(task.id)
+                            );
                             TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
                         }
                     }
                     Err(_) => {
+                        pink_extension::error!(
+                            "Failed to execute task on step {:?}, task data: {:?}",
+                            task.execute_index,
+                            &task
+                        );
+
                         // Execution failed, prepare necessary informations that DAO can handle later.
                         // Informatios should contains:
                         // 1. Sender on source chain
@@ -426,6 +480,10 @@ mod index_executor {
                         //
                     }
                     _ => {
+                        pink_extension::info!(
+                            "Task execution has finished yet, update data to local cache: {:?}",
+                            hex::encode(task.id)
+                        );
                         TaskCache::update_task(&task).map_err(|_| Error::WriteCacheFailed)?;
                         continue;
                     }
