@@ -152,11 +152,18 @@ impl Task {
 
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+            // When executing the last step, replace the recipient with real recipient on destchain,
+            // or else it will be the worker account under the hood
+            let recipient = if self.execute_index as usize == (self.steps.len() - 1) {
+                Some(self.recipient.clone())
+            } else {
+                None
+            };
             // FIXME: handle returned error
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                 == Ok(true)
             {
-                self.steps[self.execute_index as usize].run(nonce, context)?;
+                self.steps[self.execute_index as usize].run(nonce, recipient, context)?;
                 self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
             }
         }

@@ -53,7 +53,12 @@ impl Runner for ClaimStep {
         Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
     }
 
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(
+        &self,
+        nonce: u64,
+        _recipient: Option<Vec<u8>>,
+        context: &Context,
+    ) -> Result<(), &'static str> {
         let signer = context.signer;
         let chain = context
             .graph
@@ -446,7 +451,7 @@ mod tests {
         };
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
-        assert_eq!(claim_step.run(nonce, &context,), Ok(()));
+        assert_eq!(claim_step.run(nonce, None, &context,), Ok(()));
 
         // Wait 60 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(60000));

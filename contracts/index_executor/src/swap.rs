@@ -63,7 +63,12 @@ impl Runner for SwapStep {
         Ok(onchain_balance >= self.spend)
     }
 
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(
+        &self,
+        nonce: u64,
+        recipient: Option<Vec<u8>>,
+        context: &Context,
+    ) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `chain` from registry
@@ -75,10 +80,10 @@ impl Runner for SwapStep {
             .get_chain(self.chain.clone())
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
-        let recipient = match source_chain.chain_type {
+        let recipient = recipient.unwrap_or(match source_chain.chain_type {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
-        };
+        });
         // Do swap operation
         let _ = executor
             .swap(

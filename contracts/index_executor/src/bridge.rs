@@ -63,7 +63,12 @@ impl Runner for BridgeStep {
         Ok(onchain_balance >= self.amount)
     }
 
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(
+        &self,
+        nonce: u64,
+        recipient: Option<Vec<u8>>,
+        context: &Context,
+    ) -> Result<(), &'static str> {
         let signer = context.signer;
 
         // Get executor according to `src_chain` and `des_chain`
@@ -74,10 +79,10 @@ impl Runner for BridgeStep {
             .graph
             .get_chain(self.dest_chain.clone())
             .ok_or("MissingChain")?;
-        let recipient = match chain.chain_type {
+        let recipient = recipient.unwrap_or(match chain.chain_type {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
-        };
+        });
         // Do bridge transfer operation
         executor
             .transfer(

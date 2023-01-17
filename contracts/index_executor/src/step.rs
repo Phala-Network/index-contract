@@ -3,7 +3,7 @@ use super::claimer::ClaimStep;
 use super::context::Context;
 use super::swap::SwapStep;
 use super::traits::Runner;
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
 
@@ -43,11 +43,16 @@ impl Runner for Step {
         }
     }
 
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str> {
+    fn run(
+        &self,
+        nonce: u64,
+        recipient: Option<Vec<u8>>,
+        context: &Context,
+    ) -> Result<(), &'static str> {
         match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.run(nonce, context),
-            StepMeta::Swap(swap_step) => swap_step.run(nonce, context),
-            StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, context),
+            StepMeta::Claim(claim_step) => claim_step.run(nonce, recipient, context),
+            StepMeta::Swap(swap_step) => swap_step.run(nonce, recipient, context),
+            StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, recipient, context),
         }
     }
 

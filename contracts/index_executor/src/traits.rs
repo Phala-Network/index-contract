@@ -1,4 +1,5 @@
 use super::context::Context;
+use alloc::vec::Vec;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 
 pub trait Runner {
@@ -15,7 +16,12 @@ pub trait Runner {
     ) -> Result<bool, &'static str>;
 
     /// Execute a job, basically send a transaction to blockchain.
-    fn run(&self, nonce: u64, context: &Context) -> Result<(), &'static str>;
+    fn run(
+        &self,
+        nonce: u64,
+        recipient: Option<Vec<u8>>,
+        context: &Context,
+    ) -> Result<(), &'static str>;
 
     /// Check if a job is already executed successfully when executing the job.
     ///
