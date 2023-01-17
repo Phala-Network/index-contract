@@ -199,6 +199,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn acala_swap_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 

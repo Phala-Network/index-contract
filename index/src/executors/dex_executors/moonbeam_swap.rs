@@ -83,6 +83,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn stella_swap_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 

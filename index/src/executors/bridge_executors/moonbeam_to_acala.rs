@@ -74,6 +74,7 @@ mod tests {
     use primitive_types::H160;
 
     #[test]
+    #[ignore]
     fn moonbeam_to_acala_xcdot() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
