@@ -1,4 +1,4 @@
-use pink_subrpc::{create_transaction, send_transaction};
+use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
 use crate::constants::ACALA_PARACHAIN_ID;
 use crate::prelude::DexExecutor;
@@ -53,6 +53,7 @@ impl AcalaDexExecutor {
             0x5d_u8,
             0x0u8,
             (path, amount_in, amount_out),
+            ExtraParam::default(),
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =
@@ -93,6 +94,7 @@ impl DexExecutor for AcalaDexExecutor {
             0x5d_u8,
             0x0u8,
             (path, amount_in, amount_out),
+            ExtraParam::default(),
         )
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =
