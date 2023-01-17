@@ -58,7 +58,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
                 0,
                 recipient,
             )
-            .unwrap();
+            .map_err(|_| Error::FailedToSubmitTransaction)?;
         // dbg!(tx_id);
         Ok(())
     }

@@ -40,7 +40,8 @@ impl AcalaDexExecutor {
         let amount_in = Compact(spend);
 
         let mut path = path.as_ref();
-        let path = Vec::<AggregatedSwapPath>::decode(&mut path).unwrap();
+        let path =
+            Vec::<AggregatedSwapPath>::decode(&mut path).map_err(|_| Error::FailedToScaleDecode)?;
         let signed_tx = create_transaction(
             &signer,
             "acala",
