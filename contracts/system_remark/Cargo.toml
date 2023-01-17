@@ -34,7 +34,6 @@ pink-extension-runtime = "0.2.0"
 dotenv = "0.15.0"
 pink-subrpc = { version = "0.2.1", default-features = false }
 
-
 [lib]
 name = "system_remark"
 path = "src/lib.rs"
