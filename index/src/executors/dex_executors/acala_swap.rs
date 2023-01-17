@@ -4,6 +4,7 @@ use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
 use alloc::{
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use scale::Decode;
@@ -55,7 +56,6 @@ impl AcalaDexExecutor {
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        dbg!(hex::encode(_tx_id));
         Ok(())
     }
 }
@@ -96,7 +96,6 @@ impl DexExecutor for AcalaDexExecutor {
         .map_err(|_| Error::InvalidSignature)?;
         let _tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        dbg!(hex::encode(_tx_id));
         Ok(())
     }
 }

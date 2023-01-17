@@ -42,8 +42,6 @@ impl UniswapV2Client {
         ))
         .map_err(|_| Error::FailedToSubmitTransaction)?;
 
-        dbg!(tx_id);
-
         Ok(tx_id)
     }
 }

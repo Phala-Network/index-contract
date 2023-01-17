@@ -2,6 +2,7 @@ extern crate alloc;
 
 use crate::traits::{common::Error, executor::DexExecutor};
 use crate::transactors::UniswapV2Client;
+use alloc::vec;
 use alloc::vec::Vec;
 use pink_web3::types::Address;
 
