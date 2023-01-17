@@ -19,6 +19,7 @@ pub enum Error {
     Ss58,
     FailedToGetGas,
     FailedToSubmitTransaction,
+    FailedToScaleDecode,
     DecodeStorageFailed,
     AssetNotRecognized,
 }
