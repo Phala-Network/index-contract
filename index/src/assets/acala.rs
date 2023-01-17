@@ -72,10 +72,12 @@ pub enum AggregatedSwapPath {
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub struct Assetid2Location {
     // (chain, (asset_id, asset_location))
     assets: Vec<(String, Vec<(u32, MultiLocation)>)>,
 }
+
 impl Assetid2Location {
     #[allow(dead_code)]
     pub fn new() -> Self {
@@ -129,6 +131,7 @@ impl Assetid2Location {
     }
 }
 
+#[derive(Default)]
 pub struct Location2Assetid {
     // (chain, (asset_location, asset_id))
     assets: Vec<(String, Vec<(MultiLocation, u32)>)>,
@@ -185,6 +188,7 @@ impl Location2Assetid {
 }
 
 #[allow(dead_code)]
+#[derive(Default)]
 pub struct Currencyid2Location {
     // (chain, currency_id, asset_location)
     assets: Vec<(String, Vec<(CurrencyId, MultiLocation)>)>,
@@ -254,6 +258,7 @@ impl Currencyid2Location {
     }
 }
 
+#[derive(Default)]
 pub struct Location2Currencyid {
     // (chain, (asset_location, currency_id))
     assets: Vec<(String, Vec<(MultiLocation, CurrencyId)>)>,
