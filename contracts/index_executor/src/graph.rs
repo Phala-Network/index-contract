@@ -12,7 +12,7 @@ pub struct Chain {
     pub name: String,
     pub endpoint: String,
     pub chain_type: u32,
-    pub native_asset: Vec<u8>,
+    pub native_asset: String,
     pub foreign_asset: u32,
 }
 
@@ -116,7 +116,8 @@ impl TryInto<index_graph::Graph> for Graph {
                             _ => return Err("Unsupported chain!"),
                         }
                     },
-                    native_asset: chain.native_asset.clone(),
+                    native_asset: hex::decode(chain.native_asset.clone())
+                        .or(Err("InvalidInput"))?,
                     foreign_asset: {
                         match chain.foreign_asset {
                             1 => Some(index_graph::ForeignAssetModule::PalletAsset),
@@ -248,7 +249,7 @@ impl From<index_graph::Graph> for Graph {
                             index_graph::ChainType::Sub => 2,
                         }
                     },
-                    native_asset: chain.native_asset.clone(),
+                    native_asset: hex::encode(chain.native_asset.clone()),
                     foreign_asset: {
                         match chain.foreign_asset {
                             Some(index_graph::ForeignAssetModule::PalletAsset) => 1,
@@ -367,7 +368,7 @@ mod tests {
             name: "Ethereum".to_string(),
             chain_type: 1,
             endpoint: "endpoint".to_string(),
-            native_asset: MultiLocation::new(0, Here).encode(),
+            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
             foreign_asset: 1,
         };
         let phala = Chain {
@@ -375,7 +376,7 @@ mod tests {
             name: "Phala".to_string(),
             chain_type: 2,
             endpoint: "endpoint".to_string(),
-            native_asset: MultiLocation::new(0, Here).encode(),
+            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
             foreign_asset: 1,
         };
         let pha_on_ethereum = Asset {
