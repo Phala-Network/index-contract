@@ -1,14 +1,14 @@
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
-use crate::prelude::DexExecutor;
+use crate::constants::assets::{CurrencyId, TokenSymbol};
 use crate::traits::common::Error;
+use crate::{constants::assets::AggregatedSwapPath, prelude::DexExecutor};
 use alloc::{
     string::{String, ToString},
     vec,
     vec::Vec,
 };
-use scale::Decode;
-use scale::{Compact, Encode};
+use scale::{Compact, Decode, Encode};
 
 #[derive(Clone)]
 pub struct AcalaDotSwapExecutor {
@@ -81,64 +81,4 @@ impl DexExecutor for AcalaDotSwapExecutor {
 
         Ok(())
     }
-}
-
-// Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
-// with modification
-//
-//
-// 0 - 127: Polkadot Ecosystem tokens
-// 0 - 19: Acala & Polkadot native tokens
-// 20 - 39: External tokens (e.g. bridged)
-// 40 - 127: Polkadot parachain tokens
-//
-// 128 - 255: Kusama Ecosystem tokens
-// 128 - 147: Karura & Kusama native tokens
-// 148 - 167: External tokens (e.g. bridged)
-// 168 - 255: Kusama parachain tokens
-#[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-#[repr(u8)]
-#[allow(clippy::upper_case_acronyms)]
-#[allow(clippy::unnecessary_cast)]
-pub enum TokenSymbol {
-    // 0 - 19: Acala & Polkadot native tokens
-    ACA = 0,
-    AUSD = 1,
-    DOT = 2,
-    LDOT = 3,
-    TAP = 4,
-    // 20 - 39: External tokens (e.g. bridged)
-    RENBTC = 20,
-    CASH = 21,
-    // 40 - 127: Polkadot parachain tokens
-
-    // 128 - 147: Karura & Kusama native tokens
-    KAR = 128,
-    KUSD = 129,
-    KSM = 130,
-    LKSM = 131,
-    TAI = 132,
-    // 148 - 167: External tokens (e.g. bridged)
-    // 149: Reserved for renBTC
-    // 150: Reserved for CASH
-    // 168 - 255: Kusama parachain tokens
-    BNC = 168,
-    VSKSM = 169,
-    PHA = 170,
-    KINT = 171,
-    KBTC = 172,
-}
-
-#[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum CurrencyId {
-    Token(TokenSymbol),
-}
-
-#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, PartialOrd, Ord)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub enum AggregatedSwapPath {
-    Dex(Vec<CurrencyId>),
-    Taiga(u32, u32, u32),
 }

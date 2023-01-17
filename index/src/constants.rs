@@ -7,6 +7,9 @@ use alloc::{
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::{prelude::*, MultiLocation};
 
+use scale::Decode;
+use scale::Encode;
+
 // Chainbridge chain ID
 // pub(crate) const CHAINBRIDGE_ID_ETHEREUM: u8 = 0;
 // pub(crate) const CHAINBRIDGE_ID_MOONRIVER: u8 = 2;
@@ -19,9 +22,24 @@ pub mod assets {
     use super::*;
 
     // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
-    #[allow(clippy::upper_case_acronyms, clippy::unnecessary_cast)]
-    #[derive(Debug, scale::Encode, scale::Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
-    pub enum CurrencyTokenSymbol {
+    // with modification
+    //
+    //
+    // 0 - 127: Polkadot Ecosystem tokens
+    // 0 - 19: Acala & Polkadot native tokens
+    // 20 - 39: External tokens (e.g. bridged)
+    // 40 - 127: Polkadot parachain tokens
+    //
+    // 128 - 255: Kusama Ecosystem tokens
+    // 128 - 147: Karura & Kusama native tokens
+    // 148 - 167: External tokens (e.g. bridged)
+    // 168 - 255: Kusama parachain tokens
+    #[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    #[repr(u8)]
+    #[allow(clippy::upper_case_acronyms)]
+    #[allow(clippy::unnecessary_cast)]
+    pub enum TokenSymbol {
         // 0 - 19: Acala & Polkadot native tokens
         ACA = 0,
         AUSD = 1,
@@ -50,9 +68,17 @@ pub mod assets {
         KBTC = 172,
     }
 
-    #[derive(Debug, scale::Encode, scale::Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
+    #[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum CurrencyId {
-        Token(CurrencyTokenSymbol),
+        Token(TokenSymbol),
+    }
+
+    #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, PartialOrd, Ord)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub enum AggregatedSwapPath {
+        Dex(Vec<CurrencyId>),
+        Taiga(u32, u32, u32),
     }
 
     #[allow(dead_code)]
@@ -183,7 +209,7 @@ pub mod assets {
                         vec![
                             // KAR
                             (
-                                CurrencyId::Token(CurrencyTokenSymbol::KAR),
+                                CurrencyId::Token(TokenSymbol::KAR),
                                 MultiLocation::new(
                                     1,
                                     X2(
@@ -197,7 +223,7 @@ pub mod assets {
                             ),
                             // PHA
                             (
-                                CurrencyId::Token(CurrencyTokenSymbol::PHA),
+                                CurrencyId::Token(TokenSymbol::PHA),
                                 MultiLocation::new(1, X1(Parachain(2004))),
                             ),
                         ],
@@ -207,7 +233,7 @@ pub mod assets {
                         vec![
                             // ACA
                             (
-                                CurrencyId::Token(CurrencyTokenSymbol::ACA),
+                                CurrencyId::Token(TokenSymbol::ACA),
                                 MultiLocation::new(
                                     1,
                                     X2(
@@ -265,12 +291,12 @@ pub mod assets {
                                         )),
                                     ),
                                 ),
-                                CurrencyId::Token(CurrencyTokenSymbol::KAR),
+                                CurrencyId::Token(TokenSymbol::KAR),
                             ),
                             // PHA
                             (
                                 MultiLocation::new(1, X1(Parachain(2004))),
-                                CurrencyId::Token(CurrencyTokenSymbol::PHA),
+                                CurrencyId::Token(TokenSymbol::PHA),
                             ),
                         ],
                     ),
@@ -289,7 +315,7 @@ pub mod assets {
                                         )),
                                     ),
                                 ),
-                                CurrencyId::Token(CurrencyTokenSymbol::ACA),
+                                CurrencyId::Token(TokenSymbol::ACA),
                             ),
                         ],
                     ),
