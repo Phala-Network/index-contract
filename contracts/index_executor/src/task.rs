@@ -237,10 +237,7 @@ impl Task {
                 let latest_balance =
                     worker_account.get_balance(claim_step.chain, claim_step.asset, context)?;
                 // FIXME: what if some bad guy transfer this asset into worker account
-                if latest_balance <= old_balance {
-                    return Err("UnknownError");
-                }
-                latest_balance - old_balance
+                latest_balance.saturating_sub(old_balance)
             }
             StepMeta::Swap(swap_step) => {
                 let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
@@ -249,22 +246,14 @@ impl Task {
                     swap_step.receive_asset,
                     context,
                 )?;
-                // FIXME: what if some bad guy transfer this asset into worker account
-                if latest_balance <= old_balance {
-                    return Err("UnknownError");
-                }
-                latest_balance - old_balance
+                latest_balance.saturating_sub(old_balance)
             }
             StepMeta::Bridge(bridge_step) => {
                 // Old balance on dest chain
                 let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
                 let latest_balance =
                     worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
-                // FIXME: what if some bad guy transfer this asset into worker account
-                if latest_balance <= old_balance {
-                    return Err("UnknownError");
-                }
-                latest_balance - old_balance
+                latest_balance.saturating_sub(old_balance)
             }
         })
     }
