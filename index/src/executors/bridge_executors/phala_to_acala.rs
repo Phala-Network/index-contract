@@ -79,7 +79,7 @@ mod tests {
     use scale::Encode;
 
     #[test]
-    #[ignore = "to prevent the private keys being leaked, run this test with `SECRET_KEY=<your-private-key> cargo test moonbeam_xtokens -- --nocapture`"]
+    #[ignore]
     fn phala_to_acala() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 

@@ -1,5 +1,5 @@
 use super::{AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData};
-use crate::constants::assets::*;
+use crate::assets::*;
 use crate::prelude::Error;
 use alloc::string::String;
 use alloc::{vec, vec::Vec};
