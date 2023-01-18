@@ -12,11 +12,11 @@ use pink_web3::{
 };
 
 #[derive(Clone)]
-pub struct Moonbeam2PhalaExecutor {
+pub struct Moonbeam2AcalaExecutor {
     bridge_contract: XtokenClient,
 }
 
-impl Moonbeam2PhalaExecutor {
+impl Moonbeam2AcalaExecutor {
     #[allow(dead_code)]
     pub fn new(rpc: &str, xtoken_address: Address) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
@@ -33,7 +33,7 @@ impl Moonbeam2PhalaExecutor {
     }
 }
 
-impl BridgeExecutor for Moonbeam2PhalaExecutor {
+impl BridgeExecutor for Moonbeam2AcalaExecutor {
     fn transfer(
         &self,
         signer: [u8; 32],
@@ -53,7 +53,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
                 // parents = 1
                 1,
                 // parachain
-                2035,
+                2000,
                 // any
                 0,
                 recipient,
@@ -75,10 +75,10 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn moonbeam_xtokens() {
+    fn moonbeam_to_acala_xcdot() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let exec = Moonbeam2PhalaExecutor::new(
+        let exec = Moonbeam2AcalaExecutor::new(
             "https://moonbeam.public.blastapi.io",
             H160::from_str("0x0000000000000000000000000000000000000804").unwrap(),
         );
@@ -87,15 +87,20 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
         let recipient =
-            hex::decode("da1ada496c0e6e3c122aa17f51ccd7254782effab31b24575d54e0350e7f2f6a")
+            hex::decode("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623")
                 .unwrap();
         exec.transfer(
             signer,
-            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced").unwrap(),
+            // https://moonbeam.moonscan.io/token/0xffffffff1fcacbd218edc0eba20fc2308c778080
+            hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap(),
             recipient,
-            1_000_000_000_000,
+            // 0.1 xcdot
+            // too small an amount will cause transaction failure: https://moonbeam.subscan.io/xcm_message/polkadot-270774e1bdb5eb294b2e04bb62b1e2c0d639dcf7
+            // polkadot said too expensive
+            1_000_000_000,
         )
         .unwrap();
-        // test txn: https://moonbeam.moonscan.io/tx/0x47a5fdea2e3bb807296b7d7c5e708b4db5a0aca732ef37ee0e173df3d3942872
+        // test txn:
+        // - https://moonbeam.subscan.io/xcm_message/polkadot-16d178dd10eb67113379520279b7cd5a8547999a
     }
 }
