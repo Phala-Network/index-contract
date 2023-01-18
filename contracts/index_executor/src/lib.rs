@@ -518,7 +518,6 @@ mod index_executor {
         fn create_bridge_executors(
             &self,
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
-            // let config = self.ensure_configured()?;
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
             let ethereum = self
                 .get_chain(String::from("Ethereum"))
@@ -558,21 +557,7 @@ mod index_executor {
         }
 
         fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
-            // let config = self.ensure_configured()?;
-            let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
-            let ethereum = self
-                .get_chain(String::from("Ethereum"))
-                .ok_or(Error::ChainNotFound)?;
-
-            dex_executors.push((
-                String::from("Phala"),
-                Box::new(UniswapV2Executor::new(
-                    &ethereum.endpoint,
-                    // UniswapV2 router address on Ethereum
-                    hex!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D").into(),
-                )),
-            ));
-
+            let dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
             Ok(dex_executors)
         }
     }
@@ -631,7 +616,7 @@ mod index_executor {
                         name: "Khala".to_string(),
                         chain_type: 2,
                         endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: MultiLocation::new(0, Here).encode(),
+                        native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
                         foreign_asset: 1,
                     }],
                     assets: vec![],

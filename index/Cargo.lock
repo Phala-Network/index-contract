@@ -1069,7 +1069,7 @@ dependencies = [
  "ink_env",
  "ink_lang",
  "parity-scale-codec",
- "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-extension 0.2.0",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-subrpc",
@@ -1785,23 +1785,7 @@ dependencies = [
  "ink_storage",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "scale-info",
-]
-
-[[package]]
-name = "pink-extension"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
-dependencies = [
- "ink_env",
- "ink_lang",
- "ink_metadata",
- "ink_primitives",
- "ink_storage",
- "log",
- "parity-scale-codec",
- "pink-extension-macro 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=master)",
+ "pink-extension-macro 0.2.0",
  "scale-info",
 ]
 
@@ -1838,21 +1822,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-extension-macro"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
-dependencies = [
- "heck",
- "ink_lang_ir",
- "ink_lang_macro",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
- "unzip3",
-]
-
-[[package]]
 name = "pink-extension-runtime"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1862,7 +1831,7 @@ dependencies = [
  "hex_fmt",
  "log",
  "once_cell",
- "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-extension 0.2.0",
  "reqwest",
  "reqwest-env-proxy",
  "ring",
@@ -1891,15 +1860,16 @@ dependencies = [
 
 [[package]]
 name = "pink-subrpc"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac77a52364388380d9720959a11a6d56526272385f4d450131c9622c897fb3a8"
 dependencies = [
  "base58",
  "hex",
  "hex-literal",
  "impl-serde 0.4.0",
  "parity-scale-codec",
- "pink-extension 0.2.0 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=master)",
+ "pink-extension 0.2.0",
  "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.12.1",
  "scale-info",

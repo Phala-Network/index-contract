@@ -30,8 +30,7 @@ kv-session = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git"
 pink-extension = { version = "0.2.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
-pink-subrpc = { git = "https://github.com/Phala-Network/phala-blockchain.git", branch = "master", default-features = false }
-
+pink-subrpc = { version = "0.2.1", default-features = false }
 index = { path = "../../index", default-features = false }
 
 [dev-dependencies]

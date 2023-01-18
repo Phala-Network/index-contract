@@ -601,9 +601,9 @@ dependencies = [
 
 [[package]]
 name = "ed25519"
-version = "1.5.2"
+version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9c280362032ea4203659fc489832d0204ef09f247a0506f170dafcac08c369"
+checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
 dependencies = [
  "signature",
 ]
@@ -1330,7 +1330,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
- "pink-subrpc 0.2.0",
+ "pink-subrpc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",
@@ -1364,7 +1364,7 @@ dependencies = [
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
- "pink-subrpc 0.2.0",
+ "pink-subrpc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",
@@ -2131,7 +2131,7 @@ dependencies = [
 [[package]]
 name = "pink-extension"
 version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#c42d9831f7d39f3d5d20d8bb8b1f1ed51e8e234f"
 dependencies = [
  "ink_env",
  "ink_lang",
@@ -2179,7 +2179,7 @@ dependencies = [
 [[package]]
 name = "pink-extension-macro"
 version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#c42d9831f7d39f3d5d20d8bb8b1f1ed51e8e234f"
 dependencies = [
  "heck",
  "ink_lang_ir",
@@ -2249,8 +2249,28 @@ dependencies = [
 
 [[package]]
 name = "pink-subrpc"
-version = "0.2.0"
-source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#f7b5523d5dc278fb1c0be5b02ade1e5c48983af3"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac77a52364388380d9720959a11a6d56526272385f4d450131c9622c897fb3a8"
+dependencies = [
+ "base58",
+ "hex",
+ "hex-literal",
+ "impl-serde 0.4.0",
+ "parity-scale-codec",
+ "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "primitive-types 0.12.1",
+ "scale-info",
+ "serde",
+ "sp-core-hashing 5.0.0",
+ "ss58-registry",
+]
+
+[[package]]
+name = "pink-subrpc"
+version = "0.2.1"
+source = "git+https://github.com/Phala-Network/phala-blockchain.git?branch=master#c42d9831f7d39f3d5d20d8bb8b1f1ed51e8e234f"
 dependencies = [
  "base58",
  "hex",
@@ -2797,7 +2817,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-extension-runtime",
- "pink-subrpc 0.2.0",
+ "pink-subrpc 0.2.1 (git+https://github.com/Phala-Network/phala-blockchain.git?branch=master)",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",
@@ -3622,7 +3642,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-extension-runtime",
- "pink-subrpc 0.2.0",
+ "pink-subrpc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
  "scale-info",
@@ -3636,9 +3656,9 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "termcolor"
-version = "1.1.3"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bab24d30b911b2376f3a13cc2cd443142f0c81dda04c118693e35b3835757755"
+checksum = "be55cf8942feac5c765c2c993422806843c9a9a45d4d5c407ad6dd2ea95eb9b6"
 dependencies = [
  "winapi-util",
 ]
