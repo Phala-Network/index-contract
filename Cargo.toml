@@ -2,8 +2,8 @@
 resolver = "2"
 
 members = [
-    "contracts/semi_bridge",
-    "contracts/system_remark",
+    "examples/semi_bridge",
+    "examples/system_remark",
     "contracts/index_executor",
 ]
 
