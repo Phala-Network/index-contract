@@ -12,8 +12,8 @@ pub struct Chain {
     pub name: String,
     pub endpoint: String,
     pub chain_type: u32,
-    pub native_asset: String,
-    pub foreign_asset: u32,
+    pub native_asset: u32,
+    pub foreign_asset_type: u32,
 }
 
 #[derive(
@@ -116,10 +116,13 @@ impl TryInto<index_graph::Graph> for Graph {
                             _ => return Err("Unsupported chain!"),
                         }
                     },
-                    native_asset: hex::decode(chain.native_asset.clone())
-                        .or(Err("InvalidInput"))?,
+                    native_asset: {
+                        let asset_id = chain.native_asset;
+                        let asset = &self.assets[asset_id as usize - 1];
+                        hex::decode(asset.location.clone()).or(Err("InvalidInput"))?
+                    },
                     foreign_asset: {
-                        match chain.foreign_asset {
+                        match chain.foreign_asset_type {
                             1 => Some(index_graph::ForeignAssetModule::PalletAsset),
                             2 => Some(index_graph::ForeignAssetModule::OrmlToken),
                             _ => return Err("Unsupported chain!"),
@@ -249,8 +252,16 @@ impl From<index_graph::Graph> for Graph {
                             index_graph::ChainType::Sub => 2,
                         }
                     },
-                    native_asset: hex::encode(chain.native_asset.clone()),
-                    foreign_asset: {
+                    native_asset: {
+                        let location = &chain.native_asset;
+                        let asset = graph
+                            .assets
+                            .iter()
+                            .find(|a| a.chain_id == chain.id && &a.location == location)
+                            .expect("must not fail");
+                        asset.id
+                    },
+                    foreign_asset_type: {
                         match chain.foreign_asset {
                             Some(index_graph::ForeignAssetModule::PalletAsset) => 1,
                             Some(index_graph::ForeignAssetModule::OrmlToken) => 2,
@@ -368,16 +379,16 @@ mod tests {
             name: "Ethereum".to_string(),
             chain_type: 1,
             endpoint: "endpoint".to_string(),
-            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
-            foreign_asset: 1,
+            native_asset: 3,
+            foreign_asset_type: 1,
         };
         let phala = Chain {
             id: 2,
             name: "Phala".to_string(),
             chain_type: 2,
             endpoint: "endpoint".to_string(),
-            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
-            foreign_asset: 1,
+            native_asset: 2,
+            foreign_asset_type: 1,
         };
         let pha_on_ethereum = Asset {
             id: 1,
@@ -388,7 +399,7 @@ mod tests {
             location: hex::encode("Somewhere on Ethereum"),
         };
         let pha_on_phala = Asset {
-            id: 1,
+            id: 2,
             chain_id: 2,
             name: "Phala Token".to_string(),
             symbol: "PHA".to_string(),
