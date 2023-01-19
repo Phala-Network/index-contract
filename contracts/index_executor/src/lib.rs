@@ -97,13 +97,12 @@ mod index_executor {
         pub executor_account: [u8; 32],
     }
 
-    impl Default for Executor {
-        fn default() -> Self {
+    impl Executor {
+        #[ink(constructor)]
+        pub fn default() -> Self {
             Self::new()
         }
-    }
 
-    impl Executor {
         #[ink(constructor)]
         /// Create an Executor entity
         pub fn new() -> Self {
