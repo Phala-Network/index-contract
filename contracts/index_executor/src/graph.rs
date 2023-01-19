@@ -379,7 +379,7 @@ mod tests {
             name: "Ethereum".to_string(),
             chain_type: 1,
             endpoint: "endpoint".to_string(),
-            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
+            native_asset: 3,
             foreign_asset: 1,
         };
         let phala = Chain {
@@ -387,7 +387,7 @@ mod tests {
             name: "Phala".to_string(),
             chain_type: 2,
             endpoint: "endpoint".to_string(),
-            native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
+            native_asset: 2,
             foreign_asset: 1,
         };
         let pha_on_ethereum = Asset {
