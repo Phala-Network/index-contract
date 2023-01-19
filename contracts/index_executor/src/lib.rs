@@ -23,15 +23,17 @@ mod index_executor {
         vec,
         vec::Vec,
     };
-    use hex_literal::hex;
-    use index::graph::{Chain, Graph};
     use index::prelude::*;
+    use index::utils::ToArray;
+    use index::{
+        graph::{Chain, Graph},
+        prelude::AcalaDexExecutor,
+    };
     use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
     use pink_extension::ResultExt;
-    use primitive_types::{H160, H256};
     use scale::{Decode, Encode};
 
     use crate::account::AccountInfo;
@@ -519,45 +521,68 @@ mod index_executor {
             &self,
         ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
             let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
-            let ethereum = self
-                .get_chain(String::from("Ethereum"))
+            let moonbeam = self
+                .get_chain(String::from("Moonbeam"))
                 .ok_or(Error::ChainNotFound)?;
             let phala = self
                 .get_chain(String::from("Phala"))
                 .ok_or(Error::ChainNotFound)?;
 
-            // Ethereum -> Phala: ChainBridgeEvm2Phala
-            let chainbridge_on_ethereum: H160 =
-                hex!("056c0e37d026f9639313c281250ca932c9dbe921").into();
-            // PHA ChainBridge resource id on Khala
-            let pha_rid: H256 =
-                hex!("00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6").into();
-            // PHA contract address on Ethereum
-            let pha_contract: H160 = hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into();
+            let moonbeam_xtoken: [u8; 20] = hex::decode("0000000000000000000000000000000000000804")
+                .unwrap()
+                .to_array();
+
+            // Moonbeam -> Acala
             bridge_executors.push((
-                (String::from("Ethereum"), String::from("Phala")),
-                Box::new(ChainBridgeEvm2Phala::new(
-                    &ethereum.endpoint,
-                    chainbridge_on_ethereum,
-                    vec![(pha_contract, pha_rid.into())],
+                (String::from("Moonbeam"), String::from("Acala")),
+                Box::new(Moonbeam2AcalaExecutor::new(
+                    &moonbeam.endpoint,
+                    moonbeam_xtoken.into(),
                 )),
             ));
-
-            // Phala -> Ethereum: ChainBridgePhala2Evm
+            // Moonbeam -> Phala
             bridge_executors.push((
-                (String::from("Phala"), String::from("Ethereum")),
-                Box::new(ChainBridgePhala2Evm::new(
-                    // ChainId of Ethereum under the ChainBridge protocol
-                    0,
-                    &phala.endpoint,
+                (String::from("Moonbeam"), String::from("Phala")),
+                Box::new(Moonbeam2PhalaExecutor::new(
+                    &moonbeam.endpoint,
+                    moonbeam_xtoken.into(),
                 )),
+            ));
+            // Phala -> Acala
+            bridge_executors.push((
+                (String::from("Phala"), String::from("Acala")),
+                Box::new(Phala2AcalaExecutor::new(&phala.endpoint)),
             ));
 
             Ok(bridge_executors)
         }
 
         fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
-            let dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
+            let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
+            let moonbeam = self
+                .get_chain(String::from("Moonbeam"))
+                .ok_or(Error::ChainNotFound)?;
+            let acala = self
+                .get_chain(String::from("Acala"))
+                .ok_or(Error::ChainNotFound)?;
+
+            let beamswap_router: [u8; 20] = hex::decode("96b244391D98B62D19aE89b1A4dCcf0fc56970C7")
+                .unwrap()
+                .to_array();
+
+            // Acala DEX
+            dex_executors.push((
+                String::from("Acala"),
+                Box::new(AcalaDexExecutor::new(&acala.endpoint)),
+            ));
+            // Moonbeam::BeamSwap
+            dex_executors.push((
+                String::from("Moonbeam"),
+                Box::new(MoonbeamDexExecutor::new(
+                    &moonbeam.endpoint,
+                    beamswap_router.into(),
+                )),
+            ));
             Ok(dex_executors)
         }
     }

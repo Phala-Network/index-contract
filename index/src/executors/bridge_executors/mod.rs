@@ -20,9 +20,9 @@ use scale::Encode;
 use subrpc::{create_transaction, send_transaction, ExtraParam};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
-mod moonbeam_to_acala;
-mod moonbeam_to_phala;
-mod phala_to_acala;
+pub mod moonbeam_to_acala;
+pub mod moonbeam_to_phala;
+pub mod phala_to_acala;
 
 #[derive(Clone)]
 pub struct ChainBridgeEvm2Phala {
