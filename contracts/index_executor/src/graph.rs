@@ -13,7 +13,7 @@ pub struct Chain {
     pub endpoint: String,
     pub chain_type: u32,
     pub native_asset: u32,
-    pub foreign_asset: u32,
+    pub foreign_asset_type: u32,
 }
 
 #[derive(
@@ -122,7 +122,7 @@ impl TryInto<index_graph::Graph> for Graph {
                         hex::decode(asset.location.clone()).or(Err("InvalidInput"))?
                     },
                     foreign_asset: {
-                        match chain.foreign_asset {
+                        match chain.foreign_asset_type {
                             1 => Some(index_graph::ForeignAssetModule::PalletAsset),
                             2 => Some(index_graph::ForeignAssetModule::OrmlToken),
                             _ => return Err("Unsupported chain!"),
@@ -261,7 +261,7 @@ impl From<index_graph::Graph> for Graph {
                             .expect("must not fail");
                         asset.id
                     },
-                    foreign_asset: {
+                    foreign_asset_type: {
                         match chain.foreign_asset {
                             Some(index_graph::ForeignAssetModule::PalletAsset) => 1,
                             Some(index_graph::ForeignAssetModule::OrmlToken) => 2,

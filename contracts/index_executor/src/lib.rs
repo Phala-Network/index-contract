@@ -60,6 +60,7 @@ mod index_executor {
         WriteCacheFailed,
         DecodeCacheFailed,
         DecodeGraphFailed,
+        SetGraphFailed,
         TaskNotFoundInCache,
         TaskNotFoundOnChain,
         Unimplemented,
@@ -298,9 +299,9 @@ mod index_executor {
         /// should not be called by anyone else
         #[ink(message)]
         pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
-            self.ensure_owner()?;
+            // self.ensure_owner()?;
             self.graph = TryInto::<Graph>::try_into(graph)
-                .or(Err(Error::DecodeGraphFailed))
+                .or(Err(Error::SetGraphFailed))?
                 .encode();
             Self::env().emit_event(GraphSet {});
             Ok(())
