@@ -399,7 +399,7 @@ mod tests {
             location: hex::encode("Somewhere on Ethereum"),
         };
         let pha_on_phala = Asset {
-            id: 1,
+            id: 2,
             chain_id: 2,
             name: "Phala Token".to_string(),
             symbol: "PHA".to_string(),
