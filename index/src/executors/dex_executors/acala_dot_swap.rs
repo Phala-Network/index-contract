@@ -69,7 +69,7 @@ impl DexExecutor for AcalaDotSwapExecutor {
         spend: u128,
         _recipient: Vec<u8>,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let token_ldot = CurrencyId::Token(TokenSymbol::LDOT);
         let token_ausd = CurrencyId::Token(TokenSymbol::AUSD);
 
@@ -79,8 +79,7 @@ impl DexExecutor for AcalaDotSwapExecutor {
         let path = vec![taiga_path, dex_path];
         let path = path.encode();
 
-        _ = self.aggregated_swap(signer, path, spend, extra)?;
-
-        Ok(())
+        let tx_id = self.aggregated_swap(signer, path, spend, extra)?;
+        Ok(tx_id)
     }
 }

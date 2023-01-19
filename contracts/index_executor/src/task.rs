@@ -147,6 +147,11 @@ impl Task {
 
             // Settle before execute next step
             let settle_balance = self.settle(context)?;
+            pink_extension::debug!(
+                "Settle balance of last step {:?}, amount: {:?}",
+                &self.steps[(self.execute_index - 1) as usize],
+                settle_balance,
+            );
             // Update balance that actually can be consumed
             self.update_balance(settle_balance, context)?;
 
@@ -159,6 +164,10 @@ impl Task {
             } else {
                 None
             };
+            pink_extension::debug!(
+                "Start to execute step {:?}",
+                &self.steps[self.execute_index as usize]
+            );
             // FIXME: handle returned error
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                 == Ok(true)

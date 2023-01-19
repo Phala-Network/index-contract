@@ -67,7 +67,7 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         recipient: Vec<u8>,
         amount: u128,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let recipient: [u8; 32] = recipient.try_into().expect("Invalid recipient");
         let dest = MultiLocation::new(
@@ -81,14 +81,14 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         let rid = self
             .lookup_rid(asset.into())
             .ok_or(Error::InvalidMultilocation)?;
-        _ = self.bridge_contract.deposit(
+        let tx_id = self.bridge_contract.deposit(
             signer,
             rid.into(),
             U256::from(amount),
             dest.encode(),
             extra.nonce,
         )?;
-        Ok(())
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -120,7 +120,7 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
         recipient: Vec<u8>,
         amount: u128,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let asset_location: MultiLocation =
             Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
         let multi_asset = MultiAsset {
@@ -151,9 +151,9 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+        Ok(tx_id)
     }
 }
 

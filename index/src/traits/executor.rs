@@ -12,7 +12,7 @@ pub trait BridgeExecutor: DynClone {
         recipient: Vec<u8>,
         amount: u128,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error>;
+    ) -> core::result::Result<Vec<u8>, Error>;
 }
 
 pub trait DexExecutor: DynClone {
@@ -24,5 +24,5 @@ pub trait DexExecutor: DynClone {
         spend: u128,
         recipient: Vec<u8>,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error>;
+    ) -> core::result::Result<Vec<u8>, Error>;
 }

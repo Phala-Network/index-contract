@@ -42,11 +42,11 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
         recipient: Vec<u8>,
         amount: u128,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
         // TODO: better error handling
-        _ = self
+        let tx_id = self
             .bridge_contract
             .transfer(
                 signer,
@@ -63,7 +63,7 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
             )
             .map_err(|_| Error::FailedToSubmitTransaction)?;
         // dbg!(tx_id);
-        Ok(())
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 

@@ -58,7 +58,7 @@ impl Runner for ClaimStep {
         nonce: u64,
         _recipient: Option<Vec<u8>>,
         context: &Context,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
         let chain = context
             .graph
@@ -99,7 +99,7 @@ impl ClaimStep {
         task_id: TaskId,
         worker_key: &[u8; 32],
         nonce: u64,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Vec<u8>, &'static str> {
         // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = hex!("Bf30B9BD94C584d8449fDE4fa57F46c838b62dc2").into();
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
@@ -121,7 +121,7 @@ impl ClaimStep {
         .map_err(|_| "GasEstimateFailed")?;
 
         // Submit the claim transaction
-        let _tx_id = resolve_ready(handler.signed_call(
+        let tx_id = resolve_ready(handler.signed_call(
             "claim",
             task_id,
             Options::with(|opt| {
@@ -131,8 +131,13 @@ impl ClaimStep {
             worker,
         ))
         .map_err(|_| "ClaimSubmitFailed")?;
-
-        Ok(())
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            task_id,
+            &chain.name,
+            hex::encode(tx_id.clone().as_bytes())
+        );
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -451,7 +456,11 @@ mod tests {
         };
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
-        assert_eq!(claim_step.run(nonce, None, &context,), Ok(()));
+        assert_eq!(
+            claim_step.run(nonce, None, &context).unwrap(),
+            hex::decode("7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa")
+                .unwrap()
+        );
 
         // Wait 60 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(60000));

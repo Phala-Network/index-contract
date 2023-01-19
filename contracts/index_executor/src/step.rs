@@ -48,7 +48,7 @@ impl Runner for Step {
         nonce: u64,
         recipient: Option<Vec<u8>>,
         context: &Context,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Vec<u8>, &'static str> {
         match &self.meta {
             StepMeta::Claim(claim_step) => claim_step.run(nonce, recipient, context),
             StepMeta::Swap(swap_step) => swap_step.run(nonce, recipient, context),

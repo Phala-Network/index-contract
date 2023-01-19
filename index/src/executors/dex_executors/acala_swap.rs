@@ -36,7 +36,7 @@ impl AcalaDexExecutor {
         spend: u128,
         _recipient: Vec<u8>,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
 
@@ -56,9 +56,9 @@ impl AcalaDexExecutor {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+        Ok(tx_id)
     }
 }
 
@@ -75,7 +75,7 @@ impl DexExecutor for AcalaDexExecutor {
         spend: u128,
         _recipient: Vec<u8>,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
         let mut asset0 = asset0.as_ref();
@@ -97,9 +97,9 @@ impl DexExecutor for AcalaDexExecutor {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+        Ok(tx_id)
     }
 }
 

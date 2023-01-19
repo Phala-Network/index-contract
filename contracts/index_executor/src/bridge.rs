@@ -68,7 +68,7 @@ impl Runner for BridgeStep {
         nonce: u64,
         recipient: Option<Vec<u8>>,
         context: &Context,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
 
         // Get executor according to `src_chain` and `des_chain`
@@ -84,11 +84,11 @@ impl Runner for BridgeStep {
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
         });
         // Do bridge transfer operation
-        executor
+        let tx_id = executor
             .transfer(
                 signer,
                 self.from.clone(),
-                recipient,
+                recipient.clone(),
                 self.amount,
                 ExtraParam {
                     tip: 0,
@@ -97,7 +97,16 @@ impl Runner for BridgeStep {
                 },
             )
             .map_err(|_| "BridgeFailed")?;
-        Ok(())
+        pink_extension::info!(
+            "Submit transaction to bridge asset {:?} from {:?} to {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
+            &self.from,
+            &self.source_chain,
+            &self.dest_chain,
+            &recipient,
+            self.amount,
+            hex::encode(&tx_id)
+        );
+        Ok(tx_id)
     }
 
     // By checking the nonce we can known whether the transaction has been executed or not,

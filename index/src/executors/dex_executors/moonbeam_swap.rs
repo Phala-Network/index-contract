@@ -48,7 +48,7 @@ impl DexExecutor for MoonbeamDexExecutor {
         spend: u128,
         recipient: Vec<u8>,
         extra: ExtraParam,
-    ) -> core::result::Result<(), Error> {
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let asset0 = Address::from_slice(&asset0);
         let asset1 = Address::from_slice(&asset1);
@@ -60,7 +60,7 @@ impl DexExecutor for MoonbeamDexExecutor {
         let amount_in = U256::from(spend);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
         let deadline = U256::from(time + 60 * 30);
-        _ = self.dex_contract.swap(
+        let tx_id = self.dex_contract.swap(
             signer,
             amount_in,
             amount_out,
@@ -69,7 +69,7 @@ impl DexExecutor for MoonbeamDexExecutor {
             deadline,
             extra.nonce,
         )?;
-        Ok(())
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 

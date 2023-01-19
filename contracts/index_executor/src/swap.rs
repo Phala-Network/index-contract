@@ -68,7 +68,7 @@ impl Runner for SwapStep {
         nonce: u64,
         recipient: Option<Vec<u8>>,
         context: &Context,
-    ) -> Result<(), &'static str> {
+    ) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
 
         // Get executor according to `chain` from registry
@@ -85,13 +85,13 @@ impl Runner for SwapStep {
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
         });
         // Do swap operation
-        let _ = executor
+        let tx_id = executor
             .swap(
                 signer,
                 self.spend_asset.clone(),
                 self.receive_asset.clone(),
                 self.spend,
-                recipient,
+                recipient.clone(),
                 ExtraParam {
                     tip: 0,
                     nonce: Some(nonce),
@@ -99,7 +99,16 @@ impl Runner for SwapStep {
                 },
             )
             .map_err(|_| "SwapFailed")?;
-        Ok(())
+        pink_extension::info!(
+            "Submit transaction to swap asset {:?} to {:?} on ${:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
+            &self.spend_asset,
+            &self.receive_asset,
+            &self.chain,
+            &recipient,
+            self.spend,
+            hex::encode(&tx_id)
+        );
+        Ok(tx_id)
     }
 
     // By checking the nonce we can known whether the transaction has been executed or not,
