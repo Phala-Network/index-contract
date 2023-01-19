@@ -380,7 +380,7 @@ mod tests {
             chain_type: 1,
             endpoint: "endpoint".to_string(),
             native_asset: 3,
-            foreign_asset: 1,
+            foreign_asset_type: 1,
         };
         let phala = Chain {
             id: 2,
@@ -388,7 +388,7 @@ mod tests {
             chain_type: 2,
             endpoint: "endpoint".to_string(),
             native_asset: 2,
-            foreign_asset: 1,
+            foreign_asset_type: 1,
         };
         let pha_on_ethereum = Asset {
             id: 1,

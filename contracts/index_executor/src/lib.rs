@@ -98,6 +98,12 @@ mod index_executor {
         pub executor_account: [u8; 32],
     }
 
+    impl Default for Executor {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl Executor {
         #[ink(constructor)]
         pub fn default() -> Self {
@@ -632,6 +638,7 @@ mod index_executor {
         #[ink::test]
         fn setup_worker_accounts_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
+            use crate::graph::Asset as RegistryAsset;
             use crate::graph::Chain as RegistryChain;
             let mut executor = deploy_executor();
             executor
@@ -641,10 +648,17 @@ mod index_executor {
                         name: "Khala".to_string(),
                         chain_type: 2,
                         endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: hex::encode(MultiLocation::new(0, Here).encode()),
-                        foreign_asset: 1,
+                        native_asset: 1,
+                        foreign_asset_type: 1,
                     }],
-                    assets: vec![],
+                    assets: vec![RegistryAsset {
+                        id: 1,
+                        chain_id: 2,
+                        name: "Phala Token".to_string(),
+                        symbol: "PHA".to_string(),
+                        decimals: 12,
+                        location: hex::encode("Somewhere on Phala"),
+                    }],
                     dexs: vec![],
                     bridges: vec![],
                     dex_pairs: vec![],
