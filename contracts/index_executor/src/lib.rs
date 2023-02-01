@@ -47,6 +47,7 @@ mod index_executor {
     pub enum Error {
         BadOrigin,
         NotConfigured,
+        MissingPalletId,
         ChainNotFound,
         FailedToGetNameOwner,
         RollupConfiguredByAnotherAccount,
@@ -78,6 +79,14 @@ mod index_executor {
     /// Event emitted when graph is set.
     #[ink(event)]
     pub struct GraphSet;
+
+    /// Event emitted when executor is configured.
+    #[ink(event)]
+    pub struct Configured;
+
+    /// Event emitted when worker account is set to rollup.
+    #[ink(event)]
+    pub struct WorkerSetToRollup;
 
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -138,23 +147,21 @@ mod index_executor {
             }
         }
 
-        pub fn get_chain(&self, name: String) -> Option<Chain> {
-            let bytes = self.graph.clone();
-            let mut bytes = bytes.as_ref();
-            let graph = Graph::decode(&mut bytes).unwrap();
-            graph.get_chain(name)
+        #[ink(message)]
+        pub fn config(&mut self, pallet_id: u8) -> Result<()> {
+            self.ensure_owner()?;
+            self.config = Some(Config {
+                pallet_id: Some(pallet_id),
+            });
+            pink_extension::debug!("Set config as: {:?}", &self.config);
+            Self::env().emit_event(Configured {});
+            Ok(())
         }
 
         #[ink(message)]
-        pub fn config(&mut self, rollup_endpoint: String, pallet_id: Option<u8>) -> Result<()> {
+        pub fn setup_rollup(&self, rollup_endpoint: String) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config { pallet_id });
-
-            // If we don't give the pallet_id, skip rollup configuration
-            if pallet_id.is_none() {
-                pink_extension::warn!("Missing pallet id, return");
-                return Ok(());
-            }
+            let _ = self.ensure_configured()?;
 
             let contract_id = self.env().account_id();
             // Check if the rollup is initialized properly
@@ -191,11 +198,12 @@ mod index_executor {
                 })
                 .or(Err(Error::FailedToClaimName))?;
             }
+
             Ok(())
         }
 
         #[ink(message)]
-        pub fn setup_worker_accounts(&mut self) -> Result<()> {
+        pub fn setup_worker_accounts(&self) -> Result<()> {
             let config = self.ensure_configured()?;
             // Get rpc info from registry
             let chain = self
@@ -205,7 +213,7 @@ mod index_executor {
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.ok_or(Error::NotConfigured)?,
+                config.pallet_id.ok_or(Error::MissingPalletId)?,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -243,7 +251,7 @@ mod index_executor {
                     );
                 }
             }
-
+            Self::env().emit_event(WorkerSetToRollup {});
             Ok(())
         }
 
@@ -258,7 +266,7 @@ mod index_executor {
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.ok_or(Error::NotConfigured)?,
+                config.pallet_id.ok_or(Error::MissingPalletId)?,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -288,6 +296,23 @@ mod index_executor {
                 );
             }
             Ok(())
+        }
+
+        /// Return config information
+        #[ink(message)]
+        pub fn get_config(&self) -> Result<Option<Config>> {
+            pink_extension::debug!("Get config: {:?}", &self.config);
+            Ok(self.config.clone())
+        }
+
+        /// Return rollup chain information
+        #[ink(message)]
+        pub fn get_rollup_chain(&self) -> Result<Chain> {
+            let chain = self
+                .get_chain("Khala".to_string())
+                .map(Ok)
+                .unwrap_or(Err(Error::ChainNotFound))?;
+            Ok(chain)
         }
 
         /// For cross-contract call test
@@ -348,7 +373,7 @@ mod index_executor {
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &chain.endpoint,
-                config.pallet_id.ok_or(Error::NotConfigured)?,
+                config.pallet_id.ok_or(Error::MissingPalletId)?,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -506,6 +531,13 @@ mod index_executor {
             Ok(())
         }
 
+        pub fn get_chain(&self, name: String) -> Option<Chain> {
+            let bytes = self.graph.clone();
+            let mut bytes = bytes.as_ref();
+            let graph = Graph::decode(&mut bytes).unwrap();
+            graph.get_chain(name)
+        }
+
         /// Returns BadOrigin error if the caller is not the owner
         fn ensure_owner(&self) -> Result<()> {
             if self.env().caller() == self.admin {
@@ -633,8 +665,9 @@ mod index_executor {
             pink_extension_runtime::mock_ext::mock_all_ext();
             let mut executor = deploy_executor();
             // Initial rollup
+            assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.config(String::from("http://127.0.0.1:39933"), Some(100)),
+                executor.setup_rollup(String::from("http://127.0.0.1:39933")),
                 Ok(())
             );
         }
@@ -672,8 +705,9 @@ mod index_executor {
                 })
                 .unwrap();
             // Initial rollup
+            assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.config(String::from("http://127.0.0.1:39933"), Some(100)),
+                executor.setup_rollup(String::from("http://127.0.0.1:39933")),
                 Ok(())
             );
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
