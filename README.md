@@ -1,5 +1,25 @@
 # InDex PhatContract Repo
 
+![inDex Execution Engine Diagram](./doc/img/index%20execution%20engine.png)
+
+## Terminology
+
+- Task
+
+    A Task contains bunch of steps, each of step represents an operation on a blockchain. It can be one of `Bridge`, `Swap`, and `Transfer`.
+
+- Request
+
+    A request contains task information and worker account that will be used to execute the task
+
+- Handler
+
+    Proxy contract deployed on every source chain that we supported. Handler contract contains a task queue that only whitelisted workers can claim(consume) task from it.
+
+- Worker
+
+    An account used to temporary hold user assets and send transaction to blockchain. Worker accounts are pre-derived inside Phat contract, those key will never reveal for the outside.
+
 ## Prepare environment
 
 If your are new for Ink! smart contract language, please head to [Parity Ink document](https://paritytech.github.io/ink/)
