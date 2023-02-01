@@ -87,7 +87,7 @@ impl Task {
             // Push to pending tasks queue
             pending_tasks.push(self.id);
             // Save task data
-            client.session().put(&self.id.to_vec(), self.encode());
+            client.session().put(self.id.as_ref(), self.encode());
         } else {
             // We can not handle more tasks any more
             return Ok(());
@@ -95,10 +95,10 @@ impl Task {
 
         client
             .session()
-            .put(&b"free_accounts".to_vec(), free_accounts.encode());
+            .put(b"free_accounts".as_ref(), free_accounts.encode());
         client
             .session()
-            .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
+            .put(b"pending_tasks".as_ref(), pending_tasks.encode());
         Ok(())
     }
 
@@ -191,14 +191,14 @@ impl Task {
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.session().delete(&self.id.to_vec());
+                client.session().delete(self.id.as_ref());
             }
             client
                 .session()
-                .put(&b"free_accounts".to_vec(), free_accounts.encode());
+                .put(b"free_accounts".as_ref(), free_accounts.encode());
             client
                 .session()
-                .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
+                .put(b"pending_tasks".as_ref(), pending_tasks.encode());
         }
     }
 
@@ -316,7 +316,7 @@ impl Task {
 pub struct OnchainTasks;
 impl OnchainTasks {
     pub fn lookup_task(client: &mut SubstrateRollupClient, id: &TaskId) -> Option<Task> {
-        if let Ok(Some(raw_task)) = client.session().get(&id.to_vec()) {
+        if let Ok(Some(raw_task)) = client.session().get(id.as_ref()) {
             return match Decode::decode(&mut raw_task.as_slice()) {
                 Ok(task) => Some(task),
                 Err(_) => None,
@@ -326,7 +326,7 @@ impl OnchainTasks {
     }
 
     pub fn lookup_pending_tasks(client: &mut SubstrateRollupClient) -> Vec<TaskId> {
-        if let Ok(Some(raw_tasks)) = client.session().get(&b"pending_tasks".to_vec()) {
+        if let Ok(Some(raw_tasks)) = client.session().get(b"pending_tasks".as_ref()) {
             return match Decode::decode(&mut raw_tasks.as_slice()) {
                 Ok(tasks) => tasks,
                 Err(_) => vec![],
@@ -339,7 +339,7 @@ impl OnchainTasks {
 pub struct OnchainAccounts;
 impl OnchainAccounts {
     pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Vec<[u8; 32]> {
-        if let Ok(Some(raw_accounts)) = client.session().get(&b"free_accounts".to_vec()) {
+        if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
             return match Decode::decode(&mut raw_accounts.as_slice()) {
                 Ok(free_accounts) => free_accounts,
                 Err(_) => vec![],
@@ -351,7 +351,7 @@ impl OnchainAccounts {
     pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
         client
             .session()
-            .put(&b"free_accounts".to_vec(), accounts.encode());
+            .put(b"free_accounts".as_ref(), accounts.encode());
     }
 }
 
