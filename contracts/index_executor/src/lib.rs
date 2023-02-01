@@ -150,6 +150,11 @@ mod index_executor {
         #[ink(message)]
         pub fn config(&mut self, pallet_id: u8) -> Result<()> {
             self.ensure_owner()?;
+            // Insert empty record in advance
+            let empty_tasks: Vec<TaskId> = vec![];
+            pink_extension::ext()
+                .cache_set(b"running_tasks", &empty_tasks.encode())
+                .unwrap();
             self.config = Some(Config {
                 pallet_id: Some(pallet_id),
             });
@@ -158,11 +163,34 @@ mod index_executor {
             Ok(())
         }
 
+        /// Sets the graph, callable only to a specifically crafted management tool,
+        /// should not be called by anyone else
         #[ink(message)]
-        pub fn setup_rollup(&self, rollup_endpoint: String) -> Result<()> {
+        pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
+            self.ensure_owner()?;
+            self.graph = TryInto::<Graph>::try_into(graph)
+                .or(Err(Error::SetGraphFailed))?
+                .encode();
+            Self::env().emit_event(GraphSet {});
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn setup_rollup(&self, rollup_endpoint: Option<String>) -> Result<()> {
             self.ensure_owner()?;
             let _ = self.ensure_configured()?;
 
+            let rollup_endpoint = match rollup_endpoint {
+                Some(endpoint) => endpoint,
+                _ => {
+                    let chain = self
+                    .get_chain("Khala".to_string())
+                    .map(Ok)
+                    .unwrap_or(Err(Error::ChainNotFound))?;
+                    chain.endpoint
+                }
+            };
+ 
             let contract_id = self.env().account_id();
             // Check if the rollup is initialized properly
             let actual_owner = get_name_owner(&rollup_endpoint, &contract_id)
@@ -328,18 +356,6 @@ mod index_executor {
                 task_list.push(TaskCache::get_task(&task_id).ok_or(Error::TaskNotFoundInCache)?);
             }
             Ok(task_list)
-        }
-
-        /// Sets the graph, callable only to a specifically crafted management tool,
-        /// should not be called by anyone else
-        #[ink(message)]
-        pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
-            self.ensure_owner()?;
-            self.graph = TryInto::<Graph>::try_into(graph)
-                .or(Err(Error::SetGraphFailed))?
-                .encode();
-            Self::env().emit_event(GraphSet {});
-            Ok(())
         }
 
         /// Returs the interior graph, callable to all
@@ -667,7 +683,7 @@ mod index_executor {
             // Initial rollup
             assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.setup_rollup(String::from("http://127.0.0.1:39933")),
+                executor.setup_rollup(Some(String::from("http://127.0.0.1:39933"))),
                 Ok(())
             );
         }
@@ -707,7 +723,7 @@ mod index_executor {
             // Initial rollup
             assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.setup_rollup(String::from("http://127.0.0.1:39933")),
+                executor.setup_rollup(Some(String::from("http://127.0.0.1:39933"))),
                 Ok(())
             );
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
