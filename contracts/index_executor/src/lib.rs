@@ -87,6 +87,8 @@ mod index_executor {
         Execute,
     }
 
+    const SUB_ROLLUP_PREFIX: &[u8] = b"executor";
+
     #[ink(storage)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Executor {
@@ -205,6 +207,7 @@ mod index_executor {
                 &chain.endpoint,
                 config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
+                SUB_ROLLUP_PREFIX,
             )
             .log_err("failed to create rollup client")
             .or(Err(Error::FailedToCreateClient))?;
@@ -257,6 +260,7 @@ mod index_executor {
                 &chain.endpoint,
                 config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
+                SUB_ROLLUP_PREFIX,
             )
             .log_err("failed to create rollup client")
             .or(Err(Error::FailedToCreateClient))?;
@@ -346,6 +350,7 @@ mod index_executor {
                 &chain.endpoint,
                 config.pallet_id.ok_or(Error::NotConfigured)?,
                 &contract_id,
+                SUB_ROLLUP_PREFIX,
             )
             .log_err("failed to create rollup client")
             .or(Err(Error::FailedToCreateClient))?;

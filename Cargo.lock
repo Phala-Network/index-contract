@@ -1357,13 +1357,13 @@ dependencies = [
  "ink_metadata",
  "ink_primitives",
  "ink_storage",
- "kv-session",
  "parity-scale-codec",
  "phala-pallet-common",
  "phat_offchain_rollup",
  "pink-extension 0.2.0",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
+ "pink-kv-session",
  "pink-subrpc 0.2.1",
  "pink-web3 0.19.4 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.11.1",
@@ -1617,11 +1617,6 @@ checksum = "3afef3b6eff9ce9d8ff9b3601125eec7f0c8cbac7abd14f355d053fa56c98768"
 dependencies = [
  "cpufeatures",
 ]
-
-[[package]]
-name = "kv-session"
-version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#54afc25649d45aa7751bf83223666b9a88048fac"
 
 [[package]]
 name = "lazy_static"
@@ -2022,7 +2017,7 @@ dependencies = [
 [[package]]
 name = "phat_offchain_rollup"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#54afc25649d45aa7751bf83223666b9a88048fac"
+source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#2b79275a76829ad803b44038c1d76fe35272e637"
 dependencies = [
  "hex",
  "ink_env",
@@ -2030,9 +2025,9 @@ dependencies = [
  "ink_metadata",
  "ink_primitives",
  "ink_storage",
- "kv-session",
  "parity-scale-codec",
  "pink-extension 0.2.0",
+ "pink-kv-session",
  "pink-subrpc 0.1.0",
  "pink-web3 0.19.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.11.1",
@@ -2196,6 +2191,12 @@ dependencies = [
  "ryu",
  "serde",
 ]
+
+[[package]]
+name = "pink-kv-session"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3da595e670ee22ac5ae563a55388ce2148d68b993fe09ca0099a247cb55cf790"
 
 [[package]]
 name = "pink-subrpc"

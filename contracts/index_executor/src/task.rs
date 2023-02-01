@@ -5,8 +5,8 @@ use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use ink_storage::Mapping;
-use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -456,7 +456,8 @@ mod tests {
 
         // Create rollup client
         let mut client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
+                .unwrap();
         // Setup initial worker accounts to rollup storage
         OnchainAccounts::set_worker_accounts(
             &mut client,
@@ -538,7 +539,8 @@ mod tests {
 
         // Now let's query if the task is exist in rollup storage with another rollup client
         let mut another_client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
+                .unwrap();
         let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(

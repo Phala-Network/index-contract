@@ -25,8 +25,7 @@ scale-info = { version = "2.1", default-features = false, features = ["derive"],
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
 phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate"] }
-kv-session = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false }
-
+pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.2.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
