@@ -137,6 +137,7 @@ impl Task {
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
         ) == Ok(true)
+        // FIXME: handle returned error
         {
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
@@ -172,8 +173,30 @@ impl Task {
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                 == Ok(true)
             {
+                pink_extension::debug!(
+                    "Trying to run step[{:?}] with nonce {:?}",
+                    self.execute_index,
+                    nonce
+                );
                 self.steps[self.execute_index as usize].run(nonce, recipient, context)?;
                 self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+            } else {
+                pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
+            }
+        } else {
+            // Claim step should be considered separately
+            if self.execute_index == 0 {
+                let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+                // FIXME: handle returned error
+                if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+                    == Ok(true)
+                {
+                    pink_extension::debug!("Trying to claim task with nonce {:?}", nonce);
+                    self.steps[self.execute_index as usize].run(nonce, None, context)?;
+                    self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+                } else {
+                    pink_extension::debug!("Claim step not runnable, return");
+                }
             }
         }
         Ok(self.status.clone())

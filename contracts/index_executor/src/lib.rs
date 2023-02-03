@@ -493,7 +493,7 @@ mod index_executor {
                     &id
                 );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
-                // FIXME: First time execute the task, it would be treat as broken
+                // FIXME: First time execute the task, it would be treat as broken, then trying to recover
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
                         pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &id);
