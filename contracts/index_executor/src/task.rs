@@ -184,9 +184,17 @@ impl Task {
                 pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
             }
         } else {
+            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             // Claim step should be considered separately
-            if self.execute_index == 0 {
-                let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+            if let StepMeta::Claim(claim_step) = &mut self.steps[self.execute_index as usize].meta {
+                let worker_account = AccountInfo::from(context.signer);
+                let latest_balance = worker_account.get_balance(
+                    claim_step.chain.clone(),
+                    claim_step.asset.clone(),
+                    context,
+                )?;
+                claim_step.b0 = Some(latest_balance);
+
                 // FIXME: handle returned error
                 if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                     == Ok(true)

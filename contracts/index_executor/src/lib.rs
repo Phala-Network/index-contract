@@ -128,7 +128,7 @@ mod index_executor {
             let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
             let mut worker_accounts: Vec<AccountInfo> = vec![];
 
-            for index in 0..10 {
+            for index in 0..1 {
                 let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
                     &[b"worker".to_vec(), [index].to_vec()].concat(),
                 )
@@ -202,7 +202,7 @@ mod index_executor {
         /// should not be called by anyone else
         #[ink(message)]
         pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
-            self.ensure_owner()?;
+            // self.ensure_owner()?;
             self.graph = TryInto::<Graph>::try_into(graph)
                 .or(Err(Error::SetGraphFailed))?
                 .encode();
