@@ -45,12 +45,20 @@ pub struct ClaimStep {
 impl Runner for ClaimStep {
     fn runnable(
         &self,
-        _nonce: u64,
-        _context: &Context,
+        nonce: u64,
+        context: &Context,
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
-        // If task already exist in rollup storage, it is ready to be claimed
-        Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
+        let worker_account = AccountInfo::from(context.signer);
+
+        // 1. Check nonce
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
+        if onchain_nonce > nonce {
+            Ok(false)
+        } else {
+            // If task already exist in rollup storage, it is ready to be claimed
+            Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
+        }
     }
 
     fn run(

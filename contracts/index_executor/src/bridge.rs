@@ -55,7 +55,7 @@ impl Runner for BridgeStep {
         // 1. Check nonce
         let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
         if onchain_nonce > nonce {
-            return Err("StepAlreadyExecuted");
+            return Ok(false);
         }
         // 2. Check balance
         let onchain_balance =
