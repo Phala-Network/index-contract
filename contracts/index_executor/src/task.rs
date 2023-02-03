@@ -482,7 +482,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
             },
-            executor: AccountInfo {
+            worker: AccountInfo {
                 account20: pre_mock_executor_address.into(),
                 account32: [0; 32],
             },

@@ -101,7 +101,7 @@ impl ClaimStep {
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
         // TODO: use handler configed in `chain`
-        let handler_on_goerli: H160 = hex!("Bf30B9BD94C584d8449fDE4fa57F46c838b62dc2").into();
+        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
         let handler = Contract::from_json(
             transport,
@@ -149,17 +149,23 @@ impl ClaimStep {
 /// If the given chain is Substrate based, fetch requests from pallet storage through RPC request.
 pub struct ActivedTaskFetcher {
     pub chain: Chain,
-    pub executor: AccountInfo,
+    pub worker: AccountInfo,
 }
 impl ActivedTaskFetcher {
-    pub fn new(chain: Chain, executor: AccountInfo) -> Self {
-        ActivedTaskFetcher { chain, executor }
+    pub fn new(chain: Chain, worker: AccountInfo) -> Self {
+        ActivedTaskFetcher { chain, worker }
     }
 
     pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
-            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.executor)?),
-            ChainType::Sub => Err("Unimplemented"),
+            ChainType::Evm => {
+                pink_extension::debug!("Query task Evm chain {:?}", &self.chain.name);
+                Ok(self.query_evm_actived_request(&self.chain, &self.worker)?)
+            }
+            ChainType::Sub => {
+                pink_extension::debug!("Query task Sub chain {:?}", &self.chain.name);
+                Err("Unimplemented")
+            }
         }
     }
 
@@ -169,7 +175,7 @@ impl ActivedTaskFetcher {
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
         // TODO: use handler configed in `chain`
-        let handler_on_goerli: H160 = hex!("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5").into();
+        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
         let handler = Contract::from_json(
             transport,
@@ -177,7 +183,14 @@ impl ActivedTaskFetcher {
             include_bytes!("./abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
+
         let worker_address: Address = worker.account20.into();
+        pink_extension::debug!(
+            "Lookup actived task for worker {:?} on {:?}",
+            &worker_address,
+            &chain.name
+        );
+
         let request_id: [u8; 32] = resolve_ready(handler.query(
             "getLastActivedRequest",
             worker_address,
@@ -187,8 +200,10 @@ impl ActivedTaskFetcher {
         ))
         .map_err(|_| "FailedGetLastActivedRequest")?;
         if request_id == [0; 32] {
+            pink_extension::debug!("getLastActivedRequest, return empty");
             return Ok(None);
         }
+        pink_extension::debug!("getLastActivedRequest, return request_id: {:?}", request_id);
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
             request_id,
@@ -197,7 +212,18 @@ impl ActivedTaskFetcher {
             None,
         ))
         .map_err(|_| "FailedGetRequestData")?;
-        Ok(Some(deposit_data.to_task(&chain.name, request_id)?))
+        pink_extension::debug!(
+            "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
+            &request_id,
+            &chain.name,
+            &deposit_data,
+        );
+        let task = deposit_data.to_task(&chain.name, request_id)?;
+        pink_extension::debug!(
+            "Return task constructed from request task data: {:?}",
+            &task,
+        );
+        Ok(Some(task))
     }
 }
 
@@ -205,7 +231,9 @@ impl ActivedTaskFetcher {
 #[allow(dead_code)]
 #[derive(Debug)]
 struct DepositData {
+    // TODO: use Bytes
     sender: Address,
+    // TODO: user Bytes
     token: Address,
     amount: U256,
     recipient: Vec<u8>,
@@ -258,10 +286,17 @@ impl Detokenize for DepositData {
 
 impl DepositData {
     fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
-        let request_data_json: RequestDataJson = pink_json::from_str(&self.request).unwrap();
+        pink_extension::debug!("Trying to parse request data from json string");
+        let request_data_json: RequestDataJson =
+            pink_json::from_str(&self.request).map_err(|_| "InvalidRequest")?;
+        pink_extension::debug!(
+            "Parse request data successfully, found ${:?} operations",
+            request_data_json.len()
+        );
         if request_data_json.is_empty() {
             return Err("EmptyTask");
         }
+        pink_extension::debug!("Trying to convert request data to task");
 
         let mut uninitialized_task = Task {
             id,
@@ -276,19 +311,20 @@ impl DepositData {
             meta: StepMeta::Claim(ClaimStep {
                 chain: source_chain.into(),
                 id,
-                asset: request_data_json[0].spend_asset.as_bytes().into(),
+                asset: self.decode_address(&request_data_json[0].spend_asset)?,
                 b0: None,
             }),
             chain: source_chain.into(),
             nonce: None,
         });
+        pink_extension::debug!("Insert claim operation in front of existing steps");
 
         for op in request_data_json.iter() {
             if op.op_type == *"swap" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Swap(SwapStep {
-                        spend_asset: op.spend_asset.as_bytes().into(),
-                        receive_asset: op.receive_asset.as_bytes().into(),
+                        spend_asset: self.decode_address(&op.spend_asset)?,
+                        receive_asset: self.decode_address(&op.receive_asset)?,
                         chain: op.source_chain.clone(),
                         dex: op.dex.clone(),
                         cap: self.u128_from_string(&op.cap)?,
@@ -301,12 +337,13 @@ impl DepositData {
                     chain: op.source_chain.clone(),
                     nonce: None,
                 });
+                pink_extension::debug!("Construct swap data from request");
             } else if op.op_type == *"bridge" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Bridge(BridgeStep {
-                        from: op.spend_asset.as_bytes().into(),
+                        from: self.decode_address(&op.spend_asset)?,
                         source_chain: op.source_chain.clone(),
-                        to: op.receive_asset.as_bytes().into(),
+                        to: self.decode_address(&op.receive_asset)?,
                         dest_chain: op.dest_chain.clone(),
                         fee: self.u128_from_string(&op.fee)?,
                         cap: self.u128_from_string(&op.cap)?,
@@ -317,7 +354,8 @@ impl DepositData {
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
-                })
+                });
+                pink_extension::debug!("Construct bridge data from request");
             } else {
                 return Err("Unrecognized op type");
             }
@@ -331,6 +369,14 @@ impl DepositData {
         let fixed_u128 = Fp::from_str(amount).or(Err("U128ConversionFailed"))?;
         Ok(fixed_u128.to_num())
     }
+
+    fn decode_address(&self, address: &str) -> Result<Vec<u8>, &'static str> {
+        if address.len() < 2 && address.len() % 2 != 0 {
+            return Err("InvalidAddress");
+        }
+
+        Ok(hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")?)
+    }
 }
 
 type RequestDataJson = Vec<OperationJson>;
@@ -340,8 +386,8 @@ struct OperationJson {
     op_type: String,
     source_chain: String,
     dest_chain: String,
-    spend_asset: Address,
-    receive_asset: Address,
+    spend_asset: String,
+    receive_asset: String,
     dex: String,
     fee: String,
     cap: String,
@@ -363,12 +409,18 @@ mod tests {
     };
 
     #[test]
+    fn test_json_parse() {
+        let request = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
+        let _request_data_json: RequestDataJson = pink_json::from_str(&request).unwrap();
+    }
+
+    #[test]
     fn test_fetch_task_from_evm() {
         dotenv().ok();
 
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let executor_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
@@ -380,8 +432,8 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
             },
-            executor: AccountInfo {
-                account20: executor_address.into(),
+            worker: AccountInfo {
+                account20: worker_address.into(),
                 account32: [0; 32],
             },
         }

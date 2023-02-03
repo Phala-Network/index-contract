@@ -49,6 +49,7 @@ mod index_executor {
         NotConfigured,
         MissingPalletId,
         ChainNotFound,
+        WorkerNotFound,
         FailedToGetNameOwner,
         RollupConfiguredByAnotherAccount,
         FailedToClaimName,
@@ -91,8 +92,8 @@ mod index_executor {
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum RunningType {
-        // [source_chain]
-        Fetch(String),
+        // [source_chain, worker_sr25519_pub_key]
+        Fetch(String, [u8; 32]),
         Execute,
     }
 
@@ -147,6 +148,40 @@ mod index_executor {
             }
         }
 
+        /// Debug only, remove before merge
+        #[ink(message)]
+        pub fn import_executor(&mut self, executor: Vec<u8>) -> Result<()> {
+            self.executor_account = executor.try_into().unwrap();
+            Ok(())
+        }
+
+        /// Debug only, remove before merge
+        #[ink(message)]
+        pub fn export_executor(&self) -> Result<[u8; 32]> {
+            Ok(self.executor_account)
+        }
+
+        /// Debug only, remove before merge
+        #[ink(message)]
+        pub fn import_workers(&mut self, worker: Vec<u8>) -> Result<()> {
+            let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
+            let mut worker_accounts: Vec<AccountInfo> = vec![];
+
+            let private_key: [u8; 32] = worker.try_into().unwrap();
+            worker_prv_keys.push(private_key);
+            worker_accounts.push(AccountInfo::from(private_key));
+
+            self.worker_prv_keys = worker_prv_keys;
+            self.worker_accounts = worker_accounts;
+            Ok(())
+        }
+
+        /// Debug only, remove before merge
+        #[ink(message)]
+        pub fn export_workers(&self) -> Result<Vec<[u8; 32]>> {
+            Ok(self.worker_prv_keys.clone())
+        }
+
         #[ink(message)]
         pub fn config(&mut self, pallet_id: u8) -> Result<()> {
             self.ensure_owner()?;
@@ -184,13 +219,13 @@ mod index_executor {
                 Some(endpoint) => endpoint,
                 _ => {
                     let chain = self
-                    .get_chain("Khala".to_string())
-                    .map(Ok)
-                    .unwrap_or(Err(Error::ChainNotFound))?;
+                        .get_chain("Khala".to_string())
+                        .map(Ok)
+                        .unwrap_or(Err(Error::ChainNotFound))?;
                     chain.endpoint
                 }
             };
- 
+
             let contract_id = self.env().account_id();
             // Check if the rollup is initialized properly
             let actual_owner = get_name_owner(&rollup_endpoint, &contract_id)
@@ -302,7 +337,9 @@ mod index_executor {
             .or(Err(Error::FailedToCreateClient))?;
 
             match running_type {
-                RunningType::Fetch(source_chain) => self.fetch_task(&mut client, source_chain)?,
+                RunningType::Fetch(source_chain, worker) => {
+                    self.fetch_task(&mut client, source_chain, worker)?
+                }
                 RunningType::Execute => self.execute_task(&mut client)?,
             };
 
@@ -403,6 +440,8 @@ mod index_executor {
             &self,
             client: &mut SubstrateRollupClient,
             source_chain: String,
+            // Worker sr25519 public key
+            worker: [u8; 32],
         ) -> Result<()> {
             pink_extension::debug!("Fetch actived task from {:?}", &source_chain);
             // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
@@ -410,7 +449,7 @@ mod index_executor {
             let actived_task = ActivedTaskFetcher::new(
                 self.get_chain(source_chain.clone())
                     .ok_or(Error::ChainNotFound)?,
-                AccountInfo::from(self.executor_account),
+                AccountInfo::from(self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?),
             )
             .fetch_task()
             .map_err(|_| Error::FailedToFetchTask)?;
@@ -454,6 +493,7 @@ mod index_executor {
                     &id
                 );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
+                // FIXME: First time execute the task, it would be treat as broken
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
                         pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &id);
@@ -535,7 +575,7 @@ mod index_executor {
                     }
                     _ => {
                         pink_extension::info!(
-                            "Task execution has finished yet, update data to local cache: {:?}",
+                            "Task execution has not finished yet, update data to local cache: {:?}",
                             hex::encode(task.id)
                         );
                         TaskCache::update_task(&task).map_err(|_| Error::WriteCacheFailed)?;
