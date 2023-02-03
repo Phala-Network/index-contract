@@ -38,6 +38,7 @@ impl AcalaDotSwapExecutor {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
 
+        pink_extension::debug!("Start to create swap transaction");
         let mut path = path.as_ref();
         let path =
             Vec::<AggregatedSwapPath>::decode(&mut path).map_err(|_| Error::FailedToScaleDecode)?;
@@ -54,8 +55,12 @@ impl AcalaDotSwapExecutor {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
+        pink_extension::debug!("Create swap signed transaction: {:?}", &signed_tx);
+
         let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
+        pink_extension::debug!("Swap transaction submitted: {:?}", hex::encode(&tx_id));
+
         Ok(tx_id)
     }
 }

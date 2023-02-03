@@ -71,10 +71,12 @@ impl Runner for BridgeStep {
     ) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
 
+        pink_extension::debug!("Start to run bridge with nonce: {}", nonce);
         // Get executor according to `src_chain` and `des_chain`
         let executor = context
             .get_bridge_executor(self.source_chain.clone(), self.dest_chain.clone())
             .ok_or("MissingExecutor")?;
+        pink_extension::debug!("Found bridge executor on {:?}", &self.source_chain);
         let chain = context
             .graph
             .get_chain(self.dest_chain.clone())
@@ -83,6 +85,10 @@ impl Runner for BridgeStep {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
         });
+        pink_extension::debug!(
+            "Trying to bridge assset to recipient: {:?}",
+            hex::encode(&recipient)
+        );
         // Do bridge transfer operation
         let tx_id = executor
             .transfer(

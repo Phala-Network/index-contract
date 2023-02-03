@@ -25,6 +25,11 @@ impl Context {
         source_chain: String,
         dest_chain: String,
     ) -> Option<Box<dyn BridgeExecutor>> {
+        pink_extension::debug!(
+            "Lookup bridge executor between {:?} <> {:?}",
+            &source_chain,
+            &dest_chain,
+        );
         self.bridge_executors
             .iter()
             .position(|e| e.0 .0 == source_chain && e.0 .1 == dest_chain)
@@ -32,6 +37,7 @@ impl Context {
     }
 
     pub fn get_dex_executor(&self, source_chain: String) -> Option<Box<dyn DexExecutor>> {
+        pink_extension::debug!("Lookup dex executor on {:?}", &source_chain);
         self.dex_executors
             .iter()
             .position(|e| e.0 == source_chain)

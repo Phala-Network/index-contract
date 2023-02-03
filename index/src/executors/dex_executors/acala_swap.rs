@@ -84,6 +84,7 @@ impl DexExecutor for AcalaDexExecutor {
         let token1 = CurrencyId::decode(&mut asset1).map_err(|_| Error::FailedToScaleDecode)?;
         let path = vec![token0, token1];
 
+        pink_extension::debug!("Start to create swap transaction");
         let signed_tx = create_transaction(
             &signer,
             "acala",
@@ -97,8 +98,12 @@ impl DexExecutor for AcalaDexExecutor {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
+        pink_extension::debug!("Create swap signed transaction: {:?}", &signed_tx);
+
         let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
+        pink_extension::debug!("Swap transaction submitted: {:?}", hex::encode(&tx_id));
+
         Ok(tx_id)
     }
 }

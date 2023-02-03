@@ -42,6 +42,8 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
         amount: u128,
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error> {
+        pink_extension::debug!("Start to create Moonbeam bridge transaction");
+
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
         // TODO: better error handling
@@ -61,6 +63,11 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
                 extra.nonce,
             )
             .map_err(|_| Error::FailedToSubmitTransaction)?;
+        pink_extension::debug!(
+            "Bridge transaction from Moonbeam submitted: {:?}",
+            hex::encode(&tx_id)
+        );
+
         // dbg!(tx_id);
         Ok(tx_id.as_bytes().to_vec())
     }

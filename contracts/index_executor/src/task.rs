@@ -155,6 +155,7 @@ impl Task {
             );
             // Update balance that actually can be consumed
             self.update_balance(settle_balance, context)?;
+            pink_extension::debug!("Finished balance update");
 
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
@@ -165,10 +166,8 @@ impl Task {
             } else {
                 None
             };
-            pink_extension::debug!(
-                "Start to execute step {:?}",
-                &self.steps[self.execute_index as usize]
-            );
+            pink_extension::debug!("Finished previous step execution");
+
             // FIXME: handle returned error
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                 == Ok(true)

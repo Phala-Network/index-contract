@@ -71,10 +71,12 @@ impl Runner for SwapStep {
     ) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
 
+        pink_extension::debug!("Start to run swap with nonce: {}", nonce);
         // Get executor according to `chain` from registry
         let executor = context
             .get_dex_executor(self.chain.clone())
             .ok_or("MissingExecutor")?;
+        pink_extension::debug!("Found dex executor on {:?}", &self.chain);
         let source_chain = context
             .graph
             .get_chain(self.chain.clone())
@@ -84,6 +86,11 @@ impl Runner for SwapStep {
             ChainType::Evm => AccountInfo::from(signer).account20.into(),
             ChainType::Sub => AccountInfo::from(signer).account32.into(),
         });
+        pink_extension::debug!(
+            "Trying to swap assset to recipient: {:?}",
+            hex::encode(&recipient)
+        );
+
         // Do swap operation
         let tx_id = executor
             .swap(

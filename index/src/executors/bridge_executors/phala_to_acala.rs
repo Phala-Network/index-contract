@@ -37,6 +37,8 @@ impl BridgeExecutor for Phala2AcalaExecutor {
         amount: u128,
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error> {
+        pink_extension::debug!("Start to create Phala/Khala bridge transaction");
+
         let asset_location: MultiLocation =
             Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
         let multi_asset = MultiAsset {
@@ -67,6 +69,10 @@ impl BridgeExecutor for Phala2AcalaExecutor {
         .map_err(|_| Error::InvalidSignature)?;
         let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
+        pink_extension::debug!(
+            "Bridge transaction from Phala/Khala submitted: {:?}",
+            hex::encode(&tx_id)
+        );
 
         Ok(tx_id)
     }

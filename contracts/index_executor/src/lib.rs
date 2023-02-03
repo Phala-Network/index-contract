@@ -665,21 +665,22 @@ mod index_executor {
                 .get_chain(String::from("Acala"))
                 .ok_or(Error::ChainNotFound)?;
 
-            let beamswap_router: [u8; 20] = hex::decode("96b244391D98B62D19aE89b1A4dCcf0fc56970C7")
-                .unwrap()
-                .to_array();
+            let stellaswap_router: [u8; 20] =
+                hex::decode("70085a09D30D6f8C4ecF6eE10120d1847383BB57")
+                    .unwrap()
+                    .to_array();
 
             // Acala DEX
             dex_executors.push((
                 String::from("Acala"),
                 Box::new(AcalaDexExecutor::new(&acala.endpoint)),
             ));
-            // Moonbeam::BeamSwap
+            // Moonbeam::StellaSwap
             dex_executors.push((
                 String::from("Moonbeam"),
                 Box::new(MoonbeamDexExecutor::new(
                     &moonbeam.endpoint,
-                    beamswap_router.into(),
+                    stellaswap_router.into(),
                 )),
             ));
             Ok(dex_executors)
