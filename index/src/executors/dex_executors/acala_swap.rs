@@ -1,9 +1,13 @@
+use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
+use xcm::v1::prelude::*;
 
-use crate::assets::{AggregatedSwapPath, CurrencyId};
+use crate::assets::{AggregatedSwapPath, Location2Currencyid};
+
 use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
 use alloc::{
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -66,11 +70,9 @@ impl DexExecutor for AcalaDexExecutor {
     fn swap(
         &self,
         signer: [u8; 32],
-        // TODO: to determind the content of this parameter
-        // I will assume it's the encoded version of CurrencyId(defined in acala source code)
-        // eg. vec![0, 1] is the serialization of aca,
-        // but then there will extra and meaningless overhead: decode first, then encode again
+        // Encoded asset location
         asset0: Vec<u8>,
+        // Encoded asset location
         asset1: Vec<u8>,
         spend: u128,
         _recipient: Vec<u8>,
@@ -78,13 +80,33 @@ impl DexExecutor for AcalaDexExecutor {
     ) -> core::result::Result<Vec<u8>, Error> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
-        let mut asset0 = asset0.as_ref();
-        let mut asset1 = asset1.as_ref();
-        let token0 = CurrencyId::decode(&mut asset0).map_err(|_| Error::FailedToScaleDecode)?;
-        let token1 = CurrencyId::decode(&mut asset1).map_err(|_| Error::FailedToScaleDecode)?;
+
+        let asset0_location: MultiLocation = Decode::decode(&mut asset0.as_slice())
+            .log_err(&format!(
+                "AcalaDexExecutor: FailedToScaleDecode, asset: {:?}",
+                &asset0
+            ))
+            .map_err(|_| Error::FailedToScaleDecode)?;
+        let asset1_location: MultiLocation = Decode::decode(&mut asset1.as_slice())
+            .log_err(&format!(
+                "AcalaDexExecutor: FailedToScaleDecode, asset: {:?}",
+                &asset1
+            ))
+            .map_err(|_| Error::FailedToScaleDecode)?;
+
+        let token0 = Location2Currencyid::new()
+            .get_currencyid("Acala".to_string(), &asset0_location)
+            .ok_or(Error::AssetNotRecognized)?;
+        let token1 = Location2Currencyid::new()
+            .get_currencyid("Acala".to_string(), &asset1_location)
+            .ok_or(Error::AssetNotRecognized)?;
+
         let path = vec![token0, token1];
 
-        pink_extension::debug!("Start to create swap transaction");
+        pink_extension::debug!(
+            "AcalaDexExecutor: Start to create swap transaction with path: {:?}",
+            &path
+        );
         let signed_tx = create_transaction(
             &signer,
             "acala",
@@ -98,7 +120,10 @@ impl DexExecutor for AcalaDexExecutor {
             extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        pink_extension::debug!("Create swap signed transaction: {:?}", &signed_tx);
+        pink_extension::debug!(
+            "AcalaDexExecutor: Create swap signed transaction: {:?}",
+            &signed_tx
+        );
 
         let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
