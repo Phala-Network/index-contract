@@ -3,6 +3,7 @@ use crate::assets::*;
 use crate::prelude::Error;
 use alloc::string::String;
 use alloc::{vec, vec::Vec};
+use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
     storage::{
@@ -126,6 +127,7 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     let web3 = Web3::new(transport);
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
+                        .log_err("Fetch data [evm native balance] failed")
                         .map_err(|_| Error::FetchDataFailed)?;
                     balance.try_into().expect("Balance onverflow")
                 } else {
@@ -146,6 +148,7 @@ impl BalanceFetcher for Chain {
                         Options::default(),
                         None,
                     ))
+                    .log_err("Fetch data [evm erc20 balance] failed")
                     .map_err(|_| Error::FetchDataFailed)?;
                     balance.try_into().expect("Balance onverflow")
                 }
@@ -161,10 +164,12 @@ impl BalanceFetcher for Chain {
                         ),
                         None,
                     )
+                    .log_err("Read storage [sub native balance] failed")
                     .map_err(|_| Error::FetchDataFailed)?
                     {
                         let account_info: AccountInfo<Index, AccountData<Balance>> =
                             scale::Decode::decode(&mut raw_storage.as_slice())
+                                .log_err("Decode storage [sub native balance] failed")
                                 .map_err(|_| Error::DecodeStorageFailed)?;
                         account_info.data.free
                     } else {
@@ -179,6 +184,11 @@ impl BalanceFetcher for Chain {
                             let asset_id = Location2Assetid::new()
                                 .get_assetid(self.name.clone(), &asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
+                            pink_extension::debug!(
+                                "Corresponding asset id of asset location: ({:?}, {:?})",
+                                &asset_location,
+                                asset_id
+                            );
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_blake2_128_prefix(
@@ -188,10 +198,14 @@ impl BalanceFetcher for Chain {
                                 ),
                                 None,
                             )
+                            .log_err(
+                                "Read storage [sub foreign asset balance] from pallet-asset failed",
+                            )
                             .map_err(|_| Error::FetchDataFailed)?
                             {
                                 let account_info: AssetAccount<Balance, Balance, ()> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
+                                    .log_err("Decode storage [sub foreign asset balance] from pallet-asset failed")
                                         .map_err(|_| Error::DecodeStorageFailed)?;
                                 account_info.balance
                             } else {
@@ -202,6 +216,11 @@ impl BalanceFetcher for Chain {
                             let currency_id = Location2Currencyid::new()
                                 .get_currencyid(self.name.clone(), &asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
+                            pink_extension::debug!(
+                                "Corresponding currency id of asset location: ({:?}, {:?})",
+                                &asset_location,
+                                &currency_id
+                            );
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_blake2_128_twox64_prefix(
@@ -211,10 +230,14 @@ impl BalanceFetcher for Chain {
                                 ),
                                 None,
                             )
+                            .log_err(
+                                "Read storage [sub foreign asset balance] from orml-token failed",
+                            )
                             .map_err(|_| Error::FetchDataFailed)?
                             {
                                 let account_info: OrmlTokenAccountData<Balance> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
+                                    .log_err("Decode storage [sub foreign asset balance] from orml-token failed")
                                         .map_err(|_| Error::DecodeStorageFailed)?;
                                 account_info.free
                             } else {
