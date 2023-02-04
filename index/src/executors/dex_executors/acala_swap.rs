@@ -2,7 +2,7 @@ use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 use xcm::v1::prelude::*;
 
-use crate::assets::{AggregatedSwapPath, Location2Currencyid};
+use crate::assets::{AggregatedSwapPath, CurrencyId, Location2Currencyid, TokenSymbol};
 
 use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
@@ -101,7 +101,22 @@ impl DexExecutor for AcalaDexExecutor {
             .get_currencyid("Acala".to_string(), &asset1_location)
             .ok_or(Error::AssetNotRecognized)?;
 
-        let path = vec![token0, token1];
+        // FIXME: hardcode for demo
+        if token0 != CurrencyId::Token(TokenSymbol::DOT)
+            || token1 != CurrencyId::Token(TokenSymbol::ACA)
+        {
+            pink_extension::debug!("AcalaDexExecutor: Unsupported trading pair",);
+            return Err(Error::Unimplemented);
+        }
+
+        let taiga_path = AggregatedSwapPath::Taiga(0, 0, 1);
+        // FIXME: Looks like first node is LDOT, represents dex will spend DOT
+        let dex_path = AggregatedSwapPath::Dex(vec![
+            CurrencyId::Token(TokenSymbol::LDOT),
+            CurrencyId::Token(TokenSymbol::AUSD),
+            token1,
+        ]);
+        let path = vec![taiga_path, dex_path];
 
         pink_extension::debug!(
             "AcalaDexExecutor: Start to create swap transaction with path: {:?}",
@@ -124,7 +139,6 @@ impl DexExecutor for AcalaDexExecutor {
             "AcalaDexExecutor: Create swap signed transaction: {:?}",
             &signed_tx
         );
-
         let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
         pink_extension::debug!("Swap transaction submitted: {:?}", hex::encode(&tx_id));
@@ -173,8 +187,38 @@ mod tests {
     }
 
     #[test]
+    #[ingore]
+    fn acala_swap_dot_2_aca_works() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+        let recipient: Vec<u8> = vec![];
+
+        let encoded_dot_location = hex::decode("010200411f06080002").unwrap();
+        let encoded_aca_location = hex::decode("010200411f06080000").unwrap();
+
+        let executor = AcalaDexExecutor::new("https://acala-rpc.dwellir.com");
+        /// 0.005 DOT
+        let spend = 50_000_000;
+        let tx_id = executor
+            .swap(
+                signer,
+                encoded_dot_location,
+                encoded_aca_location,
+                spend,
+                vec![],
+                ExtraParam::default(),
+            )
+            .unwrap();
+        println!("AcalaDexExecutor swap transaction submitted: {:?}", &tx_id);
+    }
+
+    #[test]
     #[ignore]
-    fn acala_swap_works() {
+    fn acala_aggregated_swap_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         let executor = AcalaDexExecutor::new("https://acala-rpc.dwellir.com");
