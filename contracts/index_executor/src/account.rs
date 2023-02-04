@@ -1,11 +1,14 @@
 use super::context::Context;
-use alloc::{string::String, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use index::{
     graph::{BalanceFetcher, ChainType, NonceFetcher},
     utils::ToArray,
 };
 use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
-use pink_extension::chain_extension::{signing, SigType};
+use pink_extension::{
+    chain_extension::{signing, SigType},
+    ResultExt,
+};
 use scale::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
@@ -22,23 +25,42 @@ impl AccountInfo {
         asset: Vec<u8>,
         context: &Context,
     ) -> Result<u128, &'static str> {
-        let chain = context.graph.get_chain(chain_name).ok_or("MissingChain")?;
+        let chain = context
+            .graph
+            .get_chain(chain_name.clone())
+            .ok_or("MissingChain")?;
         let account: Vec<u8> = match chain.chain_type {
             ChainType::Evm => self.account20.into(),
             ChainType::Sub => self.account32.into(),
         };
         chain
-            .get_balance(asset, account)
+            .get_balance(asset.clone(), account.clone())
+            .log_err(&format!(
+                "Fetch balance failed, chain: {:?}, asset: {:?}, account: {:?}",
+                &chain_name,
+                &hex::encode(&asset),
+                &hex::encode(&account)
+            ))
             .map_err(|_| "FetchBalanceFailed")
     }
 
     pub fn get_nonce(&self, chain_name: String, context: &Context) -> Result<u64, &'static str> {
-        let chain = context.graph.get_chain(chain_name).ok_or("MissingChain")?;
+        let chain = context
+            .graph
+            .get_chain(chain_name.clone())
+            .ok_or("MissingChain")?;
         let account: Vec<u8> = match chain.chain_type {
             ChainType::Evm => self.account20.into(),
             ChainType::Sub => self.account32.into(),
         };
-        chain.get_nonce(account).map_err(|_| "FetchNonceFailed")
+        chain
+            .get_nonce(account.clone())
+            .log_err(&format!(
+                "Fetch nonce failed, chain: {:?}, account: {:?}",
+                &chain_name,
+                &hex::encode(&account)
+            ))
+            .map_err(|_| "FetchNonceFailed")
     }
 }
 

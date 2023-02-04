@@ -314,13 +314,19 @@ impl Task {
                     swap_step.flow
                 };
 
-                // Update receive asset the original balance of worker account
-                let latest_balance = worker_account.get_balance(
+                // Update the original balance of worker account
+                let latest_b0 = worker_account.get_balance(
+                    swap_step.chain.clone(),
+                    swap_step.spend_asset.clone(),
+                    context,
+                )?;
+                let latest_b1 = worker_account.get_balance(
                     swap_step.chain.clone(),
                     swap_step.receive_asset.clone(),
                     context,
                 )?;
-                swap_step.b1 = Some(latest_balance)
+                swap_step.b0 = Some(latest_b0);
+                swap_step.b1 = Some(latest_b1);
             }
             StepMeta::Bridge(bridge_step) => {
                 bridge_step.amount = if settle_balance <= bridge_step.flow {
@@ -329,13 +335,19 @@ impl Task {
                     bridge_step.flow
                 };
 
-                // Update bridge asset on dest chain the original balance of worker account
-                let latest_balance = worker_account.get_balance(
+                // Update bridge asset the original balance of worker account
+                let latest_b0 = worker_account.get_balance(
+                    bridge_step.source_chain.clone(),
+                    bridge_step.from.clone(),
+                    context,
+                )?;
+                let latest_b1 = worker_account.get_balance(
                     bridge_step.dest_chain.clone(),
                     bridge_step.to.clone(),
                     context,
                 )?;
-                bridge_step.b1 = Some(latest_balance)
+                bridge_step.b0 = Some(latest_b0);
+                bridge_step.b1 = Some(latest_b1);
             }
             _ => return Err("UnexpectedStep"),
         }

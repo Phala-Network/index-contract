@@ -133,7 +133,8 @@ impl Runner for SwapStep {
         // Check balance change on source chain
         let onchain_balance =
             worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
-        Ok((self.b0.unwrap() - onchain_balance) == self.spend)
+        let b0 = self.b0.ok_or("MissingB0")?;
+        Ok((b0 - onchain_balance) == self.spend)
     }
 
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {

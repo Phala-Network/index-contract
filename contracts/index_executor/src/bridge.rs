@@ -121,16 +121,22 @@ impl Runner for BridgeStep {
         let worker_account = AccountInfo::from(context.signer);
 
         // TODO. query off-chain indexer directly get the execution result
+
         // Check nonce
         let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
         if onchain_nonce <= nonce {
             return Ok(false);
         }
 
-        // Check balance change on source chain
-        let onchain_balance =
+        // Check balance change on source chain and dest chain
+        let latest_b0 =
             worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
-        Ok((self.b0.unwrap() - onchain_balance) == self.amount)
+        let latest_b1 =
+            worker_account.get_balance(self.dest_chain.clone(), self.to.clone(), context)?;
+        let b0 = self.b0.ok_or("MissingB0")?;
+        let b1 = self.b1.ok_or("MissingB1")?;
+
+        Ok((b0 - latest_b0) == self.amount && latest_b1 > b1)
     }
 
     fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
