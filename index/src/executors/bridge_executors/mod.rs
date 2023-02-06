@@ -69,7 +69,7 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
-        let recipient: [u8; 32] = recipient.try_into().expect("Invalid recipient");
+        let recipient: [u8; 32] = recipient.try_into().map_err(|_| Error::InvalidAddress)?;
         let dest = MultiLocation::new(
             0,
             Junctions::X1(Junction::AccountId32 {
