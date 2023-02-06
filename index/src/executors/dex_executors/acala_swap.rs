@@ -178,7 +178,7 @@ mod tests {
     }
 
     #[test]
-    #[ingore]
+    #[ignore]
     fn acala_swap_dot_2_aca_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
@@ -186,13 +186,12 @@ mod tests {
         let secret_key = secret_key.unwrap().1;
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
-        let recipient: Vec<u8> = vec![];
 
         let encoded_dot_location = hex::decode("010200411f06080002").unwrap();
         let encoded_aca_location = hex::decode("010200411f06080000").unwrap();
 
         let executor = AcalaDexExecutor::new("https://acala-rpc.dwellir.com");
-        /// 0.005 DOT
+        // 0.005 DOT
         let spend = 50_000_000;
         let tx_id = executor
             .swap(

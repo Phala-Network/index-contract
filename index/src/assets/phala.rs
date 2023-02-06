@@ -8,9 +8,6 @@ use alloc::{
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::{prelude::*, MultiLocation};
 
-use scale::Decode;
-use scale::Encode;
-
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct Assetid2Location {

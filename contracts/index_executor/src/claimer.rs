@@ -141,7 +141,7 @@ impl ClaimStep {
         .map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
             "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
-            hex::encode(&task_id),
+            hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone().as_bytes())
         );
@@ -189,7 +189,7 @@ impl ActivedTaskFetcher {
         let worker_address: Address = worker.account20.into();
         pink_extension::debug!(
             "Lookup actived task for worker {:?} on {:?}",
-            &hex::encode(&worker_address),
+            &hex::encode(worker_address),
             &chain.name
         );
 
@@ -206,7 +206,7 @@ impl ActivedTaskFetcher {
         }
         pink_extension::debug!(
             "getLastActivedRequest, return request_id: {:?}",
-            hex::encode(&request_id)
+            hex::encode(request_id)
         );
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
@@ -218,7 +218,7 @@ impl ActivedTaskFetcher {
         .map_err(|_| "FailedGetRequestData")?;
         pink_extension::debug!(
             "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
-            &hex::encode(&request_id),
+            &hex::encode(request_id),
             &chain.name,
             &deposit_data,
         );
@@ -373,7 +373,7 @@ impl DepositData {
             return Err("InvalidAddress");
         }
 
-        Ok(hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")?)
+        hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
     }
 }
 

@@ -490,7 +490,7 @@ mod index_executor {
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
                     "Found one pending tasks exist in rollup storge, task id: {:?}",
-                    &hex::encode(&id)
+                    &hex::encode(id)
                 );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 // FIXME: First time execute the task, it would be treat as broken, then trying to recover
@@ -526,7 +526,7 @@ mod index_executor {
 
                 pink_extension::info!(
                     "Start execute next step of task, execute worker account: {:?}",
-                    &hex::encode(&task.worker)
+                    &hex::encode(task.worker)
                 );
                 match task.execute(
                     &Context {
