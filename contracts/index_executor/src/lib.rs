@@ -17,12 +17,7 @@ mod traits;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::graph::Graph as RegistryGraph;
-    use alloc::{
-        boxed::Box,
-        string::{String, ToString},
-        vec,
-        vec::Vec,
-    };
+    use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
     use index::utils::ToArray;
     use index::{
