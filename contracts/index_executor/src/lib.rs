@@ -74,7 +74,9 @@ mod index_executor {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
         /// The rollup anchor pallet id on the target blockchain
-        pallet_id: Option<u8>,
+        rollup_pallet_id: u8,
+        /// The endpoint of rollup deployed chain
+        rollup_endpoint: String,
     }
 
     /// Event emitted when graph is set.
@@ -128,7 +130,7 @@ mod index_executor {
             let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
             let mut worker_accounts: Vec<AccountInfo> = vec![];
 
-            for index in 0..1 {
+            for index in 0..10 {
                 let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
                     &[b"worker".to_vec(), [index].to_vec()].concat(),
                 )
@@ -151,6 +153,7 @@ mod index_executor {
         /// Debug only, remove before merge
         #[ink(message)]
         pub fn import_executor(&mut self, executor: Vec<u8>) -> Result<()> {
+            self.ensure_owner()?;
             self.executor_account = executor.try_into().unwrap();
             Ok(())
         }
@@ -158,12 +161,14 @@ mod index_executor {
         /// Debug only, remove before merge
         #[ink(message)]
         pub fn export_executor(&self) -> Result<[u8; 32]> {
+            self.ensure_owner()?;
             Ok(self.executor_account)
         }
 
         /// Debug only, remove before merge
         #[ink(message)]
         pub fn import_workers(&mut self, worker: Vec<u8>) -> Result<()> {
+            self.ensure_owner()?;
             let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
             let mut worker_accounts: Vec<AccountInfo> = vec![];
 
@@ -179,11 +184,12 @@ mod index_executor {
         /// Debug only, remove before merge
         #[ink(message)]
         pub fn export_workers(&self) -> Result<Vec<[u8; 32]>> {
+            self.ensure_owner()?;
             Ok(self.worker_prv_keys.clone())
         }
 
         #[ink(message)]
-        pub fn config(&mut self, pallet_id: u8) -> Result<()> {
+        pub fn config(&mut self, rollup_pallet_id: u8, rollup_endpoint: String) -> Result<()> {
             self.ensure_owner()?;
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
@@ -191,7 +197,8 @@ mod index_executor {
                 .cache_set(b"running_tasks", &empty_tasks.encode())
                 .unwrap();
             self.config = Some(Config {
-                pallet_id: Some(pallet_id),
+                rollup_pallet_id,
+                rollup_endpoint,
             });
             pink_extension::debug!("Set config as: {:?}", &self.config);
             Self::env().emit_event(Configured {});
@@ -202,7 +209,7 @@ mod index_executor {
         /// should not be called by anyone else
         #[ink(message)]
         pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
-            // self.ensure_owner()?;
+            self.ensure_owner()?;
             self.graph = TryInto::<Graph>::try_into(graph)
                 .or(Err(Error::SetGraphFailed))?
                 .encode();
@@ -211,24 +218,13 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn setup_rollup(&self, rollup_endpoint: Option<String>) -> Result<()> {
+        pub fn setup_rollup(&self) -> Result<()> {
             self.ensure_owner()?;
-            let _ = self.ensure_configured()?;
-
-            let rollup_endpoint = match rollup_endpoint {
-                Some(endpoint) => endpoint,
-                _ => {
-                    let chain = self
-                        .get_chain("Khala".to_string())
-                        .map(Ok)
-                        .unwrap_or(Err(Error::ChainNotFound))?;
-                    chain.endpoint
-                }
-            };
+            let config = self.ensure_configured()?;
 
             let contract_id = self.env().account_id();
             // Check if the rollup is initialized properly
-            let actual_owner = get_name_owner(&rollup_endpoint, &contract_id)
+            let actual_owner = get_name_owner(&config.rollup_endpoint, &contract_id)
                 .log_err("failed to get name owner")
                 .or(Err(Error::FailedToGetNameOwner))?;
             if let Some(owner) = actual_owner {
@@ -246,8 +242,8 @@ mod index_executor {
                     &contract_id
                 );
                 claim_name(
-                    &rollup_endpoint,
-                    self.config.clone().unwrap().pallet_id.unwrap(),
+                    &config.rollup_endpoint,
+                    config.rollup_pallet_id,
                     &contract_id,
                     &self.executor_account,
                 )
@@ -268,15 +264,10 @@ mod index_executor {
         #[ink(message)]
         pub fn setup_worker_accounts(&self) -> Result<()> {
             let config = self.ensure_configured()?;
-            // Get rpc info from registry
-            let chain = self
-                .get_chain("Khala".to_string())
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
-                &chain.endpoint,
-                config.pallet_id.ok_or(Error::MissingPalletId)?,
+                &config.rollup_endpoint,
+                config.rollup_pallet_id,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -321,15 +312,10 @@ mod index_executor {
         #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             let config = self.ensure_configured()?;
-            // Get rpc info from registry
-            let chain = self
-                .get_chain("Khala".to_string())
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
-                &chain.endpoint,
-                config.pallet_id.ok_or(Error::MissingPalletId)?,
+                &config.rollup_endpoint,
+                config.rollup_pallet_id,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -366,18 +352,7 @@ mod index_executor {
         /// Return config information
         #[ink(message)]
         pub fn get_config(&self) -> Result<Option<Config>> {
-            pink_extension::debug!("Get config: {:?}", &self.config);
             Ok(self.config.clone())
-        }
-
-        /// Return rollup chain information
-        #[ink(message)]
-        pub fn get_rollup_chain(&self) -> Result<Chain> {
-            let chain = self
-                .get_chain("Khala".to_string())
-                .map(Ok)
-                .unwrap_or(Err(Error::ChainNotFound))?;
-            Ok(chain)
         }
 
         /// For cross-contract call test
@@ -419,14 +394,10 @@ mod index_executor {
         #[ink(message)]
         pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
             let config = self.ensure_configured()?;
-            // Get rpc info from registry
-            let chain = self
-                .get_chain("Khala".to_string())
-                .ok_or(Error::ChainNotFound)?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
-                &chain.endpoint,
-                config.pallet_id.ok_or(Error::MissingPalletId)?,
+                &config.rollup_endpoint,
+                config.rollup_pallet_id,
                 &contract_id,
                 SUB_ROLLUP_PREFIX,
             )
@@ -722,11 +693,11 @@ mod index_executor {
             pink_extension_runtime::mock_ext::mock_all_ext();
             let mut executor = deploy_executor();
             // Initial rollup
-            assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.setup_rollup(Some(String::from("http://127.0.0.1:39933"))),
+                executor.config(100, String::from("http://127.0.0.1:39933")),
                 Ok(())
             );
+            assert_eq!(executor.setup_rollup(), Ok(()));
         }
 
         #[ignore]
@@ -762,11 +733,11 @@ mod index_executor {
                 })
                 .unwrap();
             // Initial rollup
-            assert_eq!(executor.config(100), Ok(()));
             assert_eq!(
-                executor.setup_rollup(Some(String::from("http://127.0.0.1:39933"))),
+                executor.config(100, String::from("http://127.0.0.1:39933")),
                 Ok(())
             );
+            assert_eq!(executor.setup_rollup(), Ok(()));
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
             let onchain_free_accounts = executor.get_free_worker_account().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
