@@ -413,6 +413,8 @@ mod tests {
     }
 
     #[test]
+    // Remove when `handler address is not hardcoded
+    #[ignore]
     fn test_fetch_task_from_evm() {
         dotenv().ok();
 
