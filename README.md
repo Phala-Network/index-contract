@@ -6,7 +6,7 @@
 
 - Task
 
-    A Task contains bunch of steps, each of step represents an operation on a blockchain. It can be one of `Bridge`, `Swap`, and `Transfer`.
+    A Task contains bunch of steps, each of step represents an operation on a blockchain. It can be one of `Bridge`, `Swap`, and `Transfer`
 
 - Request
 
@@ -14,11 +14,11 @@
 
 - Handler
 
-    Proxy contract deployed on every source chain that we supported. Handler contract contains a task queue that only whitelisted workers can claim(consume) task from it.
+    Proxy contract deployed on every source chain that we supported. Handler contract contains a task queue that only whitelisted workers can claim(consume) task from it. Solidity version implementation can be found [here](https://github.com/Phala-Network/index-solidity)
 
 - Worker
 
-    An account used to temporary hold user assets and send transaction to blockchain. Worker accounts are pre-derived inside Phat contract, those key will never reveal for the outside.
+    An account used to temporary hold user assets and send transaction to blockchain. Worker accounts are pre-derived inside Phat contract, those key will never reveal for the outside
 
 ## Prepare environment
 
