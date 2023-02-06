@@ -141,7 +141,7 @@ impl ClaimStep {
         .map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
             "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
-            task_id,
+            hex::encode(&task_id),
             &chain.name,
             hex::encode(tx_id.clone().as_bytes())
         );
@@ -166,14 +166,8 @@ impl ActivedTaskFetcher {
 
     pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
-            ChainType::Evm => {
-                pink_extension::debug!("Query task Evm chain {:?}", &self.chain.name);
-                Ok(self.query_evm_actived_request(&self.chain, &self.worker)?)
-            }
-            ChainType::Sub => {
-                pink_extension::debug!("Query task Sub chain {:?}", &self.chain.name);
-                Err("Unimplemented")
-            }
+            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.worker)?),
+            ChainType::Sub => Err("Unimplemented"),
         }
     }
 
@@ -195,7 +189,7 @@ impl ActivedTaskFetcher {
         let worker_address: Address = worker.account20.into();
         pink_extension::debug!(
             "Lookup actived task for worker {:?} on {:?}",
-            &worker_address,
+            &hex::encode(&worker_address),
             &chain.name
         );
 
@@ -208,10 +202,12 @@ impl ActivedTaskFetcher {
         ))
         .map_err(|_| "FailedGetLastActivedRequest")?;
         if request_id == [0; 32] {
-            pink_extension::debug!("getLastActivedRequest, return empty");
             return Ok(None);
         }
-        pink_extension::debug!("getLastActivedRequest, return request_id: {:?}", request_id);
+        pink_extension::debug!(
+            "getLastActivedRequest, return request_id: {:?}",
+            hex::encode(&request_id)
+        );
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
             request_id,
@@ -222,15 +218,11 @@ impl ActivedTaskFetcher {
         .map_err(|_| "FailedGetRequestData")?;
         pink_extension::debug!(
             "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
-            &request_id,
+            &hex::encode(&request_id),
             &chain.name,
             &deposit_data,
         );
         let task = deposit_data.to_task(&chain.name, request_id)?;
-        pink_extension::debug!(
-            "Return task constructed from request task data: {:?}",
-            &task,
-        );
         Ok(Some(task))
     }
 }
@@ -298,7 +290,7 @@ impl DepositData {
         let request_data_json: RequestDataJson =
             pink_json::from_str(&self.request).map_err(|_| "InvalidRequest")?;
         pink_extension::debug!(
-            "Parse request data successfully, found ${:?} operations",
+            "Parse request data successfully, found {:?} operations",
             request_data_json.len()
         );
         if request_data_json.is_empty() {
@@ -345,7 +337,6 @@ impl DepositData {
                     chain: op.source_chain.clone(),
                     nonce: None,
                 });
-                pink_extension::debug!("Construct swap data from request");
             } else if op.op_type == *"bridge" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Bridge(BridgeStep {
@@ -363,7 +354,6 @@ impl DepositData {
                     chain: op.source_chain.clone(),
                     nonce: None,
                 });
-                pink_extension::debug!("Construct bridge data from request");
             } else {
                 return Err("Unrecognized op type");
             }

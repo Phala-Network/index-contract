@@ -490,13 +490,13 @@ mod index_executor {
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
                     "Found one pending tasks exist in rollup storge, task id: {:?}",
-                    &id
+                    &hex::encode(&id)
                 );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 // FIXME: First time execute the task, it would be treat as broken, then trying to recover
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
-                        pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &id);
+                        pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &hex::encode(id));
                         if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
                             // The state of task saved in rollup storage is `Initialized`, to understand
                             // the current state we must sync state according to on-chain history
@@ -526,7 +526,7 @@ mod index_executor {
 
                 pink_extension::info!(
                     "Start execute next step of task, execute worker account: {:?}",
-                    &task.worker
+                    &hex::encode(&task.worker)
                 );
                 match task.execute(
                     &Context {

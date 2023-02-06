@@ -184,11 +184,6 @@ impl BalanceFetcher for Chain {
                             let asset_id = Location2Assetid::new()
                                 .get_assetid(self.name.clone(), &asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
-                            pink_extension::debug!(
-                                "Corresponding asset id of asset location: ({:?}, {:?})",
-                                &asset_location,
-                                asset_id
-                            );
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_blake2_128_prefix(
@@ -216,11 +211,6 @@ impl BalanceFetcher for Chain {
                             let currency_id = Location2Currencyid::new()
                                 .get_currencyid(self.name.clone(), &asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
-                            pink_extension::debug!(
-                                "Corresponding currency id of asset location: ({:?}, {:?})",
-                                &asset_location,
-                                &currency_id
-                            );
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_blake2_128_twox64_prefix(

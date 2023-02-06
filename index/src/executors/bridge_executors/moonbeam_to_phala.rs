@@ -46,7 +46,6 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
 
-        pink_extension::debug!("Start to create Moonbeam bridge transaction");
         // TODO: better error handling
         let tx_id = self
             .bridge_contract
@@ -64,10 +63,6 @@ impl BridgeExecutor for Moonbeam2PhalaExecutor {
                 extra.nonce,
             )
             .map_err(|_| Error::FailedToSubmitTransaction)?;
-        pink_extension::debug!(
-            "Bridge transaction from Moonbeam submitted: {:?}",
-            hex::encode(&tx_id)
-        );
 
         // dbg!(tx_id);
         Ok(tx_id.as_bytes().to_vec())

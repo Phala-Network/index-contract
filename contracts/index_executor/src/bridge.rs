@@ -105,10 +105,10 @@ impl Runner for BridgeStep {
             .map_err(|_| "BridgeFailed")?;
         pink_extension::info!(
             "Submit transaction to bridge asset {:?} from {:?} to {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
-            &self.from,
+            &hex::encode(&self.from),
             &self.source_chain,
             &self.dest_chain,
-            &recipient,
+            &hex::encode(&recipient),
             self.amount,
             hex::encode(&tx_id)
         );

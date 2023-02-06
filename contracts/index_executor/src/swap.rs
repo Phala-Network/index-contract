@@ -108,10 +108,10 @@ impl Runner for SwapStep {
             .map_err(|_| "SwapFailed")?;
         pink_extension::info!(
             "Submit transaction to swap asset {:?} to {:?} on ${:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
-            &self.spend_asset,
-            &self.receive_asset,
+            &hex::encode(&self.spend_asset),
+            &hex::encode(&self.receive_asset),
             &self.chain,
-            &recipient,
+            &hex::encode(&recipient),
             self.spend,
             hex::encode(&tx_id)
         );
