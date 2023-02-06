@@ -40,7 +40,10 @@ impl TaskCache {
         pink_extension::ext()
             .cache_remove(&task.id)
             .ok_or("WriteCacheFailed")?;
-
+        // Update runing task list
+        pink_extension::ext()
+            .cache_set(b"running_tasks", &decoded_tasks.encode())
+            .map_err(|_| "WriteCacheFailed")?;
         Ok(())
     }
 
