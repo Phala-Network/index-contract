@@ -1,0 +1,17 @@
+{
+  "name": "index-scripts",
+  "version": "0.1.0",
+  "description": "index scripts for utility or demo purpose",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "@phala/sdk": "^0.3.8-beta.0",
+    "@polkadot/api": "^9.13.6",
+    "@polkadot/api-contract": "^9.13.6",
+    "console-stamp": "^3.1.0",
+    "express": "^4.18.2"
+  }
+}
