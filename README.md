@@ -1,4 +1,4 @@
-# InDex PhatContract Repo
+# A crosschain execution engine build in Phat Contract
 
 ![inDex Execution Engine Diagram](./doc/img/index%20execution%20engine.png)
 
