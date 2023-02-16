@@ -64,7 +64,7 @@ impl Default for Task {
 
 impl Task {
     // Initialize task
-    pub fn init(
+    pub fn init_and_submit(
         &mut self,
         context: &Context,
         client: &mut SubstrateRollupClient,
@@ -534,7 +534,7 @@ mod tests {
         assert_eq!(task.steps.len(), 3);
 
         // Init task
-        assert_eq!(task.init(
+        assert_eq!(task.init_and_submit(
             &Context {
                 signer: [0; 32],
                 graph: Graph {

@@ -416,7 +416,7 @@ mod index_executor {
             if let Some(mut actived_task) = actived_task {
                 // Initialize task, and save it to on-chain storage
                 actived_task
-                    .init(
+                    .init_and_submit(
                         &Context {
                             // Don't need signer here
                             signer: [0; 32],
@@ -548,9 +548,7 @@ mod index_executor {
         }
 
         pub fn get_chain(&self, name: String) -> Option<Chain> {
-            let bytes = self.graph.clone();
-            let mut bytes = bytes.as_ref();
-            let graph = Graph::decode(&mut bytes).unwrap();
+            let graph = Graph::decode(&mut &self.graph[..]).unwrap();
             graph.get_chain(name)
         }
 
@@ -587,9 +585,8 @@ mod index_executor {
                 .get_chain(String::from("Phala"))
                 .ok_or(Error::ChainNotFound)?;
 
-            let moonbeam_xtoken: [u8; 20] = hex::decode("0000000000000000000000000000000000000804")
-                .unwrap()
-                .to_array();
+            let moonbeam_xtoken: [u8; 20] =
+                hex_literal::hex!("0000000000000000000000000000000000000804");
 
             // Moonbeam -> Acala
             bridge_executors.push((

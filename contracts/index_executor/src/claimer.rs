@@ -38,7 +38,7 @@ pub struct ClaimStep {
     pub id: TaskId,
     /// Asset that will transfer to worker account during claim
     pub asset: Vec<u8>,
-    /// Original relayer account balance of received asset
+    /// Original worker account balance of received asset
     pub b0: Option<u128>,
 }
 
