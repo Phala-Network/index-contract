@@ -94,7 +94,7 @@ mod index_executor {
         Execute,
     }
 
-    const SUB_ROLLUP_PREFIX: &[u8] = b"executor";
+    const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
 
     #[ink(storage)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
