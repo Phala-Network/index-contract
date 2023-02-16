@@ -405,8 +405,7 @@ mod index_executor {
             worker: [u8; 32],
         ) -> Result<()> {
             pink_extension::debug!("Fetch actived task from {:?}", &source_chain);
-            // Fetch actived task that completed initial confirmation from specific chain that belong to current worker,
-            // and append them to runing tasks
+            // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
                 self.get_chain(source_chain.clone())
                     .ok_or(Error::ChainNotFound)?,
