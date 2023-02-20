@@ -1,4 +1,6 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![feature(once_cell)]
+
 extern crate alloc;
 use ink_lang as ink;
 
@@ -30,6 +32,8 @@ mod index_executor {
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
+    use sp_std::cell::OnceCell;
+    // use sp_std::sync::Mutex;
 
     use crate::account::AccountInfo;
     use crate::cache::*;
@@ -95,6 +99,9 @@ mod index_executor {
     }
 
     const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
+    static BRIDGE_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn BridgeExecutor>)>> =
+        OnceCell::new();
+    static DEX_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn DexExecutor>)>> = OnceCell::new();
 
     #[ink(storage)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -203,6 +210,11 @@ mod index_executor {
             self.graph = TryInto::<Graph>::try_into(graph)
                 .or(Err(Error::SetGraphFailed))?
                 .encode();
+
+            // reload executors
+            BRIDGE_EXECUTORS.set(self.create_bridge_executors());
+            DEX_EXECUTORS.set(self.create_dex_executors());
+
             Self::env().emit_event(GraphSet {});
             Ok(())
         }
@@ -497,8 +509,12 @@ mod index_executor {
                             Graph::decode(&mut bytes).unwrap()
                         },
                         worker_accounts: self.worker_accounts.clone(),
-                        bridge_executors: self.create_bridge_executors()?,
-                        dex_executors: self.create_dex_executors()?,
+                        bridge_executors: BRIDGE_EXECUTORS
+                            .get_or_init(|| self.create_bridge_executors())
+                            .unwrap(),
+                        dex_executors: DEX_EXECUTORS
+                            .get_or_init(|| self.create_dex_executors())
+                            .unwrap(),
                     },
                     client,
                 ) {
@@ -609,7 +625,6 @@ mod index_executor {
                 (String::from("Phala"), String::from("Acala")),
                 Box::new(Phala2AcalaExecutor::new(&phala.endpoint)),
             ));
-
             Ok(bridge_executors)
         }
 

@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use dyn_clone::DynClone;
 use pink_subrpc::ExtraParam;
 
-pub trait BridgeExecutor: DynClone {
+pub trait BridgeExecutor: DynClone + sp_std::marker::Sync {
     fn transfer(
         &self,
         signer: [u8; 32],
@@ -15,7 +15,7 @@ pub trait BridgeExecutor: DynClone {
     ) -> core::result::Result<Vec<u8>, Error>;
 }
 
-pub trait DexExecutor: DynClone {
+pub trait DexExecutor: DynClone + sp_std::marker::Sync {
     fn swap(
         &self,
         signer: [u8; 32],
