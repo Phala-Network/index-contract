@@ -1337,7 +1337,6 @@ dependencies = [
  "sp-core-hashing 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "sp-io",
  "sp-runtime",
- "sp-std 4.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.29)",
  "ss58-registry",
  "xcm",
 ]
@@ -1358,7 +1357,6 @@ dependencies = [
  "ink_metadata",
  "ink_primitives",
  "ink_storage",
- "once_cell",
  "parity-scale-codec",
  "phala-pallet-common",
  "phat_offchain_rollup",

@@ -17,7 +17,12 @@ mod traits;
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
+    use crate::account::AccountInfo;
+    use crate::cache::*;
+    use crate::claimer::ActivedTaskFetcher;
+    use crate::context::Context;
     use crate::graph::Graph as RegistryGraph;
+    use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
     use index::utils::ToArray;
@@ -31,15 +36,6 @@ mod index_executor {
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
-    // use sp_std::cell::OnceCell;
-    use once_cell::sync::OnceCell;
-    // use sp_std::sync::Mutex;
-
-    use crate::account::AccountInfo;
-    use crate::cache::*;
-    use crate::claimer::ActivedTaskFetcher;
-    use crate::context::Context;
-    use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -99,9 +95,6 @@ mod index_executor {
     }
 
     const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
-    static BRIDGE_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)>> =
-        OnceCell::new();
-    static DEX_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn DexExecutor + Sync + Send>)>> = OnceCell::new();
 
     #[ink(storage)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -210,11 +203,6 @@ mod index_executor {
             self.graph = TryInto::<Graph>::try_into(graph)
                 .or(Err(Error::SetGraphFailed))?
                 .encode();
-
-            // reload executors
-            BRIDGE_EXECUTORS.set(self.create_bridge_executors().unwrap());
-            DEX_EXECUTORS.set(self.create_dex_executors().unwrap());
-
             Self::env().emit_event(GraphSet {});
             Ok(())
         }
@@ -459,6 +447,9 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
+            let bridge_executors = self.create_bridge_executors()?;
+            let dex_executors = self.create_dex_executors()?;
+
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
                     "Found one pending tasks exist in rollup storge, task id: {:?}",
@@ -509,10 +500,8 @@ mod index_executor {
                             Graph::decode(&mut bytes).unwrap()
                         },
                         worker_accounts: self.worker_accounts.clone(),
-                        bridge_executors: BRIDGE_EXECUTORS
-                            .get_or_init(|| self.create_bridge_executors().unwrap()),
-                        dex_executors: DEX_EXECUTORS
-                            .get_or_init(|| self.create_dex_executors().unwrap()),
+                        bridge_executors: bridge_executors.clone(),
+                        dex_executors: dex_executors.clone(),
                     },
                     client,
                 ) {
@@ -590,8 +579,8 @@ mod index_executor {
         #[allow(clippy::type_complexity)]
         fn create_bridge_executors(
             &self,
-        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)>> {
-            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)> = vec![];
+        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
+            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
             let moonbeam = self
                 .get_chain(String::from("Moonbeam"))
                 .ok_or(Error::ChainNotFound)?;

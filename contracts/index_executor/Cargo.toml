@@ -32,7 +32,6 @@ pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
 pink-subrpc = { version = "0.2.1", default-features = false }
 index = { path = "../../index", default-features = false }
-once_cell = { version = "1", default-features = false}
 
 [dev-dependencies]
 env_logger = "0.9"

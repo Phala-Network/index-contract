@@ -14,6 +14,7 @@ pub trait BridgeExecutor: DynClone {
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error>;
 }
+dyn_clone::clone_trait_object!(BridgeExecutor);
 
 pub trait DexExecutor: DynClone {
     fn swap(
@@ -26,3 +27,4 @@ pub trait DexExecutor: DynClone {
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error>;
 }
+dyn_clone::clone_trait_object!(DexExecutor);
