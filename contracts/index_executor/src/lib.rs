@@ -1,5 +1,4 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![feature(once_cell)]
 
 extern crate alloc;
 use ink_lang as ink;
@@ -32,7 +31,8 @@ mod index_executor {
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
-    use sp_std::cell::OnceCell;
+    // use sp_std::cell::OnceCell;
+    use once_cell::sync::OnceCell;
     // use sp_std::sync::Mutex;
 
     use crate::account::AccountInfo;
@@ -99,9 +99,9 @@ mod index_executor {
     }
 
     const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
-    static BRIDGE_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn BridgeExecutor>)>> =
+    static BRIDGE_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)>> =
         OnceCell::new();
-    static DEX_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn DexExecutor>)>> = OnceCell::new();
+    static DEX_EXECUTORS: OnceCell<Vec<((String, String), Box<dyn DexExecutor + Sync + Send>)>> = OnceCell::new();
 
     #[ink(storage)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -212,8 +212,8 @@ mod index_executor {
                 .encode();
 
             // reload executors
-            BRIDGE_EXECUTORS.set(self.create_bridge_executors());
-            DEX_EXECUTORS.set(self.create_dex_executors());
+            BRIDGE_EXECUTORS.set(self.create_bridge_executors().unwrap());
+            DEX_EXECUTORS.set(self.create_dex_executors().unwrap());
 
             Self::env().emit_event(GraphSet {});
             Ok(())
@@ -510,11 +510,9 @@ mod index_executor {
                         },
                         worker_accounts: self.worker_accounts.clone(),
                         bridge_executors: BRIDGE_EXECUTORS
-                            .get_or_init(|| self.create_bridge_executors())
-                            .unwrap(),
+                            .get_or_init(|| self.create_bridge_executors().unwrap()),
                         dex_executors: DEX_EXECUTORS
-                            .get_or_init(|| self.create_dex_executors())
-                            .unwrap(),
+                            .get_or_init(|| self.create_dex_executors().unwrap()),
                     },
                     client,
                 ) {
@@ -592,8 +590,8 @@ mod index_executor {
         #[allow(clippy::type_complexity)]
         fn create_bridge_executors(
             &self,
-        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
-            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
+        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)>> {
+            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor + Sync + Send>)> = vec![];
             let moonbeam = self
                 .get_chain(String::from("Moonbeam"))
                 .ok_or(Error::ChainNotFound)?;
