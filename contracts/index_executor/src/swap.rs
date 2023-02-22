@@ -2,7 +2,6 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index::graph::ChainType;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -33,6 +32,8 @@ pub struct SwapStep {
     pub b1: Option<u128>,
     /// Amount to be spend
     pub spend: u128,
+    /// Recipient account on current chain
+    pub recipient: Option<Vec<u8>>,
 }
 
 impl Runner for SwapStep {
@@ -65,13 +66,9 @@ impl Runner for SwapStep {
         Ok(onchain_balance >= self.spend)
     }
 
-    fn run(
-        &self,
-        nonce: u64,
-        recipient: Option<Vec<u8>>,
-        context: &Context,
-    ) -> Result<Vec<u8>, &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
+        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to run swap with nonce: {}", nonce);
         // Get executor according to `chain` from registry
@@ -79,19 +76,6 @@ impl Runner for SwapStep {
             .get_dex_executor(self.chain.clone())
             .ok_or("MissingExecutor")?;
         pink_extension::debug!("Found dex executor on {:?}", &self.chain);
-        let source_chain = context
-            .graph
-            .get_chain(self.chain.clone())
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
-        let recipient = recipient.unwrap_or(match source_chain.chain_type {
-            ChainType::Evm => AccountInfo::from(signer).account20.into(),
-            ChainType::Sub => AccountInfo::from(signer).account32.into(),
-        });
-        pink_extension::debug!(
-            "Trying to swap assset to recipient: {:?}",
-            hex::encode(&recipient)
-        );
 
         // Do swap operation
         let tx_id = executor

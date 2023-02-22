@@ -2,7 +2,6 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index::graph::ChainType;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -33,6 +32,8 @@ pub struct BridgeStep {
     pub b1: Option<u128>,
     /// Bridge amount
     pub amount: u128,
+    /// Recipient account on dest chain
+    pub recipient: Option<Vec<u8>>,
 }
 
 impl Runner for BridgeStep {
@@ -65,13 +66,9 @@ impl Runner for BridgeStep {
         Ok(onchain_balance >= self.amount)
     }
 
-    fn run(
-        &self,
-        nonce: u64,
-        recipient: Option<Vec<u8>>,
-        context: &Context,
-    ) -> Result<Vec<u8>, &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
+        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to run bridge with nonce: {}", nonce);
         // Get executor according to `src_chain` and `des_chain`
@@ -79,18 +76,7 @@ impl Runner for BridgeStep {
             .get_bridge_executor(self.source_chain.clone(), self.dest_chain.clone())
             .ok_or("MissingExecutor")?;
         pink_extension::debug!("Found bridge executor on {:?}", &self.source_chain);
-        let chain = context
-            .graph
-            .get_chain(self.dest_chain.clone())
-            .ok_or("MissingChain")?;
-        let recipient = recipient.unwrap_or(match chain.chain_type {
-            ChainType::Evm => AccountInfo::from(signer).account20.into(),
-            ChainType::Sub => AccountInfo::from(signer).account32.into(),
-        });
-        pink_extension::debug!(
-            "Trying to bridge assset to recipient: {:?}",
-            hex::encode(&recipient)
-        );
+
         // Do bridge transfer operation
         let tx_id = executor
             .transfer(

@@ -16,12 +16,7 @@ pub trait Runner {
     ) -> Result<bool, &'static str>;
 
     /// Execute a job, basically send a transaction to blockchain, and return tx id.
-    fn run(
-        &self,
-        nonce: u64,
-        recipient: Option<Vec<u8>>,
-        context: &Context,
-    ) -> Result<Vec<u8>, &'static str>;
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str>;
 
     /// Check if a job is already executed successfully when executing the job.
     ///

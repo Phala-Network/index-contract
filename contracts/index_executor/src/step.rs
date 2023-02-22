@@ -43,16 +43,11 @@ impl Runner for Step {
         }
     }
 
-    fn run(
-        &self,
-        nonce: u64,
-        recipient: Option<Vec<u8>>,
-        context: &Context,
-    ) -> Result<Vec<u8>, &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         match &self.meta {
-            StepMeta::Claim(claim_step) => claim_step.run(nonce, recipient, context),
-            StepMeta::Swap(swap_step) => swap_step.run(nonce, recipient, context),
-            StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, recipient, context),
+            StepMeta::Claim(claim_step) => claim_step.run(nonce, context),
+            StepMeta::Swap(swap_step) => swap_step.run(nonce, context),
+            StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, context),
         }
     }
 

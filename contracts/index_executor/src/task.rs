@@ -81,6 +81,8 @@ impl Task {
             self.worker = account;
             // Apply worker nonce for each step in task
             self.aplly_nonce(context, client)?;
+            // Apply recipient for each step in task
+            self.apply_recipient(context)?;
             // TODO: query initial balance of worker account and setup to specific step
             self.status = TaskStatus::Initialized;
             self.execute_index = 0;
@@ -159,14 +161,6 @@ impl Task {
 
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
-            // When executing the last step, replace the recipient with real recipient on destchain,
-            // or else it will be the worker account under the hood
-            let recipient = if self.execute_index as usize == (self.steps.len() - 1) {
-                Some(self.recipient.clone())
-            } else {
-                None
-            };
-
             // FIXME: handle returned error
             if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
                 == Ok(true)
@@ -176,7 +170,7 @@ impl Task {
                     self.execute_index,
                     nonce
                 );
-                self.steps[self.execute_index as usize].run(nonce, recipient, context)?;
+                self.steps[self.execute_index as usize].run(nonce, context)?;
                 self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
             } else {
                 pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
@@ -198,7 +192,7 @@ impl Task {
                     == Ok(true)
                 {
                     pink_extension::debug!("Trying to claim task with nonce {:?}", nonce);
-                    self.steps[self.execute_index as usize].run(nonce, None, context)?;
+                    self.steps[self.execute_index as usize].run(nonce, context)?;
                     self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
                 } else {
                     pink_extension::debug!("Claim step not runnable, return");
@@ -236,6 +230,8 @@ impl Task {
         context: &Context,
         _client: &SubstrateRollupClient,
     ) -> Result<(), &'static str> {
+        // Only in last step the recipient with be set as real recipient on destchain,
+        // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
         for step in self.steps.iter_mut() {
             let nonce = match nonce_map.get(&step.chain) {
@@ -257,6 +253,51 @@ impl Task {
             step.nonce = Some(nonce);
             // Increase nonce by 1
             nonce_map.insert(step.chain.clone(), &(nonce + 1));
+        }
+
+        Ok(())
+    }
+
+    fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
+        let step_count = self.steps.len();
+        for (index, step) in self.steps.iter_mut().enumerate() {
+            match &mut step.meta {
+                StepMeta::Swap(swap_step) => {
+                    swap_step.recipient = if index == (step_count - 1) {
+                        Some(self.recipient.clone())
+                    } else {
+                        let chain = context
+                            .graph
+                            .get_chain(swap_step.chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        Some(match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                            // ChainType::Unknown => panic!("chain not supported!"),
+                        })
+                    };
+                }
+                StepMeta::Bridge(bridge_step) => {
+                    bridge_step.recipient = if index == (step_count - 1) {
+                        Some(self.recipient.clone())
+                    } else {
+                        let chain = context
+                            .graph
+                            .get_chain(bridge_step.dest_chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        Some(match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                            // ChainType::Unknown => panic!("chain not supported!"),
+                        })
+                    };
+                }
+                _ => {}
+            }
         }
 
         Ok(())

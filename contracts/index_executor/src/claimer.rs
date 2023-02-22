@@ -63,12 +63,7 @@ impl Runner for ClaimStep {
         }
     }
 
-    fn run(
-        &self,
-        nonce: u64,
-        _recipient: Option<Vec<u8>>,
-        context: &Context,
-    ) -> Result<Vec<u8>, &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
         let chain = context
             .graph
@@ -338,6 +333,7 @@ impl DepositData {
                         b0: None,
                         b1: None,
                         spend: self.u128_from_string(&op.spend)?,
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -355,6 +351,7 @@ impl DepositData {
                         b0: None,
                         b1: None,
                         amount: self.u128_from_string(&op.spend)?,
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -514,7 +511,7 @@ mod tests {
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
         assert_eq!(
-            claim_step.run(nonce, None, &context).unwrap(),
+            claim_step.run(nonce, &context).unwrap(),
             hex::decode("7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa")
                 .unwrap()
         );
