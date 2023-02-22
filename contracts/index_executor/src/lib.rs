@@ -46,6 +46,7 @@ mod index_executor {
         ChainNotFound,
         WorkerNotFound,
         FailedToGetNameOwner,
+        RollupNotConfigured,
         RollupConfiguredByAnotherAccount,
         FailedToClaimName,
         FailedToCreateClient,
@@ -265,7 +266,7 @@ mod index_executor {
             .or(Err(Error::FailedToCreateClient))?;
 
             // Setup worker accounts if it hasn't been set yet.
-            if OnchainAccounts::lookup_free_accounts(&mut client).is_empty() {
+            if OnchainAccounts::lookup_free_accounts(&mut client).is_none() {
                 pink_extension::debug!(
                     "No onchain worker account exist, start setting throug rollup"
                 );
@@ -382,7 +383,7 @@ mod index_executor {
 
         /// Return worker accounts information
         #[ink(message)]
-        pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
+        pub fn get_free_worker_account(&self) -> Result<Option<Vec<[u8; 32]>>> {
             let config = self.ensure_configured()?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
@@ -511,7 +512,8 @@ mod index_executor {
                             hex::encode(task.id)
                         );
                         // Remove task from blockchain and recycle worker account
-                        task.destroy(client);
+                        task.destroy(client)
+                            .map_err(|_| Error::RollupNotConfigured)?;
                         // If task already delete from rollup storage, delete it from local cache
                         if OnchainTasks::lookup_task(client, id).is_none() {
                             pink_extension::info!(
@@ -727,7 +729,7 @@ mod index_executor {
             );
             assert_eq!(executor.setup_rollup(), Ok(()));
             assert_eq!(executor.setup_worker_accounts(), Ok(()));
-            let onchain_free_accounts = executor.get_free_worker_account().unwrap();
+            let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
                 .get_worker_account()
                 .into_iter()

@@ -69,7 +69,8 @@ impl Task {
         context: &Context,
         client: &mut SubstrateRollupClient,
     ) -> Result<(), &'static str> {
-        let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
+        let mut free_accounts =
+            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
@@ -203,8 +204,9 @@ impl Task {
     }
 
     /// Delete task record from on-chain storage
-    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) {
-        let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
+    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) -> Result<(), &'static str> {
+        let mut free_accounts =
+            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
@@ -223,6 +225,8 @@ impl Task {
                 .session()
                 .put(b"pending_tasks".as_ref(), pending_tasks.encode());
         }
+
+        Ok(())
     }
 
     fn aplly_nonce(
@@ -420,14 +424,15 @@ impl OnchainTasks {
 
 pub struct OnchainAccounts;
 impl OnchainAccounts {
-    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Vec<[u8; 32]> {
+    /// Return worker account that hasn't been allocated yet. Return `Nonce` if not set in rollup storage.
+    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Option<Vec<[u8; 32]>> {
         if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
             return match Decode::decode(&mut raw_accounts.as_slice()) {
                 Ok(free_accounts) => free_accounts,
-                Err(_) => vec![],
+                Err(_) => None,
             };
         }
-        vec![]
+        None
     }
 
     pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
