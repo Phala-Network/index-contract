@@ -6,7 +6,6 @@ const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const fs = require('fs')
 const path = require('path')
-const express = require('express')
 
 const NODE_ENDPOINT = 'wss://poc5.phala.network/ws'
 const PRUNTIME_ENDPOINT = 'https://poc5.phala.network/tee-api-1'
@@ -17,7 +16,7 @@ const SOURCE = 'Moonbeam'
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile, 'utf8'))
     const constructor = metadata.V3.spec.constructors.find(
-      c => c.label == 'new',
+      c => c.label == 'default',
     ).selector
     const name = metadata.contract.name
     const wasm = metadata.source.wasm
@@ -39,53 +38,61 @@ async function createContract(api, pruntimeUrl, contract, contractID) {
     return contractApi
 }
 
+async function loop_task() {
+    return new Promise(async (_resolve, reject) => {
+        console.log(`Loading contract metedata form file system`)
+        const contract = loadContractFile(
+            path.join(__dirname, '../../target/ink/index_executor/index_executor.contract'),
+        )
+
+        console.log(`Establishing connection with blockchain node`)
+        const nodeApi = await ApiPromise.create({
+            provider: new WsProvider(NODE_ENDPOINT),
+            types: {
+                ...KhalaTypes,
+                ...PhalaSDKTypes,
+            },
+        })
+        console.log(`Connected to node, create contract object`)
+        const executor = await createContract(nodeApi, PRUNTIME_ENDPOINT, contract, CONTRACT_ID)
+        console.log(`Contract objected created with contract ID: ${CONTRACT_ID}`)
+
+        const keyring = new Keyring({ type: 'sr25519' })
+        const alice = keyring.addFromUri('//Alice')
+        const certAlice = await PhalaSdk.signCertificate({
+            api: nodeApi,
+            pair: alice,
+        })
+
+        console.log(`Start query contract periodically...`)
+
+        // Trigger task search every 30 seconds
+        setInterval(async () => {
+            console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${EXE_WORKER}`)
+            await executor.query.run(certAlice,
+                {},
+                {'Fetch': [SOURCE, EXE_WORKER]}
+            )
+        }, 30000)
+
+        // Trigger task executing every 10 seconds
+        setInterval(async () => {
+            console.log(`🐌Trigger task executing`)
+            await executor.query.run(certAlice,
+                {},
+                'Execute'
+            )
+        }, 10000)
+    })
+}
+
 async function main() {
-    console.log(`Loading contract metedata form file system`)
-    const contract = loadContractFile(
-        path.join(__dirname, '../../target/ink/index_executor/index_executor.contract'),
-    )
-
-    console.log(`Establishing connection with blockchain node`)
-    const nodeApi = await ApiPromise.create({
-        provider: new WsProvider(NODE_ENDPOINT),
-        types: {
-            ...KhalaTypes,
-            ...PhalaSDKTypes,
-        },
-    })
-    console.log(`Connected to node, create contract object`)
-    const executor = await createContract(nodeApi, PRUNTIME_ENDPOINT, contract, CONTRACT_ID)
-    console.log(`Contract objected created with contract ID: ${CONTRACT_ID}`)
-
-    const keyring = new Keyring({ type: 'sr25519' })
-    const alice = keyring.addFromUri('//Alice')
-    const certAlice = await PhalaSdk.signCertificate({
-        api: nodeApi,
-        pair: alice,
-    })
-
-    console.log(`Start query contract periodically...`)
-
-    // Trigger task search every 30 seconds
-    setInterval(async () => {
-        console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${EXE_WORKER}`)
-        await executor.query.run(certAlice,
-            {},
-            {'Fetch': [SOURCE, EXE_WORKER]}
-        )
-    }, 30000)
-
-    // Trigger task executing every 10 seconds
-    setInterval(async () => {
-        console.log(`🐌Trigger task executing`)
-        await executor.query.run(certAlice,
-            {},
-            'Execute'
-        )
-    }, 10000)
-
-    const server = express()
-    server.listen(3000);
+    try {
+        // never return
+        await loop_task()
+    } catch (err) {
+        console.error(`task run failed: ${err}`)
+    }
 }
 
 main()
