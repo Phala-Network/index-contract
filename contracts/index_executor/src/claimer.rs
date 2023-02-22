@@ -51,6 +51,8 @@ impl Runner for ClaimStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
+        // TODO. query off-chain indexer directly get the execution result
+
         // 1. Check nonce
         let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
         if onchain_nonce > nonce {
@@ -82,6 +84,9 @@ impl Runner for ClaimStep {
 
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker = KeyPair::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+
         // Check if the transaction has been executed
         let chain = context
             .graph

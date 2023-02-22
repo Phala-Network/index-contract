@@ -52,6 +52,8 @@ impl Runner for BridgeStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
+        // TODO. query off-chain indexer directly get the execution result
+
         // 1. Check nonce
         let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
         if onchain_nonce > nonce {
