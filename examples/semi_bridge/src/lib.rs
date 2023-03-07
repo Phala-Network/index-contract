@@ -117,7 +117,7 @@ mod semi_bridge {
             recipient: Vec<u8>,
         ) -> Result<()> {
             let config = self.config.as_ref().ok_or(Error::NotConfigurated)?;
-            let executor = ChainBridgeEvm2Phala::new(
+            let executor = ChainBridgeEthereum2Phala::new(
                 &config.rpc,
                 config.bridge_address.into(),
                 vec![(token_contract, token_rid.into())],

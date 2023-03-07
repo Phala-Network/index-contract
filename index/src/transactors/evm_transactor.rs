@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::traits::common::Error;
+use crate::utils::ToBeBytes;
 use pink_web3::contract::{Contract, Options};
 use pink_web3::ethabi::{Bytes, Uint};
 use pink_web3::keys::pink::KeyPair;
@@ -9,11 +10,11 @@ use pink_web3::types::H256;
 
 /// The client to submit transaction to the Evm evm_contract contract
 #[derive(Clone)]
-pub struct ChainBridgeClient {
+pub struct ChainBridgeDepositer {
     pub contract: Contract<PinkHttp>,
 }
 
-impl ChainBridgeClient {
+impl ChainBridgeDepositer {
     /// Calls the EVM contract `deposit` function
     ///
     /// # Arguments
@@ -75,25 +76,5 @@ impl ChainBridgeClient {
             recipient_address,
         ]
         .concat()
-    }
-}
-
-trait ToBeBytes {
-    fn to_be_fixed_bytes(&self) -> Bytes;
-}
-
-impl ToBeBytes for Uint {
-    fn to_be_fixed_bytes(&self) -> Bytes {
-        let mut a: [u8; 32] = [0; 32];
-        self.to_big_endian(&mut a);
-        a.into()
-    }
-}
-
-/// FIXME: can be lossy
-impl ToBeBytes for usize {
-    fn to_be_fixed_bytes(&self) -> Bytes {
-        let uint = Uint::from(*self as u32);
-        uint.to_be_fixed_bytes()
     }
 }

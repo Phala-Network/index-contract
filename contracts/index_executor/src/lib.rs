@@ -589,9 +589,17 @@ mod index_executor {
             let phala = self
                 .get_chain(String::from("Phala"))
                 .ok_or(Error::ChainNotFound)?;
+            let khala = self
+                .get_chain(String::from("Khala"))
+                .ok_or(Error::ChainNotFound)?;
+            let ethereum = self
+                .get_chain(String::from("Ethereum"))
+                .ok_or(Error::ChainNotFound)?;
 
             let moonbeam_xtoken: [u8; 20] =
                 hex_literal::hex!("0000000000000000000000000000000000000804");
+            let chainbridge_on_ethereum: [u8; 20] =
+                hex_literal::hex!("8F92e7353b180937895E0C5937d616E8ea1A2Bb9");
 
             // Moonbeam -> Acala
             bridge_executors.push((
@@ -613,6 +621,48 @@ mod index_executor {
             bridge_executors.push((
                 (String::from("Phala"), String::from("Acala")),
                 Box::new(Phala2AcalaExecutor::new(&phala.endpoint)),
+            ));
+            // Ethereum -> Phala
+            bridge_executors.push((
+                (String::from("Ethereum"), String::from("Phala")),
+                Box::new(ChainBridgeEthereum2Phala::new(
+                    &ethereum.endpoint,
+                    chainbridge_on_ethereum.into(),
+                    vec![(
+                        // PHA contract address on Ethereum
+                        hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
+                        // PHA ChainBridge resource id on Phala
+                        hex_literal::hex!(
+                            "00b14e071ddad0b12be5aca6dffc5f2584ea158d9b0ce73e1437115e97a32a3e"
+                        ),
+                    )],
+                )),
+            ));
+            // Phala -> Ethereum
+            bridge_executors.push((
+                (String::from("Phala"), String::from("Ethereum")),
+                Box::new(ChainBridgePhala2Ethereum::new(0, &phala.endpoint)),
+            ));
+            // Ethereum -> Khala
+            bridge_executors.push((
+                (String::from("Ethereum"), String::from("Phala")),
+                Box::new(ChainBridgeEthereum2Phala::new(
+                    &ethereum.endpoint,
+                    chainbridge_on_ethereum.into(),
+                    vec![(
+                        // PHA contract address on Ethereum
+                        hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
+                        // PHA ChainBridge resource id on Khala
+                        hex_literal::hex!(
+                            "00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6"
+                        ),
+                    )],
+                )),
+            ));
+            // Khala -> Ethereum
+            bridge_executors.push((
+                (String::from("Khala"), String::from("Ethereum")),
+                Box::new(ChainBridgePhala2Ethereum::new(0, &khala.endpoint)),
             ));
             Ok(bridge_executors)
         }
