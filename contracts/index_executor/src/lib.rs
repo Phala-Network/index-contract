@@ -706,6 +706,7 @@ mod index_executor {
                         endpoint: "http://127.0.0.1:39933".to_string(),
                         native_asset: 1,
                         foreign_asset_type: 1,
+                        storage_handler: String::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,

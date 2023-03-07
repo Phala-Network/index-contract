@@ -48,6 +48,7 @@ pub struct Chain {
     // Encoded native asset location for Sub-chains
     pub native_asset: Vec<u8>,
     pub foreign_asset: Option<ForeignAssetModule>,
+    pub storage_handler: Vec<u8>,
 }
 
 impl Chain {
