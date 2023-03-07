@@ -352,11 +352,7 @@ impl Task {
         let worker_account = AccountInfo::from(context.signer);
         match &mut self.steps[self.execute_index as usize].meta {
             StepMeta::Swap(swap_step) => {
-                swap_step.spend = if settle_balance <= swap_step.flow {
-                    settle_balance
-                } else {
-                    swap_step.flow
-                };
+                swap_step.spend = settle_balance.min(swap_step.flow);
 
                 // Update the original balance of worker account
                 let latest_b0 = worker_account.get_balance(
@@ -373,11 +369,7 @@ impl Task {
                 swap_step.b1 = Some(latest_b1);
             }
             StepMeta::Bridge(bridge_step) => {
-                bridge_step.amount = if settle_balance <= bridge_step.flow {
-                    settle_balance
-                } else {
-                    bridge_step.flow
-                };
+                bridge_step.amount = settle_balance.min(bridge_step.flow);
 
                 // Update bridge asset the original balance of worker account
                 let latest_b0 = worker_account.get_balance(
