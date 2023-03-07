@@ -20,9 +20,9 @@ use scale::Encode;
 use subrpc::{create_transaction, send_transaction, ExtraParam};
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junction, Junctions, MultiAsset, MultiLocation};
 
-mod moonbeam_to_acala;
-mod moonbeam_to_phala;
-mod phala_to_acala;
+pub mod moonbeam_to_acala;
+pub mod moonbeam_to_phala;
+pub mod phala_to_acala;
 
 #[derive(Clone)]
 pub struct ChainBridgeEvm2Phala {
@@ -66,9 +66,10 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
-        let recipient: [u8; 32] = recipient.try_into().expect("Invalid recipient");
+        let recipient: [u8; 32] = recipient.try_into().map_err(|_| Error::InvalidAddress)?;
         let dest = MultiLocation::new(
             0,
             Junctions::X1(Junction::AccountId32 {
@@ -80,10 +81,14 @@ impl BridgeExecutor for ChainBridgeEvm2Phala {
         let rid = self
             .lookup_rid(asset.into())
             .ok_or(Error::InvalidMultilocation)?;
-        _ = self
-            .bridge_contract
-            .deposit(signer, rid.into(), U256::from(amount), dest.encode())?;
-        Ok(())
+        let tx_id = self.bridge_contract.deposit(
+            signer,
+            rid.into(),
+            U256::from(amount),
+            dest.encode(),
+            extra.nonce,
+        )?;
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -114,7 +119,8 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
         asset: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let asset_location: MultiLocation =
             Decode::decode(&mut asset.as_slice()).map_err(|_| Error::InvalidMultilocation)?;
         let multi_asset = MultiAsset {
@@ -142,12 +148,12 @@ impl BridgeExecutor for ChainBridgePhala2Evm {
             0x52u8,
             0x0u8,
             (multi_asset, dest, dest_weight),
-            ExtraParam::default(),
+            extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+        Ok(tx_id)
     }
 }
 

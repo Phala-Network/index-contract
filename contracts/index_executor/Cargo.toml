@@ -19,18 +19,18 @@ ink_env = { version = "3", default-features = false }
 ink_storage = { version = "3", default-features = false }
 ink_lang = { version = "3", default-features = false }
 
+sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
 primitive-types = { version = "0.11", default-features = false, features = ["codec", "scale-info"] }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
 phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate"] }
-kv-session = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false }
-
+pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.2.0", default-features = false }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
-
+pink-subrpc = { version = "0.2.1", default-features = false }
 index = { path = "../../index", default-features = false }
 
 [dev-dependencies]
@@ -59,6 +59,8 @@ crate-type = [
 default = ["std"]
 std = [
     "hex/std",
+    "serde/std",
+    "fixed/std",
     "ink_metadata/std",
     "ink_env/std",
     "ink_storage/std",
@@ -71,6 +73,11 @@ std = [
     "pink-extension/std",
     "pink-web3/std",
     "pink-json/std",
+    "pink-subrpc/std",
     "index/std",
+    "sp-std/std",
 ]
 ink-as-dependency = []
+
+[patch.crates-io]
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }

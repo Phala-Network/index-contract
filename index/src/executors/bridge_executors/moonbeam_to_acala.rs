@@ -2,8 +2,8 @@ use crate::prelude::BridgeExecutor;
 use crate::prelude::Error;
 use crate::transactors::XtokenClient;
 use alloc::vec::Vec;
+use pink_subrpc::ExtraParam;
 use pink_web3::ethabi::Address;
-
 use pink_web3::{
     api::{Eth, Namespace},
     contract::Contract,
@@ -40,11 +40,12 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
         asset_contract_address: Vec<u8>,
         recipient: Vec<u8>,
         amount: u128,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
         // TODO: better error handling
-        _ = self
+        let tx_id = self
             .bridge_contract
             .transfer(
                 signer,
@@ -57,10 +58,10 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
                 // any
                 0,
                 recipient,
+                extra.nonce,
             )
             .map_err(|_| Error::FailedToSubmitTransaction)?;
-        // dbg!(tx_id);
-        Ok(())
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -71,6 +72,7 @@ mod tests {
     use crate::utils::ToArray;
 
     use super::*;
+    use pink_subrpc::ExtraParam;
     use primitive_types::H160;
 
     #[test]
@@ -98,6 +100,7 @@ mod tests {
             // too small an amount will cause transaction failure: https://moonbeam.subscan.io/xcm_message/polkadot-270774e1bdb5eb294b2e04bb62b1e2c0d639dcf7
             // polkadot said too expensive
             1_000_000_000,
+            ExtraParam::default(),
         )
         .unwrap();
         // test txn:

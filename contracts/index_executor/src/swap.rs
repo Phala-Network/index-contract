@@ -2,7 +2,8 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index::graph::ChainType;
+use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
 /// Definition of swap operation step
@@ -31,45 +32,98 @@ pub struct SwapStep {
     pub b1: Option<u128>,
     /// Amount to be spend
     pub spend: u128,
+    /// Recipient account on current chain
+    pub recipient: Option<Vec<u8>>,
 }
 
 impl Runner for SwapStep {
-    fn runnable(&self) -> bool {
-        // TODO: implement
-        true
+    // The way we check if a bridge task is available to run is by:
+    //
+    // first by checking the nonce of the worker account, if the account nonce on source chain is great than
+    // the nonce we apply to the step, that means the transaction revalant to the step already been executed.
+    // In this situation we return false.
+    //
+    // second by checking the `from` asset balance of the worker account on the source chain, if the balance is
+    // great than or equal to the `amount` to bridge, we think we can safely execute bridge transaction
+    fn runnable(
+        &self,
+        nonce: u64,
+        context: &Context,
+        _client: Option<&mut SubstrateRollupClient>,
+    ) -> Result<bool, &'static str> {
+        let worker_account = AccountInfo::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+
+        // 1. Check nonce
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
+        if onchain_nonce > nonce {
+            return Ok(false);
+        }
+        // 2. Check balance
+        let onchain_balance =
+            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
+        Ok(onchain_balance >= self.spend)
     }
 
-    fn run(&self, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
+        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
+        pink_extension::debug!("Start to run swap with nonce: {}", nonce);
         // Get executor according to `chain` from registry
         let executor = context
             .get_dex_executor(self.chain.clone())
             .ok_or("MissingExecutor")?;
-        let source_chain = context
-            .graph
-            .get_chain(self.chain.clone())
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
-        let recipient = match source_chain.chain_type {
-            ChainType::Evm => AccountInfo::from(signer).account20.into(),
-            ChainType::Sub => AccountInfo::from(signer).account32.into(),
-        };
+        pink_extension::debug!("Found dex executor on {:?}", &self.chain);
+
         // Do swap operation
-        let _ = executor
+        let tx_id = executor
             .swap(
                 signer,
                 self.spend_asset.clone(),
                 self.receive_asset.clone(),
                 self.spend,
-                recipient,
+                recipient.clone(),
+                ExtraParam {
+                    tip: 0,
+                    nonce: Some(nonce),
+                    era: None,
+                },
             )
             .map_err(|_| "SwapFailed")?;
-        Ok(())
+        pink_extension::info!(
+            "Submit transaction to swap asset {:?} to {:?} on ${:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
+            &hex::encode(&self.spend_asset),
+            &hex::encode(&self.receive_asset),
+            &self.chain,
+            &hex::encode(&recipient),
+            self.spend,
+            hex::encode(&tx_id)
+        );
+        Ok(tx_id)
     }
 
-    fn check(&self, _nonce: u64) -> bool {
-        // TODO: implement
-        false
+    // By checking the nonce we can known whether the transaction has been executed or not,
+    // and with help of off-chain indexer, we can get the relevant transaction's execution result.
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        let worker_account = AccountInfo::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+        // Check nonce
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
+        if onchain_nonce <= nonce {
+            return Ok(false);
+        }
+
+        // Check balance change on source chain
+        let onchain_balance =
+            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
+        let b0 = self.b0.ok_or("MissingB0")?;
+        Ok((b0 - onchain_balance) == self.spend)
+    }
+
+    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        self.check(nonce, context)
     }
 }

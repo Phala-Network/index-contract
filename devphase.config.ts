@@ -56,7 +56,7 @@ async function saveLog(devphase: any, outPath): Promise<void> {
 const config : ProjectConfigOptions = {
     stack: {
         blockTime: 500,
-        version: 'nightly-2022-11-27',
+        version: 'nightly-2023-01-31',
         node: {
             port: 39944,
             binary: '{{directories.stacks}}/{{stack.version}}/phala-node',

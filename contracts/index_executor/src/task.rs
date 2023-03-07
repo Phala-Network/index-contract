@@ -1,12 +1,12 @@
+use super::account::AccountInfo;
 use super::context::Context;
-use super::step::Step;
+use super::step::{Step, StepMeta};
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
-use index::graph::ChainType;
-use index::graph::NonceFetcher;
+use index::graph::{ChainType, NonceFetcher};
 use ink_storage::Mapping;
-use kv_session::traits::KvSession;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -64,43 +64,52 @@ impl Default for Task {
 
 impl Task {
     // Initialize task
-    pub fn init(&mut self, context: &Context, client: &mut SubstrateRollupClient) {
-        let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
+    pub fn init_and_submit(
+        &mut self,
+        context: &Context,
+        client: &mut SubstrateRollupClient,
+    ) -> Result<(), &'static str> {
+        let mut free_accounts =
+            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
             // Task already saved, return
-            return;
+            return Ok(());
         }
         if let Some(account) = free_accounts.pop() {
             // Apply a worker account
             self.worker = account;
-            // Aplly worker nonce for each step in task
-            self.aplly_nonce(context, client);
+            // Apply worker nonce for each step in task
+            self.aplly_nonce(context, client)?;
+            // Apply recipient for each step in task
+            self.apply_recipient(context)?;
             // TODO: query initial balance of worker account and setup to specific step
             self.status = TaskStatus::Initialized;
             self.execute_index = 0;
             // Push to pending tasks queue
             pending_tasks.push(self.id);
             // Save task data
-            client.session().put(&self.id.to_vec(), self.encode());
+            client.session().put(self.id.as_ref(), self.encode());
         } else {
             // We can not handle more tasks any more
-            return;
+            return Ok(());
         }
 
         client
             .session()
-            .put(&b"free_accounts".to_vec(), free_accounts.encode());
+            .put(b"free_accounts".as_ref(), free_accounts.encode());
         client
             .session()
-            .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
+            .put(b"pending_tasks".as_ref(), pending_tasks.encode());
+        Ok(())
     }
 
     // Recover execution status according to on-chain storage
-    pub fn sync(&mut self, _client: &SubstrateRollupClient) {
+    pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         for step in self.steps.iter() {
-            if step.check(step.nonce.unwrap()) {
+            // A initialized task must have nonce applied
+            if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
                 self.execute_index += 1;
                 // If all step executed successfully, set task as `Completed`
                 if self.execute_index as usize == self.steps.len() {
@@ -115,10 +124,23 @@ impl Task {
         }
     }
 
-    pub fn execute(&mut self, context: &Context) -> Result<TaskStatus, &'static str> {
+    pub fn execute(
+        &mut self,
+        context: &Context,
+        client: &mut SubstrateRollupClient,
+    ) -> Result<TaskStatus, &'static str> {
+        // To avoid unnecessary remote check, we check index in advance
+        if self.execute_index as usize == self.steps.len() {
+            return Ok(TaskStatus::Completed);
+        }
+
         // If step already executed successfully, execute next step
-        if self.steps[self.execute_index as usize]
-            .check(self.steps[self.execute_index as usize].nonce.unwrap())
+        if self.steps[self.execute_index as usize].check(
+            // An executing task must have nonce applied
+            self.steps[self.execute_index as usize].nonce.unwrap(),
+            context,
+        ) == Ok(true)
+        // FIXME: handle returned error
         {
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
@@ -126,21 +148,65 @@ impl Task {
                 self.status = TaskStatus::Completed;
                 return Ok(self.status.clone());
             }
-        }
 
-        if self.steps[self.execute_index as usize].runnable() {
-            self.steps[self.execute_index as usize].run(context)?;
-            self.status = TaskStatus::Executing(
-                self.execute_index,
-                self.steps[self.execute_index as usize].nonce,
+            // Settle before execute next step
+            let settle_balance = self.settle(context)?;
+            pink_extension::debug!(
+                "Settle balance of last step[{:?}], settle amount: {:?}",
+                (self.execute_index - 1),
+                settle_balance,
             );
+            // Update balance that actually can be consumed
+            self.update_balance(settle_balance, context)?;
+            pink_extension::debug!("Finished previous step execution");
+
+            // An executing task must have nonce applied
+            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+            // FIXME: handle returned error
+            if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+                == Ok(true)
+            {
+                pink_extension::debug!(
+                    "Trying to run step[{:?}] with nonce {:?}",
+                    self.execute_index,
+                    nonce
+                );
+                self.steps[self.execute_index as usize].run(nonce, context)?;
+                self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+            } else {
+                pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
+            }
+        } else {
+            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+            // Claim step should be considered separately
+            if let StepMeta::Claim(claim_step) = &mut self.steps[self.execute_index as usize].meta {
+                let worker_account = AccountInfo::from(context.signer);
+                let latest_balance = worker_account.get_balance(
+                    claim_step.chain.clone(),
+                    claim_step.asset.clone(),
+                    context,
+                )?;
+                claim_step.b0 = Some(latest_balance);
+
+                // FIXME: handle returned error
+                if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+                    == Ok(true)
+                {
+                    pink_extension::debug!("Trying to claim task with nonce {:?}", nonce);
+                    self.steps[self.execute_index as usize].run(nonce, context)?;
+                    self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+                } else {
+                    pink_extension::debug!("Claim step not runnable, return");
+                }
+            }
         }
         Ok(self.status.clone())
     }
 
     /// Delete task record from on-chain storage
-    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) {
-        let mut free_accounts = OnchainAccounts::lookup_free_accounts(client);
+    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) -> Result<(), &'static str> {
+        let mut free_accounts =
+            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
@@ -150,41 +216,185 @@ impl Task {
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.session().delete(&self.id.to_vec());
+                client.session().delete(self.id.as_ref());
             }
             client
                 .session()
-                .put(&b"free_accounts".to_vec(), free_accounts.encode());
+                .put(b"free_accounts".as_ref(), free_accounts.encode());
             client
                 .session()
-                .put(&b"pending_tasks".to_vec(), pending_tasks.encode());
+                .put(b"pending_tasks".as_ref(), pending_tasks.encode());
         }
+
+        Ok(())
     }
 
-    fn aplly_nonce(&mut self, context: &Context, _client: &SubstrateRollupClient) {
+    fn aplly_nonce(
+        &mut self,
+        context: &Context,
+        _client: &SubstrateRollupClient,
+    ) -> Result<(), &'static str> {
+        // Only in last step the recipient with be set as real recipient on destchain,
+        // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
         for step in self.steps.iter_mut() {
-            let nonce = nonce_map.get(&step.chain).or_else(|| {
-                let chain = context.graph.get_chain(step.chain.clone()).unwrap();
-                let account_info = context.get_account(self.worker).unwrap();
-                let account = match chain.chain_type {
-                    ChainType::Evm => account_info.account20.to_vec(),
-                    ChainType::Sub => account_info.account32.to_vec(),
-                    // ChainType::Unknown => panic!("chain not supported!"),
-                };
-                chain.get_nonce(account).ok()
-            });
-            step.nonce = nonce;
+            let nonce = match nonce_map.get(&step.chain) {
+                Some(nonce) => nonce,
+                None => {
+                    let chain = context
+                        .graph
+                        .get_chain(step.chain.clone())
+                        .ok_or("MissingChain")?;
+                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                    let account = match chain.chain_type {
+                        ChainType::Evm => account_info.account20.to_vec(),
+                        ChainType::Sub => account_info.account32.to_vec(),
+                        // ChainType::Unknown => panic!("chain not supported!"),
+                    };
+                    chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?
+                }
+            };
+            step.nonce = Some(nonce);
             // Increase nonce by 1
-            nonce_map.insert(step.chain.clone(), &(nonce.unwrap() + 1));
+            nonce_map.insert(step.chain.clone(), &(nonce + 1));
         }
+
+        Ok(())
+    }
+
+    fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
+        let step_count = self.steps.len();
+        for (index, step) in self.steps.iter_mut().enumerate() {
+            match &mut step.meta {
+                StepMeta::Swap(swap_step) => {
+                    swap_step.recipient = if index == (step_count - 1) {
+                        Some(self.recipient.clone())
+                    } else {
+                        let chain = context
+                            .graph
+                            .get_chain(swap_step.chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        Some(match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                            // ChainType::Unknown => panic!("chain not supported!"),
+                        })
+                    };
+                }
+                StepMeta::Bridge(bridge_step) => {
+                    bridge_step.recipient = if index == (step_count - 1) {
+                        Some(self.recipient.clone())
+                    } else {
+                        let chain = context
+                            .graph
+                            .get_chain(bridge_step.dest_chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        Some(match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                            // ChainType::Unknown => panic!("chain not supported!"),
+                        })
+                    };
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
+        if self.execute_index < 1 {
+            return Err("InvalidExecuteIndex");
+        }
+
+        let last_step = self.steps[(self.execute_index - 1) as usize].clone();
+        let worker_account = AccountInfo::from(context.signer);
+        Ok(match last_step.meta {
+            StepMeta::Claim(claim_step) => {
+                let old_balance = claim_step.b0.ok_or("MisingOriginBalance")?;
+                let latest_balance =
+                    worker_account.get_balance(claim_step.chain, claim_step.asset, context)?;
+                // FIXME: what if some bad guy transfer this asset into worker account
+                latest_balance.saturating_sub(old_balance)
+            }
+            StepMeta::Swap(swap_step) => {
+                let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
+                let latest_balance = worker_account.get_balance(
+                    swap_step.chain,
+                    swap_step.receive_asset,
+                    context,
+                )?;
+                latest_balance.saturating_sub(old_balance)
+            }
+            StepMeta::Bridge(bridge_step) => {
+                // Old balance on dest chain
+                let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
+                let latest_balance =
+                    worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
+                latest_balance.saturating_sub(old_balance)
+            }
+        })
+    }
+
+    fn update_balance(
+        &mut self,
+        settle_balance: u128,
+        context: &Context,
+    ) -> Result<(), &'static str> {
+        if self.execute_index < 1 {
+            return Err("InvalidExecuteIndex");
+        }
+        let worker_account = AccountInfo::from(context.signer);
+        match &mut self.steps[self.execute_index as usize].meta {
+            StepMeta::Swap(swap_step) => {
+                swap_step.spend = settle_balance.min(swap_step.flow);
+
+                // Update the original balance of worker account
+                let latest_b0 = worker_account.get_balance(
+                    swap_step.chain.clone(),
+                    swap_step.spend_asset.clone(),
+                    context,
+                )?;
+                let latest_b1 = worker_account.get_balance(
+                    swap_step.chain.clone(),
+                    swap_step.receive_asset.clone(),
+                    context,
+                )?;
+                swap_step.b0 = Some(latest_b0);
+                swap_step.b1 = Some(latest_b1);
+            }
+            StepMeta::Bridge(bridge_step) => {
+                bridge_step.amount = settle_balance.min(bridge_step.flow);
+
+                // Update bridge asset the original balance of worker account
+                let latest_b0 = worker_account.get_balance(
+                    bridge_step.source_chain.clone(),
+                    bridge_step.from.clone(),
+                    context,
+                )?;
+                let latest_b1 = worker_account.get_balance(
+                    bridge_step.dest_chain.clone(),
+                    bridge_step.to.clone(),
+                    context,
+                )?;
+                bridge_step.b0 = Some(latest_b0);
+                bridge_step.b1 = Some(latest_b1);
+            }
+            _ => return Err("UnexpectedStep"),
+        }
+        Ok(())
     }
 }
 
 pub struct OnchainTasks;
 impl OnchainTasks {
     pub fn lookup_task(client: &mut SubstrateRollupClient, id: &TaskId) -> Option<Task> {
-        if let Ok(Some(raw_task)) = client.session().get(&id.to_vec()) {
+        if let Ok(Some(raw_task)) = client.session().get(id.as_ref()) {
             return match Decode::decode(&mut raw_task.as_slice()) {
                 Ok(task) => Some(task),
                 Err(_) => None,
@@ -194,7 +404,7 @@ impl OnchainTasks {
     }
 
     pub fn lookup_pending_tasks(client: &mut SubstrateRollupClient) -> Vec<TaskId> {
-        if let Ok(Some(raw_tasks)) = client.session().get(&b"pending_tasks".to_vec()) {
+        if let Ok(Some(raw_tasks)) = client.session().get(b"pending_tasks".as_ref()) {
             return match Decode::decode(&mut raw_tasks.as_slice()) {
                 Ok(tasks) => tasks,
                 Err(_) => vec![],
@@ -206,20 +416,21 @@ impl OnchainTasks {
 
 pub struct OnchainAccounts;
 impl OnchainAccounts {
-    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Vec<[u8; 32]> {
-        if let Ok(Some(raw_accounts)) = client.session().get(&b"free_accounts".to_vec()) {
+    /// Return worker account that hasn't been allocated yet. Return `Nonce` if not set in rollup storage.
+    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Option<Vec<[u8; 32]>> {
+        if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
             return match Decode::decode(&mut raw_accounts.as_slice()) {
                 Ok(free_accounts) => free_accounts,
-                Err(_) => vec![],
+                Err(_) => None,
             };
         }
-        vec![]
+        None
     }
 
     pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
         client
             .session()
-            .put(&b"free_accounts".to_vec(), accounts.encode());
+            .put(b"free_accounts".as_ref(), accounts.encode());
     }
 }
 
@@ -324,7 +535,8 @@ mod tests {
 
         // Create rollup client
         let mut client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
+                .unwrap();
         // Setup initial worker accounts to rollup storage
         OnchainAccounts::set_worker_accounts(
             &mut client,
@@ -349,17 +561,18 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
             },
-            executor: AccountInfo {
+            worker: AccountInfo {
                 account20: pre_mock_executor_address.into(),
                 account32: [0; 32],
             },
         }
         .fetch_task()
+        .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
 
         // Init task
-        task.init(
+        assert_eq!(task.init_and_submit(
             &Context {
                 signer: [0; 32],
                 graph: Graph {
@@ -393,7 +606,7 @@ mod tests {
                 dex_executors: vec![],
             },
             &mut client,
-        );
+        ), Ok(()));
 
         let maybe_submittable = client.commit().unwrap();
         if let Some(submittable) = maybe_submittable {
@@ -405,7 +618,8 @@ mod tests {
 
         // Now let's query if the task is exist in rollup storage with another rollup client
         let mut another_client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id).unwrap();
+            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
+                .unwrap();
         let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(

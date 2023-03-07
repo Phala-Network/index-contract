@@ -24,6 +24,7 @@ impl XtokenClient {
         parachain: u32,
         network: u8,
         recipient: Vec<u8>,
+        nonce: Option<u64>,
     ) -> core::result::Result<H256, Error> {
         let weight: u64 = 6000000000;
         let location = Token::Tuple(vec![
@@ -71,7 +72,10 @@ impl XtokenClient {
         let tx_id = resolve_ready(self.contract.signed_call(
             "transfer",
             params,
-            Options::with(|opt| opt.gas = Some(gas)),
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = nonce.map(|nonce| nonce.into());
+            }),
             signer,
         ))
         .map_err(|_| Error::FailedToSubmitTransaction)?;

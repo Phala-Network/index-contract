@@ -4,6 +4,7 @@ use crate::traits::{common::Error, executor::DexExecutor};
 use crate::transactors::UniswapV2Client;
 use alloc::vec;
 use alloc::vec::Vec;
+use pink_subrpc::ExtraParam;
 use pink_web3::types::Address;
 
 use pink_web3::{
@@ -46,7 +47,8 @@ impl DexExecutor for MoonbeamDexExecutor {
         asset1: Vec<u8>,
         spend: u128,
         recipient: Vec<u8>,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let asset0 = Address::from_slice(&asset0);
         let asset1 = Address::from_slice(&asset1);
@@ -58,10 +60,16 @@ impl DexExecutor for MoonbeamDexExecutor {
         let amount_in = U256::from(spend);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
         let deadline = U256::from(time + 60 * 30);
-        _ = self
-            .dex_contract
-            .swap(signer, amount_in, amount_out, path, to, deadline)?;
-        Ok(())
+        let tx_id = self.dex_contract.swap(
+            signer,
+            amount_in,
+            amount_out,
+            path,
+            to,
+            deadline,
+            extra.nonce,
+        )?;
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -69,6 +77,7 @@ impl DexExecutor for MoonbeamDexExecutor {
 mod tests {
     use crate::utils::ToArray;
     use core::str::FromStr;
+    use pink_subrpc::ExtraParam;
     use primitive_types::H160;
 
     use super::*;
@@ -108,7 +117,14 @@ mod tests {
         // https://moonbeam.moonscan.io/tx/0x727b7e9b4d889762050c310942ea1818f8c32fd483e973e42c77ce034e37a5c6
         // https://moonbeam.moonscan.io/tx/0x742504fe490ecb8ab968ecdbdde2aa774d4eca43c0eb73ad539e9bb974011722
         executor
-            .swap(signer, wglmr, xc_dot, spend, recipient)
+            .swap(
+                signer,
+                wglmr,
+                xc_dot,
+                spend,
+                recipient,
+                ExtraParam::default(),
+            )
             .unwrap();
     }
 }

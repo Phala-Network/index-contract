@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType};
+use index::graph::{Chain, ChainType, NonceFetcher};
 use scale::{Decode, Encode};
 
 use super::account::AccountInfo;
@@ -7,22 +7,26 @@ use super::bridge::BridgeStep;
 use super::context::Context;
 use super::step::{Step, StepMeta};
 use super::swap::SwapStep;
-use super::task::{Task, TaskId};
+use super::task::{OnchainTasks, Task, TaskId};
 use super::traits::Runner;
 use hex_literal::hex;
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
     ethabi::Token,
+    keys::pink::KeyPair,
+    signing::Key,
     transports::{resolve_ready, PinkHttp},
     types::Address,
 };
+
+use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use primitive_types::{H160, U256};
 use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
 /// For example, call RPC method defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L108
+///     https://github.com/Phala-Network/index-solidity/blob/0a1efe4b228185a37635dd872e1130eb3564ef6a/contracts/Handler.sol#L108
 ///
 /// Return account nonce that related to this transaction
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -32,15 +36,34 @@ pub struct ClaimStep {
     pub chain: String,
     /// Task Id
     pub id: TaskId,
+    /// Asset that will transfer to worker account during claim
+    pub asset: Vec<u8>,
+    /// Original worker account balance of received asset
+    pub b0: Option<u128>,
 }
 
 impl Runner for ClaimStep {
-    fn runnable(&self) -> bool {
-        // TODO: implement
-        true
+    fn runnable(
+        &self,
+        nonce: u64,
+        context: &Context,
+        client: Option<&mut SubstrateRollupClient>,
+    ) -> Result<bool, &'static str> {
+        let worker_account = AccountInfo::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+
+        // 1. Check nonce
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
+        if onchain_nonce > nonce {
+            Ok(false)
+        } else {
+            // If task already exist in rollup storage, it is ready to be claimed
+            Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
+        }
     }
 
-    fn run(&self, context: &Context) -> Result<(), &'static str> {
+    fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
         let chain = context
             .graph
@@ -49,25 +72,80 @@ impl Runner for ClaimStep {
             .unwrap_or(Err("MissingChain"))?;
 
         match chain.chain_type {
-            ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer)?),
+            ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer, nonce)?),
             ChainType::Sub => Err("Unimplemented"),
         }
     }
 
-    fn check(&self, _nonce: u64) -> bool {
-        // TODO: implement
-        false
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        let worker = KeyPair::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+
+        // Check if the transaction has been executed
+        let chain = context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let onchain_nonce = chain
+            .get_nonce(worker.address().as_bytes().into())
+            .map_err(|_| "FetchNonceFailed")?;
+        Ok((onchain_nonce - nonce) == 1)
+
+        // TODO: Check if the transaction is successed or not
+    }
+
+    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        self.check(nonce, context)
     }
 }
 
 impl ClaimStep {
     fn claim_evm_actived_tasks(
         &self,
-        _chain: Chain,
-        _task_id: TaskId,
-        _worker_key: &[u8; 32],
-    ) -> Result<(), &'static str> {
-        Err("Unimplemented")
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        // TODO: use handler configed in `chain`
+        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
+        let transport = Eth::new(PinkHttp::new(chain.endpoint));
+        let handler = Contract::from_json(
+            transport,
+            handler_on_goerli,
+            include_bytes!("./abi/handler.json"),
+        )
+        .map_err(|_| "ConstructContractFailed")?;
+        let worker = KeyPair::from(*worker_key);
+
+        // Estiamte gas before submission
+        let gas = resolve_ready(handler.estimate_gas(
+            "claim",
+            task_id,
+            worker.address(),
+            Options::default(),
+        ))
+        .map_err(|_| "GasEstimateFailed")?;
+
+        // Submit the claim transaction
+        let tx_id = resolve_ready(handler.signed_call(
+            "claim",
+            task_id,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = Some(nonce.into());
+            }),
+            worker,
+        ))
+        .map_err(|_| "ClaimSubmitFailed")?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone().as_bytes())
+        );
+        Ok(tx_id.as_bytes().to_vec())
     }
 }
 
@@ -79,16 +157,16 @@ impl ClaimStep {
 /// If the given chain is Substrate based, fetch requests from pallet storage through RPC request.
 pub struct ActivedTaskFetcher {
     pub chain: Chain,
-    pub executor: AccountInfo,
+    pub worker: AccountInfo,
 }
 impl ActivedTaskFetcher {
-    pub fn new(chain: Chain, executor: AccountInfo) -> Self {
-        ActivedTaskFetcher { chain, executor }
+    pub fn new(chain: Chain, worker: AccountInfo) -> Self {
+        ActivedTaskFetcher { chain, worker }
     }
 
-    pub fn fetch_task(&self) -> Result<Task, &'static str> {
+    pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
-            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.executor)?),
+            ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.worker)?),
             ChainType::Sub => Err("Unimplemented"),
         }
     }
@@ -97,9 +175,9 @@ impl ActivedTaskFetcher {
         &self,
         chain: &Chain,
         worker: &AccountInfo,
-    ) -> Result<Task, &'static str> {
+    ) -> Result<Option<Task>, &'static str> {
         // TODO: use handler configed in `chain`
-        let handler_on_goerli: H160 = hex!("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5").into();
+        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
         let handler = Contract::from_json(
             transport,
@@ -107,7 +185,14 @@ impl ActivedTaskFetcher {
             include_bytes!("./abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
+
         let worker_address: Address = worker.account20.into();
+        pink_extension::debug!(
+            "Lookup actived task for worker {:?} on {:?}",
+            &hex::encode(worker_address),
+            &chain.name
+        );
+
         let request_id: [u8; 32] = resolve_ready(handler.query(
             "getLastActivedRequest",
             worker_address,
@@ -115,7 +200,14 @@ impl ActivedTaskFetcher {
             Options::default(),
             None,
         ))
-        .unwrap();
+        .map_err(|_| "FailedGetLastActivedRequest")?;
+        if request_id == [0; 32] {
+            return Ok(None);
+        }
+        pink_extension::debug!(
+            "getLastActivedRequest, return request_id: {:?}",
+            hex::encode(request_id)
+        );
         let deposit_data: DepositData = resolve_ready(handler.query(
             "getRequestData",
             request_id,
@@ -123,8 +215,15 @@ impl ActivedTaskFetcher {
             Options::default(),
             None,
         ))
-        .unwrap();
-        deposit_data.to_task(&chain.name, request_id)
+        .map_err(|_| "FailedGetRequestData")?;
+        pink_extension::debug!(
+            "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
+            &hex::encode(request_id),
+            &chain.name,
+            &deposit_data,
+        );
+        let task = deposit_data.to_task(&chain.name, request_id)?;
+        Ok(Some(task))
     }
 }
 
@@ -132,7 +231,9 @@ impl ActivedTaskFetcher {
 #[allow(dead_code)]
 #[derive(Debug)]
 struct DepositData {
+    // TODO: use Bytes
     sender: Address,
+    // TODO: user Bytes
     token: Address,
     amount: U256,
     recipient: Vec<u8>,
@@ -185,28 +286,45 @@ impl Detokenize for DepositData {
 
 impl DepositData {
     fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
-        let mut uninitialized_task: Task = Default::default();
-        let request_data_json: RequestDataJson = pink_json::from_str(&self.request).unwrap();
-        uninitialized_task.id = id;
-        // Preset
-        uninitialized_task.source = source_chain.into();
-        uninitialized_task.sender = self.sender.as_bytes().into();
-        uninitialized_task.recipient = self.recipient.clone();
+        pink_extension::debug!("Trying to parse request data from json string");
+        let request_data_json: RequestDataJson =
+            pink_json::from_str(&self.request).map_err(|_| "InvalidRequest")?;
+        pink_extension::debug!(
+            "Parse request data successfully, found {:?} operations",
+            request_data_json.len()
+        );
+        if request_data_json.is_empty() {
+            return Err("EmptyTask");
+        }
+        pink_extension::debug!("Trying to convert request data to task");
+
+        let mut uninitialized_task = Task {
+            id,
+            source: source_chain.into(),
+            sender: self.sender.as_bytes().into(),
+            recipient: self.recipient.clone(),
+            ..Default::default()
+        };
+
         // Insert claim step
         uninitialized_task.steps.push(Step {
             meta: StepMeta::Claim(ClaimStep {
                 chain: source_chain.into(),
                 id,
+                asset: self.decode_address(&request_data_json[0].spend_asset)?,
+                b0: None,
             }),
             chain: source_chain.into(),
             nonce: None,
         });
+        pink_extension::debug!("Insert claim operation in front of existing steps");
+
         for op in request_data_json.iter() {
             if op.op_type == *"swap" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Swap(SwapStep {
-                        spend_asset: op.spend_asset.as_bytes().into(),
-                        receive_asset: op.receive_asset.as_bytes().into(),
+                        spend_asset: self.decode_address(&op.spend_asset)?,
+                        receive_asset: self.decode_address(&op.receive_asset)?,
                         chain: op.source_chain.clone(),
                         dex: op.dex.clone(),
                         cap: self.u128_from_string(&op.cap)?,
@@ -215,6 +333,7 @@ impl DepositData {
                         b0: None,
                         b1: None,
                         spend: self.u128_from_string(&op.spend)?,
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -222,9 +341,9 @@ impl DepositData {
             } else if op.op_type == *"bridge" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Bridge(BridgeStep {
-                        from: op.spend_asset.as_bytes().into(),
+                        from: self.decode_address(&op.spend_asset)?,
                         source_chain: op.source_chain.clone(),
-                        to: op.receive_asset.as_bytes().into(),
+                        to: self.decode_address(&op.receive_asset)?,
                         dest_chain: op.dest_chain.clone(),
                         fee: self.u128_from_string(&op.fee)?,
                         cap: self.u128_from_string(&op.cap)?,
@@ -232,10 +351,11 @@ impl DepositData {
                         b0: None,
                         b1: None,
                         amount: self.u128_from_string(&op.spend)?,
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
-                })
+                });
             } else {
                 return Err("Unrecognized op type");
             }
@@ -249,6 +369,14 @@ impl DepositData {
         let fixed_u128 = Fp::from_str(amount).or(Err("U128ConversionFailed"))?;
         Ok(fixed_u128.to_num())
     }
+
+    fn decode_address(&self, address: &str) -> Result<Vec<u8>, &'static str> {
+        if address.len() < 2 && address.len() % 2 != 0 {
+            return Err("InvalidAddress");
+        }
+
+        hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
+    }
 }
 
 type RequestDataJson = Vec<OperationJson>;
@@ -258,8 +386,8 @@ struct OperationJson {
     op_type: String,
     source_chain: String,
     dest_chain: String,
-    spend_asset: Address,
-    receive_asset: Address,
+    spend_asset: String,
+    receive_asset: String,
     dex: String,
     fee: String,
     cap: String,
@@ -271,17 +399,30 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::context::Context;
     use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
+    use index::{
+        graph::{Chain, ChainType, Graph},
+        utils::ToArray,
+    };
 
     #[test]
+    fn test_json_parse() {
+        let request = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
+        let _request_data_json: RequestDataJson = pink_json::from_str(&request).unwrap();
+    }
+
+    #[test]
+    // Remove when `handler address is not hardcoded
+    #[ignore]
     fn test_fetch_task_from_evm() {
         dotenv().ok();
 
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let executor_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
@@ -293,12 +434,13 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
             },
-            executor: AccountInfo {
-                account20: executor_address.into(),
+            worker: AccountInfo {
+                account20: worker_address.into(),
                 account32: [0; 32],
             },
         }
         .fetch_task()
+        .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
         match (
@@ -317,5 +459,66 @@ mod tests {
             }
             _ => assert!(false),
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_evm_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_key: [u8; 32] =
+            hex::decode("994efb9f9df9af03ad27553744a6492bfd8d1b22aa203769e75e200043110a48")
+                .unwrap()
+                .to_array();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        let goerli = Chain {
+            id: 0,
+            name: String::from("Goerli"),
+            chain_type: ChainType::Evm,
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            native_asset: vec![0],
+            foreign_asset: None,
+        };
+
+        let claim_step = ClaimStep {
+            chain: String::from("Goerli"),
+            id: hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+                .to_array(),
+            asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
+            b0: None,
+        };
+        let context = Context {
+            signer: mock_worker_key,
+            graph: Graph {
+                chains: vec![goerli],
+                assets: vec![],
+                dexs: vec![],
+                bridges: vec![],
+                dex_pairs: vec![],
+                bridge_pairs: vec![],
+                dex_indexers: vec![],
+            },
+            worker_accounts: vec![],
+            bridge_executors: vec![],
+            dex_executors: vec![],
+        };
+        // Send claim transaction
+        // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
+        assert_eq!(
+            claim_step.run(nonce, &context).unwrap(),
+            hex::decode("7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa")
+                .unwrap()
+        );
+
+        // Wait 60 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(60000));
+
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
     }
 }

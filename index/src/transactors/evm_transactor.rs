@@ -27,6 +27,7 @@ impl ChainBridgeClient {
         token_rid: H256,
         amount: Uint,
         recipient_address: Bytes,
+        nonce: Option<u64>,
     ) -> core::result::Result<H256, Error> {
         let data = Self::compose_deposite_data(amount, recipient_address);
         let params = (CHAINBRIDGE_ID_PHALA, token_rid, data);
@@ -37,16 +38,19 @@ impl ChainBridgeClient {
             signer.address(),
             Options::default(),
         ))
-        .expect("FIXME: failed to estiamte gas");
+        .map_err(|_| Error::FailedToGetGas)?;
 
         // Actually submit the tx (no guarantee for success)
         let tx_id = resolve_ready(self.contract.signed_call(
             "deposit",
             params,
-            Options::with(|opt| opt.gas = Some(gas)),
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = nonce.map(|nonce| nonce.into());
+            }),
             signer,
         ))
-        .expect("FIXME: submit failed");
+        .map_err(|_| Error::FailedToSubmitTransaction)?;
         Ok(tx_id)
     }
 

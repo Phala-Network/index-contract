@@ -1,9 +1,13 @@
+use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
+use xcm::v1::prelude::*;
 
-use crate::assets::{AggregatedSwapPath, CurrencyId};
+use crate::assets::{AggregatedSwapPath, CurrencyId, Location2Currencyid, TokenSymbol};
+
 use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
 use alloc::{
+    format,
     string::{String, ToString},
     vec,
     vec::Vec,
@@ -35,7 +39,8 @@ impl AcalaDexExecutor {
         path: Vec<u8>,
         spend: u128,
         _recipient: Vec<u8>,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
 
@@ -52,12 +57,12 @@ impl AcalaDexExecutor {
             0x5d_u8,
             0x0u8,
             (path, amount_in, amount_out),
-            ExtraParam::default(),
+            extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+        Ok(tx_id)
     }
 }
 
@@ -65,22 +70,53 @@ impl DexExecutor for AcalaDexExecutor {
     fn swap(
         &self,
         signer: [u8; 32],
-        // TODO: to determind the content of this parameter
-        // I will assume it's the encoded version of CurrencyId(defined in acala source code)
-        // eg. vec![0, 1] is the serialization of aca,
-        // but then there will extra and meaningless overhead: decode first, then encode again
+        // Encoded asset location
         asset0: Vec<u8>,
+        // Encoded asset location
         asset1: Vec<u8>,
         spend: u128,
         _recipient: Vec<u8>,
-    ) -> core::result::Result<(), Error> {
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(spend);
-        let mut asset0 = asset0.as_ref();
-        let mut asset1 = asset1.as_ref();
-        let token0 = CurrencyId::decode(&mut asset0).map_err(|_| Error::FailedToScaleDecode)?;
-        let token1 = CurrencyId::decode(&mut asset1).map_err(|_| Error::FailedToScaleDecode)?;
-        let path = vec![token0, token1];
+
+        let asset0_location: MultiLocation = Decode::decode(&mut asset0.as_slice())
+            .log_err(&format!(
+                "AcalaDexExecutor: FailedToScaleDecode, asset: {:?}",
+                &asset0
+            ))
+            .map_err(|_| Error::FailedToScaleDecode)?;
+        let asset1_location: MultiLocation = Decode::decode(&mut asset1.as_slice())
+            .log_err(&format!(
+                "AcalaDexExecutor: FailedToScaleDecode, asset: {:?}",
+                &asset1
+            ))
+            .map_err(|_| Error::FailedToScaleDecode)?;
+
+        let token0 = Location2Currencyid::new()
+            .get_currencyid("Acala".to_string(), &asset0_location)
+            .ok_or(Error::AssetNotRecognized)?;
+        let token1 = Location2Currencyid::new()
+            .get_currencyid("Acala".to_string(), &asset1_location)
+            .ok_or(Error::AssetNotRecognized)?;
+
+        // FIXME: hardcode for demo
+        if token0 != CurrencyId::Token(TokenSymbol::DOT)
+            || token1 != CurrencyId::Token(TokenSymbol::ACA)
+        {
+            pink_extension::debug!("AcalaDexExecutor: Unsupported trading pair",);
+            return Err(Error::Unimplemented);
+        }
+
+        let taiga_path = AggregatedSwapPath::Taiga(0, 0, 1);
+        // FIXME: Looks like first node is LDOT, represents dex will spend DOT
+        let dex_path = AggregatedSwapPath::Dex(vec![
+            CurrencyId::Token(TokenSymbol::LDOT),
+            CurrencyId::Token(TokenSymbol::AUSD),
+            token1,
+        ]);
+        let path = vec![taiga_path, dex_path];
 
         let signed_tx = create_transaction(
             &signer,
@@ -92,12 +128,13 @@ impl DexExecutor for AcalaDexExecutor {
             0x5d_u8,
             0x0u8,
             (path, amount_in, amount_out),
-            ExtraParam::default(),
+            extra,
         )
         .map_err(|_| Error::InvalidSignature)?;
-        let _tx_id =
+        let tx_id =
             send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)?;
-        Ok(())
+
+        Ok(tx_id)
     }
 }
 
@@ -106,6 +143,7 @@ mod tests {
     use super::*;
     use crate::assets::{CurrencyId, TokenSymbol};
     use crate::utils::ToArray;
+    use pink_subrpc::ExtraParam;
     use scale::Compact;
     use scale::Encode;
 
@@ -141,7 +179,36 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn acala_swap_works() {
+    fn acala_swap_dot_2_aca_works() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+
+        let encoded_dot_location = hex::decode("010200411f06080002").unwrap();
+        let encoded_aca_location = hex::decode("010200411f06080000").unwrap();
+
+        let executor = AcalaDexExecutor::new("https://acala-rpc.dwellir.com");
+        // 0.005 DOT
+        let spend = 50_000_000;
+        let tx_id = executor
+            .swap(
+                signer,
+                encoded_dot_location,
+                encoded_aca_location,
+                spend,
+                vec![],
+                ExtraParam::default(),
+            )
+            .unwrap();
+        println!("AcalaDexExecutor swap transaction submitted: {:?}", &tx_id);
+    }
+
+    #[test]
+    #[ignore]
+    fn acala_aggregated_swap_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         let executor = AcalaDexExecutor::new("https://acala-rpc.dwellir.com");
@@ -164,7 +231,7 @@ mod tests {
         let spend = 100_000_000;
         // https://acala.subscan.io/extrinsic/0x14575ccbbddbef7189e9402317eb9ce1d84ee0d2ddd44cf9738071c07fbad793
         assert!(executor
-            .aggregated_swap(signer, path, spend, recipient)
+            .aggregated_swap(signer, path, spend, recipient, ExtraParam::default())
             .is_ok());
     }
 }
