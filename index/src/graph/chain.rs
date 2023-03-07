@@ -267,6 +267,7 @@ mod tests {
             chain_type: ChainType::Evm,
             native_asset: vec![0],
             foreign_asset: None,
+            storage_handler: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
         assert_eq!(
             goerli
@@ -288,6 +289,7 @@ mod tests {
             chain_type: ChainType::Sub,
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
+            storage_handler: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
         assert_eq!(
             khala
@@ -313,6 +315,7 @@ mod tests {
             chain_type: ChainType::Evm,
             native_asset: vec![0],
             foreign_asset: None,
+            storage_handler: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
         // Get native asset balance
         assert_eq!(
@@ -349,6 +352,7 @@ mod tests {
             chain_type: ChainType::Sub,
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
+            storage_handler: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
         let karura = Chain {
             id: 2,
@@ -367,6 +371,7 @@ mod tests {
             )
             .encode(),
             foreign_asset: Some(ForeignAssetModule::OrmlToken),
+            storage_handler: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
         // Get native asset (PHA on Khala)
         assert_eq!(
