@@ -9,7 +9,7 @@ use super::step::{Step, StepMeta};
 use super::swap::SwapStep;
 use super::task::{OnchainTasks, Task, TaskId};
 use super::traits::Runner;
-use hex_literal::hex;
+
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
