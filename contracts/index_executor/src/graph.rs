@@ -14,7 +14,7 @@ pub struct Chain {
     pub chain_type: u32,
     pub native_asset: u32,
     pub foreign_asset_type: u32,
-    pub storage_handler: String,
+    pub handler_contract: String,
 }
 
 #[derive(
@@ -129,7 +129,7 @@ impl TryInto<index_graph::Graph> for Graph {
                             _ => return Err("Unsupported chain!"),
                         }
                     },
-                    storage_handler: hex::decode(chain.storage_handler.clone())
+                    handler_contract: hex::decode(chain.handler_contract.clone())
                         .or(Err("DecodeFailed"))?,
                 };
                 arr.push(item);
@@ -272,7 +272,7 @@ impl From<index_graph::Graph> for Graph {
                             None => 3,
                         }
                     },
-                    storage_handler: hex::encode(chain.storage_handler.clone()),
+                    handler_contract: hex::encode(chain.handler_contract.clone()),
                 };
                 arr.push(item);
             }
@@ -385,7 +385,7 @@ mod tests {
             endpoint: "endpoint".to_string(),
             native_asset: 3,
             foreign_asset_type: 1,
-            storage_handler: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
+            handler_contract: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
         };
         let phala = Chain {
             id: 2,
@@ -394,7 +394,7 @@ mod tests {
             endpoint: "endpoint".to_string(),
             native_asset: 2,
             foreign_asset_type: 1,
-            storage_handler: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
+            handler_contract: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
         };
         let pha_on_ethereum = Asset {
             id: 1,
