@@ -108,7 +108,6 @@ impl ClaimStep {
         worker_key: &[u8; 32],
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
-        // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = H160::from_slice(&chain.storage_handler);
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
         let handler = Contract::from_json(
@@ -176,7 +175,6 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
-        // TODO: use handler configed in `chain`
         let handler_on_goerli: H160 = H160::from_slice(&chain.storage_handler);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
         let handler = Contract::from_json(
