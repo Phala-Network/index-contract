@@ -1,7 +1,7 @@
 use pink_subrpc as subrpc;
 
 use crate::traits::{common::Error, executor::BridgeExecutor};
-use crate::transactors::ChainBridgeDepositer;
+use crate::transactors::ChainBridgeEvmClient;
 use crate::utils::ToArray;
 use alloc::vec::Vec;
 use pink_web3::{
@@ -20,7 +20,7 @@ use xcm::v1::{prelude::*, Junction, Junctions, MultiLocation};
 pub struct ChainBridgeEthereum2Phala {
     // ((asset_contract_address, dest_chain), resource_id)
     assets: Vec<(Address, [u8; 32])>,
-    bridge_contract: ChainBridgeDepositer,
+    bridge_contract: ChainBridgeEvmClient,
 }
 
 #[allow(dead_code)]
@@ -32,7 +32,7 @@ impl ChainBridgeEthereum2Phala {
         assets: Vec<(Address, [u8; 32])>,
     ) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
-        let bridge_contract = ChainBridgeDepositer {
+        let bridge_contract = ChainBridgeEvmClient {
             dest_chain_id,
             contract: Contract::from_json(
                 eth,
