@@ -9,7 +9,7 @@ use super::step::{Step, StepMeta};
 use super::swap::SwapStep;
 use super::task::{OnchainTasks, Task, TaskId};
 use super::traits::Runner;
-use hex_literal::hex;
+
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
@@ -108,8 +108,7 @@ impl ClaimStep {
         worker_key: &[u8; 32],
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
-        // TODO: use handler configed in `chain`
-        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
+        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
         let handler = Contract::from_json(
             transport,
@@ -176,8 +175,7 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
-        // TODO: use handler configed in `chain`
-        let handler_on_goerli: H160 = hex!("056C0E37d026f9639313C281250cA932C9dbe921").into();
+        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
         let handler = Contract::from_json(
             transport,
@@ -433,6 +431,7 @@ mod tests {
                 ),
                 native_asset: vec![0],
                 foreign_asset: None,
+                handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -483,6 +482,7 @@ mod tests {
             ),
             native_asset: vec![0],
             foreign_asset: None,
+            handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
         };
 
         let claim_step = ClaimStep {
