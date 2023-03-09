@@ -119,6 +119,7 @@ mod semi_bridge {
             let config = self.config.as_ref().ok_or(Error::NotConfigurated)?;
             let executor = ChainBridgeEthereum2Phala::new(
                 &config.rpc,
+                CHAINBRIDGE_ID_KHALA,
                 config.bridge_address.into(),
                 vec![(token_contract, token_rid.into())],
             );

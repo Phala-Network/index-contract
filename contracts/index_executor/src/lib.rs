@@ -627,6 +627,7 @@ mod index_executor {
                 (String::from("Ethereum"), String::from("Phala")),
                 Box::new(ChainBridgeEthereum2Phala::new(
                     &ethereum.endpoint,
+                    CHAINBRIDGE_ID_PHALA,
                     chainbridge_on_ethereum.into(),
                     vec![(
                         // PHA contract address on Ethereum
@@ -641,13 +642,17 @@ mod index_executor {
             // Phala -> Ethereum
             bridge_executors.push((
                 (String::from("Phala"), String::from("Ethereum")),
-                Box::new(ChainBridgePhala2Ethereum::new(0, &phala.endpoint)),
+                Box::new(ChainBridgePhala2Ethereum::new(
+                    CHAINBRIDGE_ID_ETHEREUM,
+                    &phala.endpoint,
+                )),
             ));
             // Ethereum -> Khala
             bridge_executors.push((
                 (String::from("Ethereum"), String::from("Phala")),
                 Box::new(ChainBridgeEthereum2Phala::new(
                     &ethereum.endpoint,
+                    CHAINBRIDGE_ID_KHALA,
                     chainbridge_on_ethereum.into(),
                     vec![(
                         // PHA contract address on Ethereum
@@ -662,7 +667,10 @@ mod index_executor {
             // Khala -> Ethereum
             bridge_executors.push((
                 (String::from("Khala"), String::from("Ethereum")),
-                Box::new(ChainBridgePhala2Ethereum::new(0, &khala.endpoint)),
+                Box::new(ChainBridgePhala2Ethereum::new(
+                    CHAINBRIDGE_ID_ETHEREUM,
+                    &khala.endpoint,
+                )),
             ));
             Ok(bridge_executors)
         }

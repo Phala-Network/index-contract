@@ -3,7 +3,7 @@
 extern crate alloc;
 
 pub mod assets;
-mod constants;
+pub mod constants;
 pub mod executors;
 pub mod graph;
 pub mod prelude;
