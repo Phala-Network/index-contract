@@ -1,4 +1,3 @@
-use crate::constants::*;
 use crate::traits::common::Error;
 use pink_web3::contract::{Contract, Options};
 use pink_web3::ethabi::{Bytes, Uint};
@@ -9,11 +8,12 @@ use pink_web3::types::H256;
 
 /// The client to submit transaction to the Evm evm_contract contract
 #[derive(Clone)]
-pub struct ChainBridgeClient {
+pub struct ChainBridgeEvmClient {
+    pub dest_chain_id: u8,
     pub contract: Contract<PinkHttp>,
 }
 
-impl ChainBridgeClient {
+impl ChainBridgeEvmClient {
     /// Calls the EVM contract `deposit` function
     ///
     /// # Arguments
@@ -30,7 +30,7 @@ impl ChainBridgeClient {
         nonce: Option<u64>,
     ) -> core::result::Result<H256, Error> {
         let data = Self::compose_deposite_data(amount, recipient_address);
-        let params = (CHAINBRIDGE_ID_PHALA, token_rid, data);
+        let params = (self.dest_chain_id, token_rid, data);
         // Estiamte gas before submission
         let gas = resolve_ready(self.contract.estimate_gas(
             "deposit",
@@ -78,7 +78,7 @@ impl ChainBridgeClient {
     }
 }
 
-trait ToBeBytes {
+pub trait ToBeBytes {
     fn to_be_fixed_bytes(&self) -> Bytes;
 }
 

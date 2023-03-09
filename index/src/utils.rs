@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+
 pub trait ToArray<T, const N: usize> {
     fn to_array(&self) -> [T; N];
 }
