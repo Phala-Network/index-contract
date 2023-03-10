@@ -2,18 +2,15 @@
 
 extern crate alloc;
 
-use ink_lang as ink;
-
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod semi_bridge {
     use alloc::{string::String, vec, vec::Vec};
     use index::prelude::*;
     use index::utils::ToArray;
-    use ink_storage::traits::{PackedLayout, SpreadLayout};
     use pink_subrpc::ExtraParam;
     use pink_web3::keys::pink::KeyPair;
     use pink_web3::signing::Key;
-    use primitive_types::{H160, H256, U256};
+    use pink_web3::types::{H160, H256, U256};
     use scale::{Decode, Encode};
 
     #[ink(storage)]
@@ -23,10 +20,10 @@ mod semi_bridge {
         config: Option<Config>,
     }
 
-    #[derive(Encode, Decode, Debug, PackedLayout, SpreadLayout)]
+    #[derive(Encode, Decode, Debug)]
     #[cfg_attr(
         feature = "std",
-        derive(scale_info::TypeInfo, ink_storage::traits::StorageLayout)
+        derive(scale_info::TypeInfo, ink::storage::traits::StorageLayout)
     )]
     struct Config {
         rpc: String,
@@ -139,10 +136,10 @@ mod semi_bridge {
         use super::*;
         use dotenv::dotenv;
         use hex_literal::hex;
-        use ink_lang as ink;
         use pink_web3::ethabi::Uint;
 
         #[ink::test]
+        #[ignore]
         /// We are not going to mock in this sample,
         /// real life configuration is important for the understanding of use cases.
         /// this test also runs in CI, so it must not panic
@@ -154,17 +151,8 @@ mod semi_bridge {
                 hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
             });
 
-            // Register contracts
-            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
-            ink_env::test::register_contract::<SemiBridge>(hash1.as_ref());
-
             // Deploy Transactor(phat contract)
-            let mut bridge = SemiBridgeRef::default()
-                .code_hash(hash1)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy SemiBridge");
+            let mut bridge = SemiBridge::default();
 
             let rpc =
                 "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2".to_string();

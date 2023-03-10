@@ -27,5 +27,5 @@ jobs:
           && sudo cp binaryen-version_110/include/* /usr/include \
           && sudo cp binaryen-version_110/lib/* /lib/ \
           && rm -rf binaryen-version_110"
-      - name: Run cargo contract build for executor contracts
-        run: cd contracts/index_executor && cargo contract build
+      - name: Build executor contract
+        run: cd contracts/index_executor && cargo contract build --release

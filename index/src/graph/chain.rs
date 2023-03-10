@@ -6,20 +6,19 @@ use alloc::{vec, vec::Vec};
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
-    storage::{
-        storage_double_map_blake2_128_prefix, storage_map_blake2_128_prefix, storage_prefix,
-    },
+    hasher::{Blake2_128, Hasher},
+    storage::{storage_double_map_prefix, storage_map_prefix, storage_prefix},
     Ss58Codec,
 };
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{Contract, Options},
     transports::{resolve_ready, PinkHttp},
-    types::Address,
+    types::{Address, U256},
     Web3,
 };
-use primitive_types::U256;
 use scale::Encode;
+use sp_core_hashing::twox_64;
 use xcm::v1::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -88,28 +87,13 @@ impl NonceFetcher for Chain {
     }
 }
 
-/// TODO: move to subrpc
-pub fn storage_double_map_blake2_128_twox64_prefix(
-    prefix: &[u8],
-    key1: &[u8],
-    key2: &[u8],
-) -> Vec<u8> {
-    let key1_hashed = sp_core_hashing::blake2_128(key1);
-    let key2_hashed = sp_core_hashing::twox_64(key2);
-
-    let mut final_key = Vec::with_capacity(
-        prefix.len()
-            + key1_hashed.as_ref().len()
-            + key1.len()
-            + key2_hashed.as_ref().len()
-            + key2.len(),
-    );
-    final_key.extend_from_slice(prefix);
-    final_key.extend_from_slice(key1_hashed.as_ref());
-    final_key.extend_from_slice(key1);
-    final_key.extend_from_slice(key2_hashed.as_ref());
-    final_key.extend_from_slice(key2);
-    final_key
+// TODO: move to pink-subrpc
+pub struct Twox64;
+impl Hasher for Twox64 {
+    type Output = [u8; 8];
+    fn hash(x: &[u8]) -> [u8; 8] {
+        twox_64(x)
+    }
 }
 
 /// Query on-chain account balance of an asset
@@ -159,7 +143,7 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     if let Some(raw_storage) = get_storage(
                         &self.endpoint,
-                        &storage_map_blake2_128_prefix(
+                        &storage_map_prefix::<Blake2_128>(
                             &storage_prefix("System", "Account")[..],
                             &public_key,
                         ),
@@ -187,7 +171,7 @@ impl BalanceFetcher for Chain {
                                 .ok_or(Error::AssetNotRecognized)?;
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
-                                &storage_double_map_blake2_128_prefix(
+                                &storage_double_map_prefix::<Blake2_128, Blake2_128>(
                                     &storage_prefix("Assets", "Account")[..],
                                     &asset_id.to_le_bytes(),
                                     &public_key,
@@ -214,7 +198,7 @@ impl BalanceFetcher for Chain {
                                 .ok_or(Error::AssetNotRecognized)?;
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
-                                &storage_double_map_blake2_128_twox64_prefix(
+                                &storage_double_map_prefix::<Blake2_128, Twox64>(
                                     &storage_prefix("Tokens", "Accounts")[..],
                                     &public_key,
                                     &currency_id.encode(),
@@ -248,7 +232,6 @@ mod tests {
     use super::*;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use ink_lang as ink;
     use scale::Encode;
     use sp_runtime::{traits::ConstU32, WeakBoundedVec};
     use xcm::v1::{prelude::*, MultiLocation};

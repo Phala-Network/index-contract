@@ -9,9 +9,8 @@ use pink_web3::{
     contract::Contract,
     keys::pink::KeyPair,
     transports::PinkHttp,
-    types::Address,
+    types::{Address, U256},
 };
-use primitive_types::U256;
 use scale::Encode;
 use subrpc::ExtraParam;
 use xcm::v1::{prelude::*, Junction, Junctions, MultiLocation};

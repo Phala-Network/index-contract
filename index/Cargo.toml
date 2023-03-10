@@ -11,12 +11,12 @@ repository = "https://github.com/Phala-Network/index-contract"
 dyn-clone = "1.0.10"
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
 scale-info = { version = "2", default-features = false, features = ["derive"], optional = true }
-primitive-types = { version = "0.11", default-features = false, features = ["codec", "scale-info"] }
+primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "scale-info"] }
 
 hex-literal = "0.3"
 hex = { version = "0.4.3", default-features = false }
 
-pink-extension = { version = "0.2.0", default-features = false, features = ["ink-as-dependency"] }
+pink-extension = { version = "0.4.1", default-features = false, features = ["ink-as-dependency"] }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 
@@ -24,7 +24,7 @@ sp-core-hashing = { version = "4.0.0", git = "https://github.com/paritytech/subs
 sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
 
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false }
-pink-subrpc = { version = "0.2.1", default-features = false }
+pink-subrpc = { version = "0.4.0", default-features = false }
 
 ss58-registry = { version = "1.33.0", default-features = false }
 base58 = { version = "0.2.0", default-features = false }
@@ -37,11 +37,10 @@ default-features = false
 features = ["disable_panic_handler", "disable_oom", "disable_allocator"]
 
 [dev-dependencies]
-pink-extension-runtime = "0.2.0"
+pink-extension-runtime = "0.4.0"
 hex-literal = "0.3"
 dotenv = "0.15.0"
-ink_lang = { version = "3", default-features = false }
-ink_env = { version = "3", default-features = false }
+ink = "4.0.1"
 
 [lib]
 name = "index"

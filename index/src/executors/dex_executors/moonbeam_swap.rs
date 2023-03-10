@@ -12,8 +12,8 @@ use pink_web3::{
     contract::Contract,
     keys::pink::KeyPair,
     transports::PinkHttp,
+    types::U256,
 };
-use primitive_types::U256;
 
 #[allow(dead_code)]
 #[derive(Clone)]

@@ -1,7 +1,6 @@
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 
 extern crate alloc;
-use ink_lang as ink;
 
 mod account;
 mod bridge;
@@ -30,7 +29,7 @@ mod index_executor {
         graph::{Chain, Graph},
         prelude::AcalaDexExecutor,
     };
-    use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+    use ink::storage::traits::StorageLayout;
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
@@ -66,7 +65,7 @@ mod index_executor {
 
     type Result<T> = core::result::Result<T, Error>;
 
-    #[derive(Clone, Encode, Decode, Debug, PackedLayout, SpreadLayout)]
+    #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
         /// The rollup anchor pallet id on the target blockchain
@@ -98,7 +97,6 @@ mod index_executor {
     const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
 
     #[ink(storage)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct Executor {
         pub admin: AccountId,
         pub config: Option<Config>,
@@ -710,15 +708,14 @@ mod index_executor {
     mod tests {
         use super::*;
         // use dotenv::dotenv;
-        use ink_lang as ink;
         use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
         use xcm::latest::{prelude::*, MultiLocation};
 
-        fn deploy_executor() -> ExecutorRef {
+        fn deploy_executor() -> Executor {
             // Register contracts
-            let hash = ink_env::Hash::try_from([20u8; 32]).unwrap();
-            ink_env::test::register_contract::<Executor>(hash.as_ref());
+            // let hash = ink_env::Hash::try_from([20u8; 32]).unwrap();
+            // ink_env::test::register_contract::<Executor>(hash.as_ref());
 
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
@@ -727,12 +724,13 @@ mod index_executor {
                 .unwrap();
 
             // Deploy Executor
-            ExecutorRef::default()
-                .code_hash(hash)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy Executor")
+            // ExecutorRef::default()
+            //     .code_hash(hash)
+            //     .endowment(0)
+            //     .salt_bytes([0u8; 0])
+            //     .instantiate()
+            //     .expect("failed to deploy Executor")
+            Executor::default()
         }
 
         #[ignore]

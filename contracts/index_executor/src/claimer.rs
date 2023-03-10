@@ -17,11 +17,10 @@ use pink_web3::{
     keys::pink::KeyPair,
     signing::Key,
     transports::{resolve_ready, PinkHttp},
-    types::Address,
+    types::{Address, H160, U256},
 };
 
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
-use primitive_types::{H160, U256};
 use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks

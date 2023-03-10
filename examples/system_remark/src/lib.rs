@@ -2,8 +2,6 @@
 
 extern crate alloc;
 
-use ink_lang as ink;
-
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod system_remark {
     use pink_subrpc as subrpc;
@@ -63,11 +61,11 @@ mod system_remark {
         use super::*;
         use dotenv::dotenv;
         use hex_literal::hex;
-        use ink_lang as ink;
         // use pink_web3::ethabi::Uint;
         // use std::time::SystemTime;
 
         #[ink::test]
+        #[ignore]
         /// We are not going to mock in this sample,
         /// real life configuration is important for the understanding of use cases.
         /// this test also runs in CI, so it must not panic
@@ -79,17 +77,8 @@ mod system_remark {
                 hex!["4c5d4f158b3d691328a1237d550748e019fe499ebf3df7467db6fa02a0818821"].to_vec()
             });
 
-            // Register contracts
-            let hash1 = ink_env::Hash::try_from([10u8; 32]).unwrap();
-            ink_env::test::register_contract::<Remarker>(hash1.as_ref());
-
             // Deploy Transactor(phat contract)
-            let remarker = RemarkerRef::default()
-                .code_hash(hash1)
-                .endowment(0)
-                .salt_bytes([0u8; 0])
-                .instantiate()
-                .expect("failed to deploy SemiBridge");
+            let remarker = Remarker::default();
 
             let tx_id = remarker
                 .remark("Greetings from Phat Contract!".to_string())
