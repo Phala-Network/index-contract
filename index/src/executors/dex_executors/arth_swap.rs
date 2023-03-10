@@ -113,14 +113,7 @@ mod tests {
         // 0.1 wastr
         let spend: u128 = 100_000_000_000_000_000;
         let tx_id = executor
-            .swap(
-                signer,
-                wastr,
-                pha,
-                spend,
-                recipient,
-                ExtraParam::default(),
-            )
+            .swap(signer, wastr, pha, spend, recipient, ExtraParam::default())
             .unwrap();
         dbg!(hex::encode(tx_id));
         // tx: https://blockscout.com/astar/tx/0xb7fe0abc9c043c97296c094429b5b8e3bfcf9c330aad0d5f3cf37108881d3381
