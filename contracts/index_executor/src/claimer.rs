@@ -249,6 +249,7 @@ impl ActivedTaskFetcher {
                 scale::Decode::decode(&mut raw_storage.as_slice())
                     // .log_err("Decode storage [sub native balance] failed")
                     .map_err(|_| "DecodeStorageFailed")?;
+            println!("actived requests: {:?}", &actived_requests);
             if actived_requests.len() > 0 {
                 let oldest_request = actived_requests[0];
                 if let Some(raw_storage) = get_storage(
@@ -272,8 +273,15 @@ impl ActivedTaskFetcher {
                         &chain.name,
                         &sub_deposit_data,
                     );
+                    println!(
+                        "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
+                        &hex::encode(oldest_request),
+                        &chain.name,
+                        &sub_deposit_data,
+                    );
                     let deposit_data: DepositData = sub_deposit_data.into();
                     let task = deposit_data.to_task(&chain.name, oldest_request)?;
+                    println!("sub task: {:?}", &task);
                     Ok(Some(task))
                 } else {
                     Err("DepositInfoNotFound")
@@ -618,5 +626,50 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(60000));
 
         assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+    }
+
+    #[test]
+    // #[ignore]
+    fn test_fetch_task_from_sub() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // Worker public key
+        let worker_key: [u8; 32] = hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        let task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Khala"),
+                chain_type: ChainType::Sub,
+                endpoint: String::from("http://127.0.0.1:30444"),
+                native_asset: vec![0],
+                foreign_asset: None,
+                handler_contract: hex!("00").into(),
+            },
+            worker: AccountInfo {
+                account20: [0; 20],
+                account32: worker_key,
+            },
+        }
+        .fetch_task()
+        .unwrap()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+        match (
+            task.steps[0].meta.clone(),
+            task.steps[1].meta.clone(),
+            task.steps[2].meta.clone(),
+        ) {
+            (
+                StepMeta::Claim(claim_step),
+                StepMeta::Bridge(bridge_meta),
+                StepMeta::Swap(swap_meta),
+            ) => {
+                assert_eq!(claim_step.chain, String::from("Phala"));
+                assert_eq!(bridge_meta.amount, 301_000_000_000_000);
+                assert_eq!(swap_meta.spend, 1_000_000_000_000_000_000 as u128);
+            }
+            _ => assert!(false),
+        }
     }
 }
