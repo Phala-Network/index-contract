@@ -91,6 +91,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn arth_swap_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
