@@ -12,17 +12,20 @@ use pink_web3::{
     contract::Contract,
     keys::pink::KeyPair,
     transports::PinkHttp,
+    types::U256,
 };
-use primitive_types::U256;
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub struct ArthDexExecutor {
+pub struct UniswapBasedExecutor {
     dex_contract: UniswapV2Client,
 }
 
+pub type ArthDexExecutor = UniswapBasedExecutor;
+pub type MoonbeamDexExecutor = UniswapBasedExecutor;
+
 #[allow(dead_code)]
-impl ArthDexExecutor {
+impl UniswapBasedExecutor {
     pub fn new(rpc: &str, router: Address) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
         let dex_contract = UniswapV2Client {
@@ -39,7 +42,7 @@ impl ArthDexExecutor {
 }
 
 #[allow(dead_code)]
-impl DexExecutor for ArthDexExecutor {
+impl DexExecutor for UniswapBasedExecutor {
     fn swap(
         &self,
         signer: [u8; 32],
@@ -97,7 +100,7 @@ mod tests {
 
         // interacted with PancakeRouter
         // https://blockscout.com/astar/address/0xE915D2393a08a00c5A463053edD31bAe2199b9e7
-        let executor = ArthDexExecutor::new(
+        let executor = UniswapBasedExecutor::new(
             "https://astar.public.blastapi.io",
             H160::from_str("0xE915D2393a08a00c5A463053edD31bAe2199b9e7").unwrap(),
         );
@@ -116,6 +119,44 @@ mod tests {
             .swap(signer, wastr, pha, spend, recipient, ExtraParam::default())
             .unwrap();
         dbg!(hex::encode(tx_id));
-        // tx: https://blockscout.com/astar/tx/0xb7fe0abc9c043c97296c094429b5b8e3bfcf9c330aad0d5f3cf37108881d3381
+        // tx:
+        //  - https://blockscout.com/astar/tx/0xb7fe0abc9c043c97296c094429b5b8e3bfcf9c330aad0d5f3cf37108881d3381
+        //  - https://astar.subscan.io/tx/0x04ee52e3aeca297e5387bb0d57dab6b609ce110b5decb06b72515204446b6f70
+    }
+
+    #[test]
+    #[ignore]
+    fn stella_swap_works() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let executor = MoonbeamDexExecutor::new(
+            "https://moonbeam.public.blastapi.io",
+            // https://docs.stellaswap.com/developers/smart-contracts#router-smart-contract-details
+            H160::from_str("0x70085a09D30D6f8C4ecF6eE10120d1847383BB57").unwrap(),
+        );
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+        let recipient = hex::decode("Ff2109923cE53C04f88aF0deBB411A8b51654f3B").unwrap();
+
+        //let usdc = hex::decode("931715FEE2d06333043d11F658C8CE934aC61D0c").unwrap();
+        let xc_dot = hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap();
+        let wglmr = hex::decode("Acc15dC74880C9944775448304B263D191c6077F").unwrap();
+
+        // 0.001 wglmr
+        let spend: u128 = 1_000_000_000_000_000;
+        // https://moonbeam.moonscan.io/tx/0x727b7e9b4d889762050c310942ea1818f8c32fd483e973e42c77ce034e37a5c6
+        // https://moonbeam.moonscan.io/tx/0x742504fe490ecb8ab968ecdbdde2aa774d4eca43c0eb73ad539e9bb974011722
+        executor
+            .swap(
+                signer,
+                wglmr,
+                xc_dot,
+                spend,
+                recipient,
+                ExtraParam::default(),
+            )
+            .unwrap();
     }
 }

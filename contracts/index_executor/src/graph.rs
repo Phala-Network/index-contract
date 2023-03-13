@@ -354,8 +354,6 @@ impl From<index_graph::Graph> for Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scale::Encode;
-    use xcm::latest::{prelude::*, MultiLocation};
 
     #[test]
     fn graph_conversion_should_work() {
