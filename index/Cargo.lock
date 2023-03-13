@@ -598,29 +598,43 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethbloom"
-version = "0.12.1"
+name = "ethabi"
+version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11da94e443c60508eb62cf256243a64da87304c2802ac2528847f79d750007ef"
+checksum = "7413c5f74cc903ea37386a8965a936cbeb334bd270862fdece542c1b2dcbc898"
+dependencies = [
+ "ethereum-types",
+ "hex",
+ "serde",
+ "sha3",
+ "thiserror",
+ "uint",
+]
+
+[[package]]
+name = "ethbloom"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c22d4b5885b6aa2fe5e8b9329fb8d232bf739e434e6b87347c63bdd00c120f60"
 dependencies = [
  "crunchy",
- "fixed-hash 0.7.0",
+ "fixed-hash 0.8.0",
  "impl-rlp",
- "impl-serde 0.3.2",
+ "impl-serde 0.4.0",
  "tiny-keccak",
 ]
 
 [[package]]
 name = "ethereum-types"
-version = "0.13.1"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2827b94c556145446fcce834ca86b7abf0c39a805883fe20e72c5bfdb5a0dc6"
+checksum = "02d215cbf040552efcbe99a38372fe80ab9d00268e20012b79fcd0f073edd8ee"
 dependencies = [
  "ethbloom",
- "fixed-hash 0.7.0",
+ "fixed-hash 0.8.0",
  "impl-rlp",
- "impl-serde 0.3.2",
- "primitive-types 0.11.1",
+ "impl-serde 0.4.0",
+ "primitive-types 0.12.1",
  "uint",
 ]
 
@@ -1097,7 +1111,7 @@ dependencies = [
  "hex-literal",
  "ink",
  "parity-scale-codec",
- "pink-extension 0.4.1",
+ "pink-extension",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-subrpc",
@@ -1128,22 +1142,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76b4fc39f3bcab7e042becf5c9dbbebc179fff64924025753a5fafa016e8576d"
 dependencies = [
  "derive_more",
- "ink_env 4.0.1",
+ "ink_env",
  "ink_macro",
- "ink_metadata 4.0.1",
- "ink_prelude 4.0.1",
- "ink_primitives 4.0.1",
- "ink_storage 4.0.1",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
+ "ink_storage",
  "parity-scale-codec",
-]
-
-[[package]]
-name = "ink_allocator"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c9588a59a0e8997c0b2153cd11b5aaa77c06a0537a6b18f3811d1f1aa098b12"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -1168,7 +1173,7 @@ dependencies = [
  "heck",
  "impl-serde 0.4.0",
  "ink_ir",
- "ink_primitives 4.0.1",
+ "ink_primitives",
  "itertools",
  "log",
  "parity-scale-codec",
@@ -1181,59 +1186,17 @@ dependencies = [
 
 [[package]]
 name = "ink_engine"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "487c3b390b7feb0620496b0cd38683433c7d7e6946b1caabda51e1f23eb24b30"
-dependencies = [
- "blake2",
- "derive_more",
- "parity-scale-codec",
- "rand 0.8.5",
- "secp256k1 0.24.3",
- "sha2 0.10.6",
- "sha3",
-]
-
-[[package]]
-name = "ink_engine"
 version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "daed9b710cba6f50f1fa0372a7e8a47a35624d84af4ef2c3a8d34d4e96202d1c"
 dependencies = [
  "blake2",
  "derive_more",
- "ink_primitives 4.0.1",
+ "ink_primitives",
  "parity-scale-codec",
  "secp256k1 0.26.0",
  "sha2 0.10.6",
  "sha3",
-]
-
-[[package]]
-name = "ink_env"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a891d34301a3dbb1c7b7424c49ae184282b163491c54f9acd17fcbe14a80447b"
-dependencies = [
- "arrayref",
- "blake2",
- "cfg-if",
- "derive_more",
- "ink_allocator 3.4.0",
- "ink_engine 3.4.0",
- "ink_metadata 3.4.0",
- "ink_prelude 3.4.0",
- "ink_primitives 3.4.0",
- "num-traits",
- "parity-scale-codec",
- "paste",
- "rand 0.8.5",
- "rlibc",
- "scale-info",
- "secp256k1 0.24.3",
- "sha2 0.10.6",
- "sha3",
- "static_assertions",
 ]
 
 [[package]]
@@ -1246,11 +1209,11 @@ dependencies = [
  "blake2",
  "cfg-if",
  "derive_more",
- "ink_allocator 4.0.1",
- "ink_engine 4.0.1",
- "ink_metadata 4.0.1",
- "ink_prelude 4.0.1",
- "ink_primitives 4.0.1",
+ "ink_allocator",
+ "ink_engine",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
  "ink_storage_traits",
  "num-traits",
  "parity-scale-codec",
@@ -1278,68 +1241,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ink_lang"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cca26e374e0f89c82cf5dabb4309ef3c76a01659ad95186f4e84455c5f4621a0"
-dependencies = [
- "derive_more",
- "ink_env 3.4.0",
- "ink_lang_macro",
- "ink_prelude 3.4.0",
- "ink_primitives 3.4.0",
- "ink_storage 3.4.0",
- "parity-scale-codec",
-]
-
-[[package]]
-name = "ink_lang_codegen"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fe57826726d89c84fe0b1fafe0dee328f58c8e927be40f0290f04602aacc45c"
-dependencies = [
- "blake2",
- "derive_more",
- "either",
- "heck",
- "impl-serde 0.3.2",
- "ink_lang_ir",
- "itertools",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "ink_lang_ir"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f47d16b2a5340df90f11b2ec2242b37907f5c8396dbbc72c52ec9f2b1a8c90c8"
-dependencies = [
- "blake2",
- "either",
- "itertools",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "ink_lang_macro"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81b858be42ac6cde2c15ce6d7fa75cef59b64a3baf37f7105f39208f2b84dadb"
-dependencies = [
- "ink_lang_codegen",
- "ink_lang_ir",
- "ink_primitives 3.4.0",
- "parity-scale-codec",
- "proc-macro2",
- "syn",
-]
-
-[[package]]
 name = "ink_macro"
 version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1347,26 +1248,12 @@ checksum = "6642450e6169cfaf81717b1d62b2abae48a6b41d3f70f885b6aeff7bb14ea96b"
 dependencies = [
  "ink_codegen",
  "ink_ir",
- "ink_primitives 4.0.1",
+ "ink_primitives",
  "parity-scale-codec",
  "proc-macro2",
  "quote",
  "syn",
  "synstructure",
-]
-
-[[package]]
-name = "ink_metadata"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74913aaed5751f5615af4631b7559328b8ed56c9cb821b89e14af0706176e849"
-dependencies = [
- "derive_more",
- "impl-serde 0.3.2",
- "ink_prelude 3.4.0",
- "ink_primitives 3.4.0",
- "scale-info",
- "serde",
 ]
 
 [[package]]
@@ -1377,19 +1264,10 @@ checksum = "5dfcfa666ada5729c7e4d3d986cd196365a2c469459fced4fa31dc6ad87c4d8f"
 dependencies = [
  "derive_more",
  "impl-serde 0.4.0",
- "ink_prelude 4.0.1",
- "ink_primitives 4.0.1",
+ "ink_prelude",
+ "ink_primitives",
  "scale-info",
  "serde",
-]
-
-[[package]]
-name = "ink_prelude"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f031e6b8495594a7288b089bf4122e76c26b994959d1b2b693bdfe846b14c0e"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -1403,45 +1281,15 @@ dependencies = [
 
 [[package]]
 name = "ink_primitives"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e12cf42dce81d060401c7cec95a392ad6d3c2f18661fa3083f619ce135133c33"
-dependencies = [
- "cfg-if",
- "ink_prelude 3.4.0",
- "parity-scale-codec",
- "scale-info",
-]
-
-[[package]]
-name = "ink_primitives"
 version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1b3f711d857d2de7c08158369cc32a762833ac211a00aac7931992094e25741"
 dependencies = [
  "derive_more",
- "ink_prelude 4.0.1",
+ "ink_prelude",
  "parity-scale-codec",
  "scale-info",
  "xxhash-rust",
-]
-
-[[package]]
-name = "ink_storage"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c0a98b6acbd79eedf44720412437d713e7195d1407822604de5885b0ee6c7e1"
-dependencies = [
- "array-init",
- "cfg-if",
- "derive_more",
- "ink_env 3.4.0",
- "ink_metadata 3.4.0",
- "ink_prelude 3.4.0",
- "ink_primitives 3.4.0",
- "ink_storage_derive",
- "parity-scale-codec",
- "scale-info",
 ]
 
 [[package]]
@@ -1453,25 +1301,13 @@ dependencies = [
  "array-init",
  "cfg-if",
  "derive_more",
- "ink_env 4.0.1",
- "ink_metadata 4.0.1",
- "ink_prelude 4.0.1",
- "ink_primitives 4.0.1",
+ "ink_env",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
  "ink_storage_traits",
  "parity-scale-codec",
  "scale-info",
-]
-
-[[package]]
-name = "ink_storage_derive"
-version = "3.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "babf1d8903dc9219ad8e8aa181eddb919d9794aad1da23ccdce770925b7de2ba"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "synstructure",
 ]
 
 [[package]]
@@ -1480,9 +1316,9 @@ version = "4.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c90e11b60233ae5ab877854739da2c380a337cb31b3900cb50328821c0381b6"
 dependencies = [
- "ink_metadata 4.0.1",
- "ink_prelude 4.0.1",
- "ink_primitives 4.0.1",
+ "ink_metadata",
+ "ink_prelude",
+ "ink_primitives",
  "parity-scale-codec",
  "scale-info",
  "syn",
@@ -2028,37 +1864,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pink-ethabi"
-version = "17.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5cf16ee813e38fd84bdf7f92f6c7b3fcd057ca7d3ed74ed9e1c6049c13fc029"
-dependencies = [
- "ethereum-types",
- "hex",
- "serde",
- "sha3",
- "thiserror",
- "uint",
-]
-
-[[package]]
-name = "pink-extension"
-version = "0.1.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e852b62022e17a16cce1e5db4c891079cf06cd9e8116f335f5cdf56b6c2ab0c3"
-dependencies = [
- "ink_env 3.4.0",
- "ink_lang",
- "ink_metadata 3.4.0",
- "ink_primitives 3.4.0",
- "ink_storage 3.4.0",
- "log",
- "parity-scale-codec",
- "pink-extension-macro 0.1.6",
- "scale-info",
-]
-
-[[package]]
 name = "pink-extension"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2067,24 +1872,8 @@ dependencies = [
  "ink",
  "log",
  "parity-scale-codec",
- "pink-extension-macro 0.4.1",
+ "pink-extension-macro",
  "scale-info",
-]
-
-[[package]]
-name = "pink-extension-macro"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24c7e913706a2f1aff25ab3e7a6a79a6161d1c4074a308c08e066bc144ba1824"
-dependencies = [
- "heck",
- "ink_lang_ir",
- "ink_lang_macro",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn",
- "unzip3",
 ]
 
 [[package]]
@@ -2112,7 +1901,7 @@ dependencies = [
  "hex_fmt",
  "log",
  "once_cell",
- "pink-extension 0.4.1",
+ "pink-extension",
  "reqwest",
  "reqwest-env-proxy",
  "ring",
@@ -2150,7 +1939,7 @@ dependencies = [
  "hex-literal",
  "impl-serde 0.4.0",
  "parity-scale-codec",
- "pink-extension 0.4.1",
+ "pink-extension",
  "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "primitive-types 0.12.1",
  "scale-info",
@@ -2161,19 +1950,19 @@ dependencies = [
 
 [[package]]
 name = "pink-web3"
-version = "0.19.4"
-source = "git+https://github.com/Phala-Network/pink-web3.git?branch=pink#1e4ed3018a319dea34a127aad13de5a36ad143d7"
+version = "0.20.1"
+source = "git+https://github.com/Phala-Network/pink-web3.git?branch=pink#1c9c4569c712d7bf95afabf2002e58676dc4a918"
 dependencies = [
  "arrayvec 0.7.2",
  "derive_more",
+ "ethabi",
  "ethereum-types",
  "futures",
  "hex",
- "ink_env 3.4.0",
+ "ink_env",
  "pin-project",
  "pink-erased-serde",
- "pink-ethabi",
- "pink-extension 0.1.19",
+ "pink-extension",
  "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rlp",
  "serde",
@@ -2194,7 +1983,6 @@ checksum = "e28720988bff275df1f51b171e1b2a18c30d194c4d2b61defdacecd625a5d94a"
 dependencies = [
  "fixed-hash 0.7.0",
  "impl-codec",
- "impl-rlp",
  "impl-serde 0.3.2",
  "scale-info",
  "uint",
@@ -2208,6 +1996,7 @@ checksum = "9f3486ccba82358b11a77516035647c34ba167dfa53312630de83b12bd4f3d66"
 dependencies = [
  "fixed-hash 0.8.0",
  "impl-codec",
+ "impl-rlp",
  "impl-serde 0.4.0",
  "scale-info",
  "uint",
@@ -3569,7 +3358,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.6",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
