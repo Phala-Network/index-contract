@@ -13,7 +13,8 @@ use xcm::latest::AssetId as XcmAssetId;
 
 use pink_subrpc::{
     get_storage,
-    storage::{storage_map_blake2_128_prefix, storage_prefix},
+    hasher::Twox64Concat,
+    storage::{storage_map_prefix, storage_prefix},
 };
 use pink_web3::{
     api::{Eth, Namespace},
@@ -236,7 +237,7 @@ impl ActivedTaskFetcher {
     ) -> Result<Option<Task>, &'static str> {
         if let Some(raw_storage) = get_storage(
             &chain.endpoint,
-            &storage_map_blake2_128_prefix(
+            &storage_map_prefix::<Twox64Concat>(
                 &storage_prefix("PalletIndex", "ActivedRequests")[..],
                 &worker.account32,
             ),
@@ -249,12 +250,12 @@ impl ActivedTaskFetcher {
                 scale::Decode::decode(&mut raw_storage.as_slice())
                     // .log_err("Decode storage [sub native balance] failed")
                     .map_err(|_| "DecodeStorageFailed")?;
-            println!("actived requests: {:?}", &actived_requests);
+            // println!("actived requests: {:?}", &actived_requests);
             if actived_requests.len() > 0 {
                 let oldest_request = actived_requests[0];
                 if let Some(raw_storage) = get_storage(
                     &chain.endpoint,
-                    &storage_map_blake2_128_prefix(
+                    &storage_map_prefix::<Twox64Concat>(
                         &storage_prefix("PalletIndex", "DepositRecords")[..],
                         &oldest_request,
                     ),
@@ -273,15 +274,15 @@ impl ActivedTaskFetcher {
                         &chain.name,
                         &sub_deposit_data,
                     );
-                    println!(
-                        "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
-                        &hex::encode(oldest_request),
-                        &chain.name,
-                        &sub_deposit_data,
-                    );
+                    // println!(
+                    //     "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
+                    //     &hex::encode(oldest_request),
+                    //     &chain.name,
+                    //     &sub_deposit_data,
+                    // );
                     let deposit_data: DepositData = sub_deposit_data.into();
                     let task = deposit_data.to_task(&chain.name, oldest_request)?;
-                    println!("sub task: {:?}", &task);
+                    // println!("sub task: {:?}", &task);
                     Ok(Some(task))
                 } else {
                     Err("DepositInfoNotFound")
@@ -383,7 +384,7 @@ impl From<SubDepositData> for DepositData {
             sender: value.sender.into(),
             amount: value.amount,
             recipient: value.recipient,
-            request: String::from_utf8_lossy(&value.request).to_string(),
+            request: String::from_utf8_lossy(&value.request).into_owned(),
         }
     }
 }
@@ -635,7 +636,8 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         // Worker public key
-        let worker_key: [u8; 32] = hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        let worker_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
