@@ -226,7 +226,7 @@ mod tests {
     use sp_runtime::{traits::ConstU32, WeakBoundedVec};
     use xcm::v1::{prelude::*, MultiLocation};
 
-    #[ink::test]
+    #[test]
     fn test_get_evm_account_nonce() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
@@ -250,7 +250,7 @@ mod tests {
         );
     }
 
-    #[ink::test]
+    #[test]
     fn test_get_sub_account_nonce() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
@@ -274,7 +274,7 @@ mod tests {
         );
     }
 
-    #[ink::test]
+    #[test]
     fn test_get_evm_account_balance() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
@@ -312,7 +312,7 @@ mod tests {
         );
     }
 
-    #[ink::test]
+    #[test]
     fn test_get_sub_account_balance() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();

@@ -46,7 +46,7 @@ mod system_remark {
                 "khala",
                 rpc_node,
                 0u8,
-                1u8,
+                0u8,
                 remark,
                 ExtraParam::default(),
             )
