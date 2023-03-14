@@ -713,10 +713,6 @@ mod index_executor {
         use xcm::latest::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
-            // Register contracts
-            // let hash = ink_env::Hash::try_from([20u8; 32]).unwrap();
-            // ink_env::test::register_contract::<Executor>(hash.as_ref());
-
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
             pink_extension::ext()
@@ -724,12 +720,6 @@ mod index_executor {
                 .unwrap();
 
             // Deploy Executor
-            // ExecutorRef::default()
-            //     .code_hash(hash)
-            //     .endowment(0)
-            //     .salt_bytes([0u8; 0])
-            //     .instantiate()
-            //     .expect("failed to deploy Executor")
             Executor::default()
         }
 
