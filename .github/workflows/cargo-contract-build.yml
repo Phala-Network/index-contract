@@ -28,4 +28,4 @@ jobs:
           && sudo cp binaryen-version_110/lib/* /lib/ \
           && rm -rf binaryen-version_110"
       - name: Build executor contract
-        run: cd contracts/index_executor && cargo contract build --release
+        run: cd contracts/index_executor && cargo contract build
