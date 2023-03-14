@@ -12,6 +12,9 @@ use pink_web3::{
     transports::PinkHttp,
 };
 
+pub type Moonbeam2AcalaExecutor = MoonbeamXTokenExecutor;
+pub type Moonbeam2PhalaExecutor = MoonbeamXTokenExecutor;
+
 #[derive(Clone)]
 pub struct MoonbeamXTokenExecutor {
     bridge_contract: XtokenClient,
@@ -119,6 +122,7 @@ mod tests {
         let exec = Moonbeam2AcalaExecutor::new(
             "https://moonbeam.public.blastapi.io",
             H160::from_str("0x0000000000000000000000000000000000000804").unwrap(),
+            ACALA_PARACHAIN_ID,
         );
         let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
         let secret_key = secret_key.unwrap().1;
