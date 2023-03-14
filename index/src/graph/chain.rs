@@ -6,7 +6,7 @@ use alloc::{vec, vec::Vec};
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
-    hasher::{Blake2_128, Hasher},
+    hasher::{Blake2_128, Twox64},
     storage::{storage_double_map_prefix, storage_map_prefix, storage_prefix},
     Ss58Codec,
 };
@@ -18,7 +18,6 @@ use pink_web3::{
     Web3,
 };
 use scale::Encode;
-use sp_core_hashing::twox_64;
 use xcm::v1::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -84,15 +83,6 @@ impl NonceFetcher for Chain {
                 get_next_nonce(&self.endpoint, &addr).map_err(|_| Error::FetchDataFailed)?
             }
         })
-    }
-}
-
-// TODO: move to pink-subrpc
-pub struct Twox64;
-impl Hasher for Twox64 {
-    type Output = [u8; 8];
-    fn hash(x: &[u8]) -> [u8; 8] {
-        twox_64(x)
     }
 }
 
