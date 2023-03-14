@@ -4,7 +4,7 @@ use super::step::{Step, StepMeta};
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
-use ink_storage::Mapping;
+use ink::storage::Mapping;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
@@ -442,15 +442,15 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use index::graph::{Chain, ChainType, Graph};
-    use ink_lang as ink;
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
+    use pink_extension::chain_extension::AccountId;
     use primitive_types::H160;
 
     fn config_rollup(
         rollup_endpoint: String,
-        contract_id: &ink_env::AccountId,
+        contract_id: &AccountId,
         submit_key: [u8; 32],
     ) -> Result<(), &'static str> {
         // Check if the rollup is initialized properly
@@ -512,7 +512,7 @@ mod tests {
             )
             .try_into()
             .unwrap();
-        let contract_id: ink_env::AccountId = executor_pub.into();
+        let contract_id: AccountId = executor_pub.into();
 
         // Prepare worker accounts
         let mut worker_accounts: Vec<AccountInfo> = vec![];

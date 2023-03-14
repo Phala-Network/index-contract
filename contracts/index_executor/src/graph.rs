@@ -1,11 +1,9 @@
 //#[allow(clippy::large_enum_variant)]
 use alloc::{string::String, vec::Vec};
 use index::graph as index_graph;
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use ink::storage::traits::StorageLayout;
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Chain {
     pub id: u32,
@@ -17,9 +15,7 @@ pub struct Chain {
     pub handler_contract: String,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Asset {
     pub id: u32,
@@ -30,9 +26,7 @@ pub struct Asset {
     pub chain_id: u32,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Dex {
     pub id: u32,
@@ -40,9 +34,7 @@ pub struct Dex {
     pub chain_id: u32,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct DexIndexer {
     pub id: u32,
@@ -50,9 +42,7 @@ pub struct DexIndexer {
     pub dex_id: u32,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct DexPair {
     pub id: u32,
@@ -62,9 +52,7 @@ pub struct DexPair {
     pub pair_id: String,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Bridge {
     pub id: u32,
@@ -72,9 +60,7 @@ pub struct Bridge {
     pub location: String,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct BridgePair {
     pub id: u32,
@@ -83,9 +69,7 @@ pub struct BridgePair {
     pub bridge_id: u32,
 }
 
-#[derive(
-    Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode, SpreadLayout, PackedLayout,
-)]
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
 pub struct Graph {
     pub chains: Vec<Chain>,

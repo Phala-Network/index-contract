@@ -18,7 +18,7 @@ jobs:
           submodules: "true"
       - uses: ./.github/actions/install_toolchain
       - name: Install cargo-contract
-        run: rustup component add rust-src && cargo install cargo-dylint && cargo install dylint-link && cargo install cargo-contract --version ^1 --force
+        run: rustup component add rust-src && cargo install cargo-dylint && cargo install dylint-link && cargo install cargo-contract --version ^2 --force
       - name: Install Binaryen
         run: "cd /tmp \
           && curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_110/binaryen-version_110-x86_64-linux.tar.gz \
@@ -27,5 +27,5 @@ jobs:
           && sudo cp binaryen-version_110/include/* /usr/include \
           && sudo cp binaryen-version_110/lib/* /lib/ \
           && rm -rf binaryen-version_110"
-      - name: Run cargo contract build for executor contracts
+      - name: Build executor contract
         run: cd contracts/index_executor && cargo contract build

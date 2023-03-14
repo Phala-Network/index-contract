@@ -4,14 +4,14 @@ use index::{
     graph::{BalanceFetcher, ChainType, NonceFetcher},
     utils::ToArray,
 };
-use ink_storage::traits::{PackedLayout, SpreadLayout, StorageLayout};
+use ink::storage::traits::StorageLayout;
 use pink_extension::{
     chain_extension::{signing, SigType},
     ResultExt,
 };
 use scale::{Decode, Encode};
 
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, SpreadLayout, PackedLayout)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AccountInfo {
     pub account32: [u8; 32],
