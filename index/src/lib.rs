@@ -10,3 +10,9 @@ pub mod prelude;
 pub mod traits;
 mod transactors;
 pub mod utils;
+
+#[derive(Clone)]
+pub enum AccountType {
+    Account20,
+    Account32,
+}
