@@ -11,9 +11,6 @@ use scale::Decode;
 
 use xcm::v1::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
 
-pub type Phala2AcalaExecutor = PhalaXTransferExecutor;
-pub type Phala2MoonbeamExecutor = PhalaXTransferExecutor;
-
 #[derive(Clone)]
 pub struct PhalaXTransferExecutor {
     rpc: String,

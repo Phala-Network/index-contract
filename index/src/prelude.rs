@@ -1,7 +1,6 @@
 pub use super::executors::bridge_executors::{
-    ethereum_to_phala::ChainBridgeEthereum2Phala, moonbeam_xtoken::Moonbeam2AcalaExecutor,
-    moonbeam_xtoken::Moonbeam2PhalaExecutor, phala_to_ethereum::ChainBridgePhala2Ethereum,
-    phala_xtransfer::Phala2AcalaExecutor,
+    ethereum_to_phala::ChainBridgeEthereum2Phala, moonbeam_xtoken::MoonbeamXTokenExecutor,
+    phala_to_ethereum::ChainBridgePhala2Ethereum, phala_xtransfer::PhalaXTransferExecutor,
 };
 pub use super::executors::dex_executors::{
     acala_dot_swap::AcalaDotSwapExecutor, acala_swap::AcalaDexExecutor,

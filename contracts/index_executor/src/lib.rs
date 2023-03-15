@@ -602,7 +602,7 @@ mod index_executor {
             // Moonbeam -> Acala
             bridge_executors.push((
                 (String::from("Moonbeam"), String::from("Acala")),
-                Box::new(Moonbeam2AcalaExecutor::new(
+                Box::new(MoonbeamXTokenExecutor::new(
                     &moonbeam.endpoint,
                     moonbeam_xtoken.into(),
                     ACALA_PARACHAIN_ID,
@@ -611,7 +611,7 @@ mod index_executor {
             // Moonbeam -> Phala
             bridge_executors.push((
                 (String::from("Moonbeam"), String::from("Phala")),
-                Box::new(Moonbeam2PhalaExecutor::new(
+                Box::new(MoonbeamXTokenExecutor::new(
                     &moonbeam.endpoint,
                     moonbeam_xtoken.into(),
                     PHALA_PARACHAIN_ID,
@@ -620,7 +620,7 @@ mod index_executor {
             // Phala -> Acala
             bridge_executors.push((
                 (String::from("Phala"), String::from("Acala")),
-                Box::new(Phala2AcalaExecutor::new(
+                Box::new(PhalaXTransferExecutor::new(
                     &phala.endpoint,
                     ACALA_PARACHAIN_ID,
                     index::AccountType::Account32,
