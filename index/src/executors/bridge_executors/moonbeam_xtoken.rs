@@ -2,8 +2,9 @@ use crate::prelude::BridgeExecutor;
 use crate::prelude::Error;
 use crate::transactors::XtokenClient;
 use alloc::vec::Vec;
-use pink_subrpc::ExtraParam;
 use pink_web3::ethabi::Address;
+
+use pink_subrpc::ExtraParam;
 use pink_web3::{
     api::{Eth, Namespace},
     contract::Contract,
@@ -11,14 +12,18 @@ use pink_web3::{
     transports::PinkHttp,
 };
 
+pub type Moonbeam2AcalaExecutor = MoonbeamXTokenExecutor;
+pub type Moonbeam2PhalaExecutor = MoonbeamXTokenExecutor;
+
 #[derive(Clone)]
-pub struct Moonbeam2AcalaExecutor {
+pub struct MoonbeamXTokenExecutor {
     bridge_contract: XtokenClient,
+    dest_chain_id: u32,
 }
 
-impl Moonbeam2AcalaExecutor {
+impl MoonbeamXTokenExecutor {
     #[allow(dead_code)]
-    pub fn new(rpc: &str, xtoken_address: Address) -> Self {
+    pub fn new(rpc: &str, xtoken_address: Address, dest_chain_id: u32) -> Self {
         let eth = Eth::new(PinkHttp::new(rpc));
         let bridge_contract = XtokenClient {
             contract: Contract::from_json(
@@ -29,11 +34,14 @@ impl Moonbeam2AcalaExecutor {
             .expect("Bad abi data"),
         };
 
-        Self { bridge_contract }
+        Self {
+            bridge_contract,
+            dest_chain_id,
+        }
     }
 }
 
-impl BridgeExecutor for Moonbeam2AcalaExecutor {
+impl BridgeExecutor for MoonbeamXTokenExecutor {
     fn transfer(
         &self,
         signer: [u8; 32],
@@ -44,7 +52,6 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
     ) -> core::result::Result<Vec<u8>, Error> {
         let signer = KeyPair::from(signer);
         let token_address = Address::from_slice(&asset_contract_address);
-        // TODO: better error handling
         let tx_id = self
             .bridge_contract
             .transfer(
@@ -54,13 +61,14 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
                 // parents = 1
                 1,
                 // parachain
-                2000,
+                self.dest_chain_id,
                 // any
                 0,
                 recipient,
                 extra.nonce,
             )
             .map_err(|_| Error::FailedToSubmitTransaction)?;
+
         Ok(tx_id.as_bytes().to_vec())
     }
 }
@@ -69,11 +77,42 @@ impl BridgeExecutor for Moonbeam2AcalaExecutor {
 mod tests {
     use core::str::FromStr;
 
-    use crate::utils::ToArray;
+    use crate::{
+        prelude::{ACALA_PARACHAIN_ID, PHALA_PARACHAIN_ID},
+        utils::ToArray,
+    };
 
     use super::*;
     use pink_subrpc::ExtraParam;
     use primitive_types::H160;
+
+    #[test]
+    #[ignore]
+    fn moonbeam_to_phala() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let exec = MoonbeamXTokenExecutor::new(
+            "https://moonbeam.public.blastapi.io",
+            H160::from_str("0x0000000000000000000000000000000000000804").unwrap(),
+            PHALA_PARACHAIN_ID,
+        );
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+        let recipient =
+            hex::decode("da1ada496c0e6e3c122aa17f51ccd7254782effab31b24575d54e0350e7f2f6a")
+                .unwrap();
+        exec.transfer(
+            signer,
+            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced").unwrap(),
+            recipient,
+            1_000_000_000_000,
+            ExtraParam::default(),
+        )
+        .unwrap();
+        // test txn: https://moonbeam.moonscan.io/tx/0x47a5fdea2e3bb807296b7d7c5e708b4db5a0aca732ef37ee0e173df3d3942872
+    }
 
     #[test]
     #[ignore]
@@ -83,6 +122,7 @@ mod tests {
         let exec = Moonbeam2AcalaExecutor::new(
             "https://moonbeam.public.blastapi.io",
             H160::from_str("0x0000000000000000000000000000000000000804").unwrap(),
+            ACALA_PARACHAIN_ID,
         );
         let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
         let secret_key = secret_key.unwrap().1;

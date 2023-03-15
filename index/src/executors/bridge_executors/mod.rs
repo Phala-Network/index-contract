@@ -1,8 +1,7 @@
 pub mod ethereum_to_phala;
-pub mod moonbeam_to_acala;
-pub mod moonbeam_to_phala;
-pub mod phala_to_acala;
+pub mod moonbeam_xtoken;
 pub mod phala_to_ethereum;
+pub mod phala_xtransfer;
 
 #[cfg(test)]
 mod tests {

@@ -605,6 +605,7 @@ mod index_executor {
                 Box::new(Moonbeam2AcalaExecutor::new(
                     &moonbeam.endpoint,
                     moonbeam_xtoken.into(),
+                    ACALA_PARACHAIN_ID,
                 )),
             ));
             // Moonbeam -> Phala
@@ -613,12 +614,17 @@ mod index_executor {
                 Box::new(Moonbeam2PhalaExecutor::new(
                     &moonbeam.endpoint,
                     moonbeam_xtoken.into(),
+                    PHALA_PARACHAIN_ID,
                 )),
             ));
             // Phala -> Acala
             bridge_executors.push((
                 (String::from("Phala"), String::from("Acala")),
-                Box::new(Phala2AcalaExecutor::new(&phala.endpoint)),
+                Box::new(Phala2AcalaExecutor::new(
+                    &phala.endpoint,
+                    ACALA_PARACHAIN_ID,
+                    index::AccountType::Account32,
+                )),
             ));
             // Ethereum -> Phala
             bridge_executors.push((
