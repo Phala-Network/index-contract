@@ -13,6 +13,7 @@ pub enum StepMeta {
     Claim(ClaimStep),
     Swap(SwapStep),
     Bridge(BridgeStep),
+    Transfer(TransferStep),
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]

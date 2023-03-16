@@ -43,4 +43,7 @@ impl Context {
             .position(|e| e.0 == source_chain)
             .map(|idx| dyn_clone::clone_box(&*self.dex_executors[idx].1))
     }
+
+    pub fn get_transfer_executor(&self, source_chain: String) -> Option<Box<dyn TransferExecutor>> {
+    }
 }
