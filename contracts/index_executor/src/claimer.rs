@@ -27,6 +27,7 @@ use pink_web3::{
 };
 
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_extension::ResultExt;
 use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
@@ -243,14 +244,13 @@ impl ActivedTaskFetcher {
             ),
             None,
         )
-        // .log_err("Read storage [actived request] failed")
+        .log_err("Read storage [actived request] failed")
         .map_err(|_| "FailedGetRequestData")?
         {
             let actived_requests: Vec<[u8; 32]> =
                 scale::Decode::decode(&mut raw_storage.as_slice())
-                    // .log_err("Decode storage [sub native balance] failed")
+                    .log_err("Decode storage [actived request] failed")
                     .map_err(|_| "DecodeStorageFailed")?;
-            // println!("actived requests: {:?}", &actived_requests);
             if actived_requests.len() > 0 {
                 let oldest_request = actived_requests[0];
                 if let Some(raw_storage) = get_storage(
@@ -261,12 +261,12 @@ impl ActivedTaskFetcher {
                     ),
                     None,
                 )
-                // .log_err("Read storage [actived request] failed")
-                .map_err(|_| "FailedGetRequestData")?
+                .log_err("Read storage [actived request] failed")
+                .map_err(|_| "FailedGetDepositData")?
                 {
                     let sub_deposit_data: SubDepositData =
                         scale::Decode::decode(&mut raw_storage.as_slice())
-                            // .log_err("Decode storage [sub native balance] failed")
+                            .log_err("Decode storage [deposit data] failed")
                             .map_err(|_| "DecodeStorageFailed")?;
                     pink_extension::debug!(
                         "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
@@ -274,15 +274,8 @@ impl ActivedTaskFetcher {
                         &chain.name,
                         &sub_deposit_data,
                     );
-                    // println!(
-                    //     "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
-                    //     &hex::encode(oldest_request),
-                    //     &chain.name,
-                    //     &sub_deposit_data,
-                    // );
                     let deposit_data: DepositData = sub_deposit_data.into();
                     let task = deposit_data.to_task(&chain.name, oldest_request)?;
-                    // println!("sub task: {:?}", &task);
                     Ok(Some(task))
                 } else {
                     Err("DepositInfoNotFound")
@@ -667,7 +660,7 @@ mod tests {
                 StepMeta::Bridge(bridge_meta),
                 StepMeta::Swap(swap_meta),
             ) => {
-                assert_eq!(claim_step.chain, String::from("Phala"));
+                assert_eq!(claim_step.chain, String::from("Khala"));
                 assert_eq!(bridge_meta.amount, 301_000_000_000_000);
                 assert_eq!(swap_meta.spend, 1_000_000_000_000_000_000 as u128);
             }
