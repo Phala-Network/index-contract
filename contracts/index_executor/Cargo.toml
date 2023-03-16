@@ -22,7 +22,7 @@ scale = { package = "parity-scale-codec", version = "3.1", default-features = fa
 scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
 phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
-phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "ink4.0", default-features = false, features = ["substrate"] }
+phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate"] }
 pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4.1", default-features = false }
 pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
@@ -36,7 +36,7 @@ hex-literal = "0.3"
 pink-extension-runtime = "0.4.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
-phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "ink4.0", default-features = false, features = ["substrate", "logging"] }
+phat_offchain_rollup = { git = "https://github.com/Phala-Network/phat-offchain-rollup.git", branch = "main", default-features = false, features = ["substrate", "logging"] }
 
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.

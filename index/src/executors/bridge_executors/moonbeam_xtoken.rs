@@ -12,9 +12,6 @@ use pink_web3::{
     transports::PinkHttp,
 };
 
-pub type Moonbeam2AcalaExecutor = MoonbeamXTokenExecutor;
-pub type Moonbeam2PhalaExecutor = MoonbeamXTokenExecutor;
-
 #[derive(Clone)]
 pub struct MoonbeamXTokenExecutor {
     bridge_contract: XtokenClient,
@@ -119,7 +116,7 @@ mod tests {
     fn moonbeam_to_acala_xcdot() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let exec = Moonbeam2AcalaExecutor::new(
+        let exec = MoonbeamXTokenExecutor::new(
             "https://moonbeam.public.blastapi.io",
             H160::from_str("0x0000000000000000000000000000000000000804").unwrap(),
             ACALA_PARACHAIN_ID,
