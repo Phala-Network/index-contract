@@ -12,9 +12,11 @@ use super::traits::Runner;
 use xcm::latest::AssetId as XcmAssetId;
 
 use pink_subrpc::{
-    get_storage,
+    create_transaction, get_storage,
     hasher::Twox64Concat,
+    send_transaction,
     storage::{storage_map_prefix, storage_prefix},
+    ExtraParam,
 };
 use pink_web3::{
     api::{Eth, Namespace},
@@ -79,7 +81,7 @@ impl Runner for ClaimStep {
 
         match chain.chain_type {
             ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer, nonce)?),
-            ChainType::Sub => Err("Unimplemented"),
+            ChainType::Sub => Ok(self.claim_sub_actived_tasks(chain, self.id, &signer, nonce)?),
         }
     }
 
@@ -151,6 +153,43 @@ impl ClaimStep {
             hex::encode(tx_id.clone().as_bytes())
         );
         Ok(tx_id.as_bytes().to_vec())
+    }
+
+    fn claim_sub_actived_tasks(
+        &self,
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let signed_tx = create_transaction(
+            worker_key,
+            "phala",
+            &chain.endpoint,
+            // Pallet id of `pallet-index`
+            *chain
+                .handler_contract
+                .first()
+                .ok_or("ClaimMissingPalletId")?,
+            // Call index of `claim_task`
+            0x03u8,
+            task_id,
+            ExtraParam {
+                tip: 0,
+                nonce: Some(nonce),
+                era: None,
+            },
+        )
+        .map_err(|_| "ClaimInvalidSignature")?;
+        let tx_id =
+            send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone())
+        );
+        Ok(tx_id)
     }
 }
 
@@ -251,7 +290,7 @@ impl ActivedTaskFetcher {
                 scale::Decode::decode(&mut raw_storage.as_slice())
                     .log_err("Decode storage [actived request] failed")
                     .map_err(|_| "DecodeStorageFailed")?;
-            if actived_requests.len() > 0 {
+            if !actived_requests.is_empty() {
                 let oldest_request = actived_requests[0];
                 if let Some(raw_storage) = get_storage(
                     &chain.endpoint,
@@ -502,7 +541,7 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use index::{
-        graph::{Chain, ChainType, Graph},
+        graph::{BalanceFetcher, Chain, ChainType, Graph},
         utils::ToArray,
     };
 
@@ -623,7 +662,7 @@ mod tests {
     }
 
     #[test]
-    // #[ignore]
+    #[ignore]
     fn test_fetch_task_from_sub() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
@@ -631,6 +670,7 @@ mod tests {
         // Worker public key
         let worker_key: [u8; 32] =
             hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // We already deposit task with scritps/sub-depopsit.js
         let task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
@@ -666,5 +706,63 @@ mod tests {
             }
             _ => assert!(false),
         }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_sub_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_prv_key: [u8; 32] =
+            hex!("3a531c56b5441c165d2975d186d0c816c4e181da33e89e6ae751fceb77ea970b").into();
+        let mock_worker_pub_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        // Encoded MultiLocation::here()
+        let pha: Vec<u8> = hex!("010100cd1f").into();
+        let khala = Chain {
+            id: 0,
+            name: String::from("Khala"),
+            chain_type: ChainType::Sub,
+            endpoint: String::from("http://127.0.0.1:30444"),
+            native_asset: pha.clone(),
+            foreign_asset: None,
+            handler_contract: hex!("6f").into(),
+        };
+
+        let claim_step = ClaimStep {
+            chain: String::from("Khala"),
+            id: hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+                .to_array(),
+            asset: pha.clone(),
+            b0: None,
+        };
+        let context = Context {
+            signer: mock_worker_prv_key,
+            graph: Graph {
+                chains: vec![khala.clone()],
+                ..Default::default()
+            },
+            worker_accounts: vec![],
+            bridge_executors: vec![],
+            dex_executors: vec![],
+        };
+        // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
+        assert_eq!(claim_step.run(nonce, &context).is_ok(), true);
+
+        // Wait 30 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(30000));
+
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+        // After claim, asset sent from pallet-index account to worker account
+        assert_eq!(
+            khala.get_balance(pha, mock_worker_pub_key.into()).unwrap() - 301_000_000_000_000u128
+                > 0,
+            true
+        );
     }
 }
