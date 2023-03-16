@@ -11,6 +11,7 @@
     "@phala/sdk": "^0.3.8-beta.0",
     "@polkadot/api": "^9.13.6",
     "@polkadot/api-contract": "^9.13.6",
+    "bn.js": "^5.2.1",
     "console-stamp": "^3.1.0"
   }
 }

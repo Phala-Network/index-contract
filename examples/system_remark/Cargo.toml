@@ -20,14 +20,14 @@ hex = { version = "0.4.3", default-features = false }
 
 pink-extension = { version = "0.4.1", default-features = false, features = ["ink-as-dependency"] }
 pink-web3 = { git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
-pink-subrpc = { version = "0.4.1", default-features = false }
+pink-subrpc = { version = "0.4.2", default-features = false }
 
 index = { path = "../../index", default-features = false }
 
 [dev-dependencies]
 pink-extension-runtime = "0.4.0"
 dotenv = "0.15.0"
-pink-subrpc = { version = "0.4.0", default-features = false }
+pink-subrpc = { version = "0.4.2", default-features = false }
 
 [lib]
 name = "system_remark"

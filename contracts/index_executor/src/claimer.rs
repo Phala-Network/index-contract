@@ -9,7 +9,15 @@ use super::step::{Step, StepMeta};
 use super::swap::SwapStep;
 use super::task::{OnchainTasks, Task, TaskId};
 use super::traits::Runner;
+use xcm::latest::AssetId as XcmAssetId;
 
+use pink_subrpc::{
+    create_transaction, get_storage,
+    hasher::Twox64Concat,
+    send_transaction,
+    storage::{storage_map_prefix, storage_prefix},
+    ExtraParam,
+};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
@@ -21,6 +29,7 @@ use pink_web3::{
 };
 
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
+use pink_extension::ResultExt;
 use serde::Deserialize;
 
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
@@ -72,7 +81,7 @@ impl Runner for ClaimStep {
 
         match chain.chain_type {
             ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &signer, nonce)?),
-            ChainType::Sub => Err("Unimplemented"),
+            ChainType::Sub => Ok(self.claim_sub_actived_tasks(chain, self.id, &signer, nonce)?),
         }
     }
 
@@ -145,6 +154,43 @@ impl ClaimStep {
         );
         Ok(tx_id.as_bytes().to_vec())
     }
+
+    fn claim_sub_actived_tasks(
+        &self,
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let signed_tx = create_transaction(
+            worker_key,
+            "phala",
+            &chain.endpoint,
+            // Pallet id of `pallet-index`
+            *chain
+                .handler_contract
+                .first()
+                .ok_or("ClaimMissingPalletId")?,
+            // Call index of `claim_task`
+            0x03u8,
+            task_id,
+            ExtraParam {
+                tip: 0,
+                nonce: Some(nonce),
+                era: None,
+            },
+        )
+        .map_err(|_| "ClaimInvalidSignature")?;
+        let tx_id =
+            send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone())
+        );
+        Ok(tx_id)
+    }
 }
 
 /// Fetch actived requests from blockchains and construct a `Task` from it.
@@ -165,7 +211,7 @@ impl ActivedTaskFetcher {
     pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
             ChainType::Evm => Ok(self.query_evm_actived_request(&self.chain, &self.worker)?),
-            ChainType::Sub => Err("Unimplemented"),
+            ChainType::Sub => Ok(self.query_sub_actived_request(&self.chain, &self.worker)?),
         }
     }
 
@@ -205,7 +251,7 @@ impl ActivedTaskFetcher {
             "getLastActivedRequest, return request_id: {:?}",
             hex::encode(request_id)
         );
-        let deposit_data: DepositData = resolve_ready(handler.query(
+        let evm_deposit_data: EvmDepositData = resolve_ready(handler.query(
             "getRequestData",
             request_id,
             None,
@@ -217,27 +263,81 @@ impl ActivedTaskFetcher {
             "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
             &hex::encode(request_id),
             &chain.name,
-            &deposit_data,
+            &evm_deposit_data,
         );
+        let deposit_data: DepositData = evm_deposit_data.into();
         let task = deposit_data.to_task(&chain.name, request_id)?;
         Ok(Some(task))
     }
+
+    fn query_sub_actived_request(
+        &self,
+        chain: &Chain,
+        worker: &AccountInfo,
+    ) -> Result<Option<Task>, &'static str> {
+        if let Some(raw_storage) = get_storage(
+            &chain.endpoint,
+            &storage_map_prefix::<Twox64Concat>(
+                &storage_prefix("PalletIndex", "ActivedRequests")[..],
+                &worker.account32,
+            ),
+            None,
+        )
+        .log_err("Read storage [actived request] failed")
+        .map_err(|_| "FailedGetRequestData")?
+        {
+            let actived_requests: Vec<[u8; 32]> =
+                scale::Decode::decode(&mut raw_storage.as_slice())
+                    .log_err("Decode storage [actived request] failed")
+                    .map_err(|_| "DecodeStorageFailed")?;
+            if !actived_requests.is_empty() {
+                let oldest_request = actived_requests[0];
+                if let Some(raw_storage) = get_storage(
+                    &chain.endpoint,
+                    &storage_map_prefix::<Twox64Concat>(
+                        &storage_prefix("PalletIndex", "DepositRecords")[..],
+                        &oldest_request,
+                    ),
+                    None,
+                )
+                .log_err("Read storage [actived request] failed")
+                .map_err(|_| "FailedGetDepositData")?
+                {
+                    let sub_deposit_data: SubDepositData =
+                        scale::Decode::decode(&mut raw_storage.as_slice())
+                            .log_err("Decode storage [deposit data] failed")
+                            .map_err(|_| "DecodeStorageFailed")?;
+                    pink_extension::debug!(
+                        "Fetch deposit data successfully for request {:?} on {:?}, deposit data: {:?}",
+                        &hex::encode(oldest_request),
+                        &chain.name,
+                        &sub_deposit_data,
+                    );
+                    let deposit_data: DepositData = sub_deposit_data.into();
+                    let task = deposit_data.to_task(&chain.name, oldest_request)?;
+                    Ok(Some(task))
+                } else {
+                    Err("DepositInfoNotFound")
+                }
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
-// Define the structures to parse deposit data json
-#[allow(dead_code)]
 #[derive(Debug)]
-struct DepositData {
+struct EvmDepositData {
     // TODO: use Bytes
     sender: Address,
-    // TODO: user Bytes
-    token: Address,
     amount: U256,
     recipient: Vec<u8>,
     request: String,
 }
 
-impl Detokenize for DepositData {
+impl Detokenize for EvmDepositData {
     fn from_tokens(tokens: Vec<Token>) -> Result<Self, PinkError>
     where
         Self: Sized,
@@ -248,20 +348,17 @@ impl Detokenize for DepositData {
                 Token::Tuple(deposit_data) => {
                     match (
                         deposit_data[0].clone(),
-                        deposit_data[1].clone(),
                         deposit_data[2].clone(),
                         deposit_data[3].clone(),
                         deposit_data[4].clone(),
                     ) {
                         (
                             Token::Address(sender),
-                            Token::Address(token),
                             Token::Uint(amount),
                             Token::Bytes(recipient),
                             Token::String(request),
-                        ) => Ok(DepositData {
+                        ) => Ok(EvmDepositData {
                             sender,
-                            token,
                             amount,
                             recipient,
                             request,
@@ -277,6 +374,49 @@ impl Detokenize for DepositData {
             }
         } else {
             Err(PinkError::InvalidOutputType(String::from("Invalid length")))
+        }
+    }
+}
+
+// Copy from pallet-index
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct SubDepositData {
+    pub sender: [u8; 32],
+    pub asset: XcmAssetId,
+    pub amount: u128,
+    pub recipient: Vec<u8>,
+    pub request: Vec<u8>,
+}
+
+// Define the structures to parse deposit data json
+#[allow(dead_code)]
+#[derive(Debug)]
+struct DepositData {
+    // TODO: use Bytes
+    sender: Vec<u8>,
+    amount: u128,
+    recipient: Vec<u8>,
+    request: String,
+}
+
+impl From<EvmDepositData> for DepositData {
+    fn from(value: EvmDepositData) -> Self {
+        Self {
+            sender: value.sender.as_bytes().into(),
+            amount: value.amount.try_into().expect("Amount overflow"),
+            recipient: value.recipient,
+            request: value.request,
+        }
+    }
+}
+
+impl From<SubDepositData> for DepositData {
+    fn from(value: SubDepositData) -> Self {
+        Self {
+            sender: value.sender.into(),
+            amount: value.amount,
+            recipient: value.recipient,
+            request: String::from_utf8_lossy(&value.request).into_owned(),
         }
     }
 }
@@ -298,7 +438,7 @@ impl DepositData {
         let mut uninitialized_task = Task {
             id,
             source: source_chain.into(),
-            sender: self.sender.as_bytes().into(),
+            sender: self.sender.clone(),
             recipient: self.recipient.clone(),
             ..Default::default()
         };
@@ -401,7 +541,7 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use index::{
-        graph::{Chain, ChainType, Graph},
+        graph::{BalanceFetcher, Chain, ChainType, Graph},
         utils::ToArray,
     };
 
@@ -519,5 +659,110 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(60000));
 
         assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_fetch_task_from_sub() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // Worker public key
+        let worker_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // We already deposit task with scritps/sub-depopsit.js
+        let task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Khala"),
+                chain_type: ChainType::Sub,
+                endpoint: String::from("http://127.0.0.1:30444"),
+                native_asset: vec![0],
+                foreign_asset: None,
+                handler_contract: hex!("00").into(),
+            },
+            worker: AccountInfo {
+                account20: [0; 20],
+                account32: worker_key,
+            },
+        }
+        .fetch_task()
+        .unwrap()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+        match (
+            task.steps[0].meta.clone(),
+            task.steps[1].meta.clone(),
+            task.steps[2].meta.clone(),
+        ) {
+            (
+                StepMeta::Claim(claim_step),
+                StepMeta::Bridge(bridge_meta),
+                StepMeta::Swap(swap_meta),
+            ) => {
+                assert_eq!(claim_step.chain, String::from("Khala"));
+                assert_eq!(bridge_meta.amount, 301_000_000_000_000);
+                assert_eq!(swap_meta.spend, 1_000_000_000_000_000_000 as u128);
+            }
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_sub_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_prv_key: [u8; 32] =
+            hex!("3a531c56b5441c165d2975d186d0c816c4e181da33e89e6ae751fceb77ea970b").into();
+        let mock_worker_pub_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        // Encoded MultiLocation::here()
+        let pha: Vec<u8> = hex!("010100cd1f").into();
+        let khala = Chain {
+            id: 0,
+            name: String::from("Khala"),
+            chain_type: ChainType::Sub,
+            endpoint: String::from("http://127.0.0.1:30444"),
+            native_asset: pha.clone(),
+            foreign_asset: None,
+            handler_contract: hex!("6f").into(),
+        };
+
+        let claim_step = ClaimStep {
+            chain: String::from("Khala"),
+            id: hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+                .to_array(),
+            asset: pha.clone(),
+            b0: None,
+        };
+        let context = Context {
+            signer: mock_worker_prv_key,
+            graph: Graph {
+                chains: vec![khala.clone()],
+                ..Default::default()
+            },
+            worker_accounts: vec![],
+            bridge_executors: vec![],
+            dex_executors: vec![],
+        };
+        // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
+        assert_eq!(claim_step.run(nonce, &context).is_ok(), true);
+
+        // Wait 30 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(30000));
+
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+        // After claim, asset sent from pallet-index account to worker account
+        assert_eq!(
+            khala.get_balance(pha, mock_worker_pub_key.into()).unwrap() - 301_000_000_000_000u128
+                > 0,
+            true
+        );
     }
 }
