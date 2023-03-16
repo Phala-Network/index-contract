@@ -19,6 +19,22 @@ pub struct AccountInfo {
 }
 
 impl AccountInfo {
+    /// returns account raw bytes
+    pub fn get_raw_account(
+        &self,
+        chain_name: String,
+        context: &Context,
+    ) -> Result<Vec<u8>, &'static str> {
+        let chain = context
+            .graph
+            .get_chain(chain_name.clone())
+            .ok_or("MissingChain")?;
+        Ok(match chain.chain_type {
+            ChainType::Evm => self.account20.into(),
+            ChainType::Sub => self.account32.into(),
+        })
+    }
+
     pub fn get_balance(
         &self,
         chain_name: String,
@@ -35,12 +51,6 @@ impl AccountInfo {
         };
         chain
             .get_balance(asset.clone(), account.clone())
-            .log_err(&format!(
-                "Fetch balance failed, chain: {:?}, asset: {:?}, account: {:?}",
-                &chain_name,
-                &hex::encode(&asset),
-                &hex::encode(&account)
-            ))
             .map_err(|_| "FetchBalanceFailed")
     }
 

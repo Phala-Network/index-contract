@@ -12,6 +12,7 @@ mod step;
 mod swap;
 mod task;
 mod traits;
+mod transfer;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
