@@ -27,7 +27,7 @@ pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4.1", default-features = false }
 pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
-pink-subrpc = { version = "0.4.1", default-features = false }
+pink-subrpc = { version = "0.4.2", default-features = false }
 index = { path = "../../index", default-features = false }
 
 [dev-dependencies]
