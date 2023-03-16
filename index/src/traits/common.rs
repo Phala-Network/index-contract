@@ -5,11 +5,13 @@ use scale::{Decode, Encode};
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum Error {
     BadAbi,
+    BadAsset,
     BadOrigin,
     ExtractLocationFailed,
     InvalidAddress,
     ConstructContractFailed,
     FetchDataFailed,
+    BalanceOverflow,
     Unimplemented,
     InvalidMultilocation,
     InvalidAmount,

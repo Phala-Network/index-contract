@@ -5,21 +5,18 @@ use alloc::{
     vec::Vec,
 };
 
+use scale::Decode;
+use scale::Encode;
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
 use xcm::v1::{prelude::*, MultiLocation};
 
-use scale::Decode;
-use scale::Encode;
-
 // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
 // with modification
-//
 //
 // 0 - 127: Polkadot Ecosystem tokens
 // 0 - 19: Acala & Polkadot native tokens
 // 20 - 39: External tokens (e.g. bridged)
 // 40 - 127: Polkadot parachain tokens
-//
 // 128 - 255: Kusama Ecosystem tokens
 // 128 - 147: Karura & Kusama native tokens
 // 148 - 167: External tokens (e.g. bridged)
@@ -40,7 +37,6 @@ pub enum TokenSymbol {
     RENBTC = 20,
     CASH = 21,
     // 40 - 127: Polkadot parachain tokens
-
     // 128 - 147: Karura & Kusama native tokens
     KAR = 128,
     KUSD = 129,
@@ -58,10 +54,56 @@ pub enum TokenSymbol {
     KBTC = 172,
 }
 
+const LC_KAR: MultiLocation = MultiLocation::new(
+    1,
+    X2(
+        Parachain(2000),
+        GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+            vec![0x00, 0x80],
+            None,
+        )),
+    ),
+);
+const LC_PHA: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
+const LC_ACA: MultiLocation = MultiLocation::new(
+    1,
+    X2(
+        Parachain(2000),
+        GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+            vec![0x00, 0x00],
+            None,
+        )),
+    ),
+);
+const LC_DOT: MultiLocation = MultiLocation::new(
+    1,
+    X2(
+        Parachain(2000),
+        GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+            vec![0x00, 0x02],
+            None,
+        )),
+    ),
+);
+
+pub type ForeignAssetId = u16;
+const FA_GLMR: ForeignAssetId = 0;
+const FA_PARA: ForeignAssetId = 1;
+const FA_ASTR: ForeignAssetId = 2;
+const FA_IBTC: ForeignAssetId = 3;
+const FA_INTR: ForeignAssetId = 4;
+const FA_WBTC: ForeignAssetId = 5;
+const FA_WETH: ForeignAssetId = 6;
+const FA_EQ: ForeignAssetId = 7;
+const FA_EQD: ForeignAssetId = 8;
+const FA_PHA: ForeignAssetId = 9;
+const FA_UNQ: ForeignAssetId = 10;
+
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CurrencyId {
     Token(TokenSymbol),
+    ForeignAsset(ForeignAssetId),
 }
 
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, PartialOrd, Ord)]
@@ -70,6 +112,30 @@ pub enum AggregatedSwapPath {
     Dex(Vec<CurrencyId>),
     Taiga(u32, u32, u32),
 }
+
+/// Acala has lots of token types which are handled in different way in case of transfer,
+/// ACA(the utility token of Acala) goes the Balance::Transfer way
+/// other tokens goes the Currencies::Transfer way,
+/// the native tokens, dot is one of them, is wrapped as CurrencyId::TokenSymbol,
+/// foreign tokens CurrencyId::ForeignAssetId
+pub enum TokenType {
+    Utility,
+    Native,
+    Foreign,
+}
+
+pub type TokenAttrs = (
+    MultiLocation,
+    TokenSymbol,
+    TokenType,
+    Option<ForeignAssetId>,
+);
+const TOKENS: Vec<TokenAttrs> = vec![
+    (LC_ACA, TokenSymbol::ACA, TokenType::Utility, None),
+    (LC_DOT, TokenSymbol::DOT, TokenType::Native, None),
+    (LC_KAR, TokenSymbol::KAR, TokenType::Native, None),
+    (LC_PHA, TokenSymbol::PHA, TokenType::Foreign, Some(FA_PHA)),
+];
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -85,58 +151,15 @@ impl Currencyid2Location {
                 (
                     "Karura".to_string(),
                     vec![
-                        // KAR
-                        (
-                            CurrencyId::Token(TokenSymbol::KAR),
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                        ),
-                        // PHA
-                        (
-                            CurrencyId::Token(TokenSymbol::PHA),
-                            MultiLocation::new(1, X1(Parachain(2004))),
-                        ),
+                        (CurrencyId::Token(TokenSymbol::KAR), LC_KAR),
+                        (CurrencyId::Token(TokenSymbol::PHA), LC_PHA),
                     ],
                 ),
                 (
                     "Acala".to_string(),
                     vec![
-                        // ACA
-                        (
-                            CurrencyId::Token(TokenSymbol::ACA),
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x00],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                        ),
-                        // DOT
-                        (
-                            CurrencyId::Token(TokenSymbol::DOT),
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x02],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                        ),
+                        (CurrencyId::Token(TokenSymbol::ACA), LC_ACA),
+                        (CurrencyId::Token(TokenSymbol::DOT), LC_DOT),
                     ],
                 ),
             ],
@@ -157,83 +180,15 @@ impl Currencyid2Location {
 }
 
 #[derive(Default)]
-pub struct Location2Currencyid {
-    // (chain, (asset_location, currency_id))
-    assets: Vec<(String, Vec<(MultiLocation, CurrencyId)>)>,
-}
-impl Location2Currencyid {
-    pub fn new() -> Self {
-        Self {
-            assets: vec![
-                (
-                    "Karura".to_string(),
-                    vec![
-                        // KAR
-                        (
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                            CurrencyId::Token(TokenSymbol::KAR),
-                        ),
-                        // PHA
-                        (
-                            MultiLocation::new(1, X1(Parachain(2004))),
-                            CurrencyId::Token(TokenSymbol::PHA),
-                        ),
-                    ],
-                ),
-                (
-                    "Acala".to_string(),
-                    vec![
-                        // ACA
-                        (
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x00],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                            CurrencyId::Token(TokenSymbol::ACA),
-                        ),
-                        // DOT
-                        (
-                            MultiLocation::new(
-                                1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x02],
-                                        None,
-                                    )),
-                                ),
-                            ),
-                            CurrencyId::Token(TokenSymbol::DOT),
-                        ),
-                    ],
-                ),
-            ],
+pub struct AcalaAssetMap;
+impl AcalaAssetMap {
+    pub fn get_asset_attrs(
+        location: &MultiLocation,
+    ) -> Option<(TokenSymbol, TokenType, Option<ForeignAssetId>)> {
+        let token = TOKENS.iter().find(|&&s| s.0 == location.clone());
+        if let Some(token) = token {
+            return Some((token.1, token.2, token.3));
         }
-    }
-
-    pub fn get_currencyid(&self, chain: String, location: &MultiLocation) -> Option<CurrencyId> {
-        match self.assets.iter().position(|a| a.0 == chain) {
-            Some(idx0) => self.assets[idx0]
-                .1
-                .iter()
-                .position(|a| &a.0 == location)
-                .map(|idx1| self.assets[idx0].1[idx1].1),
-            _ => None,
-        }
+        None
     }
 }

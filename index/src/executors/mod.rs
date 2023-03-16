@@ -1,5 +1,6 @@
 pub mod bridge_executors;
 pub mod dex_executors;
+pub mod transfer_executors;
 
 #[cfg(test)]
 mod tests {
