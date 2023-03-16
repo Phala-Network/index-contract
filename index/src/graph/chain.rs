@@ -6,7 +6,7 @@ use alloc::{vec, vec::Vec};
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
-    hasher::{Blake2_128, Twox64},
+    hasher::{Blake2_128Concat, Twox64Concat},
     storage::{storage_double_map_prefix, storage_map_prefix, storage_prefix},
     Ss58Codec,
 };
@@ -133,7 +133,7 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     if let Some(raw_storage) = get_storage(
                         &self.endpoint,
-                        &storage_map_prefix::<Blake2_128>(
+                        &storage_map_prefix::<Blake2_128Concat>(
                             &storage_prefix("System", "Account")[..],
                             &public_key,
                         ),
@@ -161,7 +161,7 @@ impl BalanceFetcher for Chain {
                                 .ok_or(Error::AssetNotRecognized)?;
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
-                                &storage_double_map_prefix::<Blake2_128, Blake2_128>(
+                                &storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
                                     &storage_prefix("Assets", "Account")[..],
                                     &asset_id.to_le_bytes(),
                                     &public_key,
@@ -188,7 +188,7 @@ impl BalanceFetcher for Chain {
                                 .ok_or(Error::AssetNotRecognized)?;
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
-                                &storage_double_map_prefix::<Blake2_128, Twox64>(
+                                &storage_double_map_prefix::<Blake2_128Concat, Twox64Concat>(
                                     &storage_prefix("Tokens", "Accounts")[..],
                                     &public_key,
                                     &currency_id.encode(),
