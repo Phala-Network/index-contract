@@ -22,7 +22,14 @@ enum AcalaAsset {
 }
 
 impl AcalaTransferExecutor {
-    pub fn new() {}
+    pub fn new(rpc: &str) -> Self
+    where
+        Self: Sized,
+    {
+        Self {
+            rpc: rpc.to_string(),
+        }
+    }
 
     fn transfer(
         &self,
@@ -39,6 +46,7 @@ impl AcalaTransferExecutor {
         let asset_attrs = AcalaAssetMap::get_asset_attrs(&asset_location).ok_or(Error::BadAsset)?;
         let currency_id = CurrencyId::Token(asset_attrs.0);
         let asset_type = asset_attrs.1;
+
         match asset_type {
             AcalaTokenType::Utility => {
                 let signed_tx = create_transaction(

@@ -183,9 +183,9 @@ impl BalanceFetcher for Chain {
                             }
                         }
                         Some(ForeignAssetModule::OrmlToken) => {
-                            let currency_id = Location2Currencyid::new()
-                                .get_currencyid(self.name.clone(), &asset_location)
+                            let attrs = AcalaAssetMap::get_asset_attrs(&asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
+                            let currency_id = CurrencyId::Token(attrs.0);
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Twox64Concat>(
