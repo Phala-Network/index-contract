@@ -1,6 +1,6 @@
 use super::account::AccountInfo;
 use alloc::{boxed::Box, string::String, vec::Vec};
-use index::{graph::Graph, prelude::*};
+use index::{graph::Graph, prelude::*, traits::executor::TransferExecutor};
 
 pub struct Context {
     pub signer: [u8; 32],
@@ -45,5 +45,6 @@ impl Context {
     }
 
     pub fn get_transfer_executor(&self, source_chain: String) -> Option<Box<dyn TransferExecutor>> {
+        None
     }
 }
