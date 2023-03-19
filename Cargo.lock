@@ -1331,7 +1331,6 @@ dependencies = [
  "dyn-clone",
  "hex",
  "hex-literal",
- "once_cell",
  "parity-scale-codec",
  "pink-extension",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
