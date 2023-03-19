@@ -7,6 +7,10 @@ use crate::{
     prelude::Error,
     utils::ToArray,
 };
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::result::Result;
 use scale::Decode;
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;

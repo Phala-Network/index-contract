@@ -1,5 +1,3 @@
-use std::sync::Once;
-
 // TODO: Remove sp-runtime to decline size of wasm blob
 use alloc::{
     string::{String, ToString},
@@ -7,7 +5,6 @@ use alloc::{
     vec::Vec,
 };
 
-use once_cell::sync::{Lazy, OnceCell};
 use scale::Decode;
 use scale::Encode;
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
@@ -107,47 +104,45 @@ pub type TokenAttrs = (
 pub struct AcalaAssetMap;
 
 impl AcalaAssetMap {
-    pub fn get_map() -> &'static Vec<TokenAttrs> {
-        static TOKENS: OnceCell<Vec<TokenAttrs>> = OnceCell::new();
-        TOKENS.get_or_init(|| {
-            let lc_kar: MultiLocation = MultiLocation::new(
-                1,
-                X2(
-                    Parachain(2000),
-                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                        vec![0x00, 0x80],
-                        None,
-                    )),
-                ),
-            );
-            let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
-            let lc_aca: MultiLocation = MultiLocation::new(
-                1,
-                X2(
-                    Parachain(2000),
-                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                        vec![0x00, 0x00],
-                        None,
-                    )),
-                ),
-            );
-            let lc_dot: MultiLocation = MultiLocation::new(
-                1,
-                X2(
-                    Parachain(2000),
-                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                        vec![0x00, 0x02],
-                        None,
-                    )),
-                ),
-            );
-            vec![
-                (lc_aca, TokenSymbol::ACA, TokenType::Utility, None),
-                (lc_dot, TokenSymbol::DOT, TokenType::Native, None),
-                (lc_kar, TokenSymbol::KAR, TokenType::Native, None),
-                (lc_pha, TokenSymbol::PHA, TokenType::Foreign, Some(FA_PHA)),
-            ]
-        })
+    // todo: find once cell solution for wasm
+    pub fn get_map() -> Vec<TokenAttrs> {
+        let lc_kar: MultiLocation = MultiLocation::new(
+            1,
+            X2(
+                Parachain(2000),
+                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+                    vec![0x00, 0x80],
+                    None,
+                )),
+            ),
+        );
+        let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
+        let lc_aca: MultiLocation = MultiLocation::new(
+            1,
+            X2(
+                Parachain(2000),
+                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+                    vec![0x00, 0x00],
+                    None,
+                )),
+            ),
+        );
+        let lc_dot: MultiLocation = MultiLocation::new(
+            1,
+            X2(
+                Parachain(2000),
+                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
+                    vec![0x00, 0x02],
+                    None,
+                )),
+            ),
+        );
+        vec![
+            (lc_aca, TokenSymbol::ACA, TokenType::Utility, None),
+            (lc_dot, TokenSymbol::DOT, TokenType::Native, None),
+            (lc_kar, TokenSymbol::KAR, TokenType::Native, None),
+            (lc_pha, TokenSymbol::PHA, TokenType::Foreign, Some(FA_PHA)),
+        ]
     }
 
     pub fn get_asset_attrs(
