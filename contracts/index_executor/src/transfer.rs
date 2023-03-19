@@ -64,7 +64,7 @@ impl Runner for TransferStep {
 
         // Do swap operation
         let tx_id = executor
-            .tranfer(
+            .transfer(
                 signer,
                 self.asset.clone(),
                 self.amount,
@@ -93,7 +93,7 @@ impl Runner for TransferStep {
     /// nonce: from the current state, haven't synced with the onchain state,
     ///     must be smaller than that of the current state if the last step succeeded
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        let recipient = self.recipient.ok_or("No recipient")?;
+        let recipient = self.recipient.clone().ok_or("No recipient")?;
         let worker = AccountInfo::from(context.signer);
         let worker_account = worker.get_raw_account(self.chain.clone(), context)?;
         // index chain

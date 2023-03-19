@@ -338,6 +338,7 @@ impl Task {
                     worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
                 latest_balance.saturating_sub(old_balance)
             }
+            _ => return Err("not implemented"),
         })
     }
 

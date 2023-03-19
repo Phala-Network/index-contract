@@ -3,6 +3,7 @@ use super::claimer::ClaimStep;
 use super::context::Context;
 use super::swap::SwapStep;
 use super::traits::Runner;
+use super::transfer::TransferStep;
 use alloc::{string::String, vec::Vec};
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
@@ -41,6 +42,7 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.runnable(nonce, context, client),
             StepMeta::Swap(swap_step) => swap_step.runnable(nonce, context, client),
             StepMeta::Bridge(bridge_step) => bridge_step.runnable(nonce, context, client),
+            _ => return Err("todo"),
         }
     }
 
@@ -49,6 +51,7 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.run(nonce, context),
             StepMeta::Swap(swap_step) => swap_step.run(nonce, context),
             StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, context),
+            _ => return Err("todo"),
         }
     }
 
@@ -57,6 +60,7 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.check(self.nonce.unwrap(), context),
             StepMeta::Swap(swap_step) => swap_step.check(self.nonce.unwrap(), context),
             StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap(), context),
+            _ => return Err("todo"),
         }
     }
 
@@ -65,6 +69,7 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.sync_check(self.nonce.unwrap(), context),
             StepMeta::Swap(swap_step) => swap_step.sync_check(self.nonce.unwrap(), context),
             StepMeta::Bridge(bridge_step) => bridge_step.sync_check(self.nonce.unwrap(), context),
+            _ => return Err("todo"),
         }
     }
 }
