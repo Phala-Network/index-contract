@@ -104,7 +104,6 @@ pub type TokenAttrs = (
 pub struct AcalaAssetMap;
 
 impl AcalaAssetMap {
-    // todo: find once cell solution for wasm
     pub fn get_map() -> Vec<TokenAttrs> {
         let lc_kar: MultiLocation = MultiLocation::new(
             1,
