@@ -71,6 +71,11 @@ const FA_UNQ: ForeignAssetId = 10;
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CurrencyId {
     Token(TokenSymbol),
+    // placeholds to achieve correct encoding
+    DexShare,
+    Erc20,
+    StableAssetPoolToken,
+    LiquidCrowdload,
     ForeignAsset(ForeignAssetId),
 }
 

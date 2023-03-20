@@ -41,7 +41,7 @@ impl AcalaTransferExecutor {
         let asset_location =
             MultiLocation::decode(&mut asset.as_slice()).map_err(|_| Error::FailedToScaleDecode)?;
         let bytes: [u8; 32] = recipient.to_array();
-        let recipient = MultiAddress::Address32(bytes);
+        let recipient = MultiAddress::Id(AccountId::from(bytes));
         let asset_attrs = AcalaAssetMap::get_asset_attrs(&asset_location).ok_or(Error::BadAsset)?;
         let currency_id = CurrencyId::Token(asset_attrs.0);
         let asset_type = asset_attrs.1;
@@ -65,6 +65,13 @@ impl AcalaTransferExecutor {
                 send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)
             }
             _ => {
+                let currency_id = match asset_type {
+                    AcalaTokenType::Foreign => {
+                        let foreign_asset_id = asset_attrs.2.ok_or(Error::BadAsset)?;
+                        CurrencyId::ForeignAsset(foreign_asset_id)
+                    }
+                    _ => currency_id,
+                };
                 let signed_tx = create_transaction(
                     &signer,
                     "acala",
@@ -96,20 +103,20 @@ mod tests {
     #[test]
     fn acala_transfer_encoding_is_right() {
         let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
-        let bytes = hex::decode("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623")
+        let bytes = hex::decode("663be7a0bda61c0a6eaa2f15a58f02f5cec9e72a23911230a2894a117b9d981a")
             .unwrap()
             .to_array();
-        let recipient = MultiAddress::Address32(bytes);
+        let recipient = MultiAddress::Id(AccountId::from(bytes));
         let asset_attrs = AcalaAssetMap::get_asset_attrs(&lc_pha)
             .ok_or(Error::BadAsset)
             .unwrap();
-        let currency_id = CurrencyId::Token(asset_attrs.0);
-        let amount = Compact(1000000000000_u128);
+        let currency_id = CurrencyId::ForeignAsset(asset_attrs.2.unwrap());
+        let amount = Compact(100_000_000_000_u128);
         let call_data = (recipient, currency_id, amount).encode();
 
         assert_eq!(
             hex::encode(call_data),
-            "03cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c37579062300aa070010a5d4e8"
+            "00663be7a0bda61c0a6eaa2f15a58f02f5cec9e72a23911230a2894a117b9d981a0509000700e8764817"
         );
     }
 
@@ -123,5 +130,15 @@ mod tests {
         let signer: [u8; 32] = secret_bytes.to_array();
 
         let executor = AcalaTransferExecutor::new("https://acala-rpc.dwellir.com");
+        let lc_pha = MultiLocation::new(1, X1(Parachain(2004))).encode();
+        let recipient =
+            hex::decode("663be7a0bda61c0a6eaa2f15a58f02f5cec9e72a23911230a2894a117b9d981a")
+                .unwrap();
+        // 0.1 will cause BalanceTooLow
+        let amount = 200_000_000_000u128;
+        let tx_id = executor
+            .transfer(signer, lc_pha, recipient, amount, ExtraParam::default())
+            .unwrap();
+        dbg!(hex::encode(tx_id));
     }
 }
