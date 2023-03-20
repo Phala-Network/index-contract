@@ -25,6 +25,7 @@ mod index_executor {
     use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
+    use index::traits::executor::TransferExecutor;
     use index::utils::ToArray;
     use index::{
         graph::{Chain, Graph},
@@ -449,6 +450,7 @@ mod index_executor {
         pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
             let bridge_executors = self.create_bridge_executors()?;
             let dex_executors = self.create_dex_executors()?;
+            let transfer_executors = self.create_transfer_executors()?;
 
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
@@ -708,6 +710,18 @@ mod index_executor {
                 )),
             ));
             Ok(dex_executors)
+        }
+
+        fn create_transfer_executors(&self) -> Result<Vec<(String, Box<dyn TransferExecutor>)>> {
+            let mut transfer_executors: Vec<(String, Box<dyn TransferExecutor>)> = vec![];
+            let acala = self
+                .get_chain(String::from("Acala"))
+                .ok_or(Error::ChainNotFound)?;
+            transfer_executors.push((
+                String::from("Acala"),
+                Box::new(AcalaTransferExecutor::new(&acala.endpoint)),
+            ));
+            Ok(transfer_executors)
         }
     }
 

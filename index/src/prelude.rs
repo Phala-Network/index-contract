@@ -6,6 +6,8 @@ pub use super::executors::dex_executors::{
     acala_dot_swap::AcalaDotSwapExecutor, acala_swap::AcalaDexExecutor,
     uniswap_based::MoonbeamDexExecutor,
 };
+
+pub use super::executors::transfer_executors::AcalaTransferExecutor;
 pub use crate::constants::*;
 pub use crate::traits::common::Error;
 pub use crate::traits::executor::{BridgeExecutor, DexExecutor};

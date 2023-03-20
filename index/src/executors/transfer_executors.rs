@@ -5,6 +5,7 @@ use xcm::v1::prelude::*;
 use crate::{
     assets::{AcalaAssetMap, CurrencyId, TokenType as AcalaTokenType},
     prelude::Error,
+    traits::executor::TransferExecutor,
     utils::ToArray,
 };
 use alloc::string::{String, ToString};
@@ -29,7 +30,9 @@ impl AcalaTransferExecutor {
             rpc: rpc.to_string(),
         }
     }
+}
 
+impl TransferExecutor for AcalaTransferExecutor {
     fn transfer(
         &self,
         signer: [u8; 32],
