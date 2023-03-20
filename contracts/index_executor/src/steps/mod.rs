@@ -13,6 +13,9 @@ use scale::{Decode, Encode};
 use swap::SwapStep;
 use transfer::TransferStep;
 
+/// TODO: what is Meta?
+/// if it means meta-info then it should be of aggragate type, such types should not have methods
+/// Otherwise might just name it ExecutionStep
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum StepMeta {
@@ -34,6 +37,12 @@ pub struct Step {
 }
 
 impl Runner for Step {
+    /// @nonce: worker's nonce
+    /// where is worker?
+    /// TODO: worker is in the context, therefore nonce should be in the context
+    /// @client: rollup client
+    /// TODO: this should be in the context as well
+    /// TODO: rename to is_runnable
     fn runnable(
         &self,
         nonce: u64,
@@ -44,10 +53,11 @@ impl Runner for Step {
             return Err("MissingNonce");
         }
         match &self.meta {
+            // TODO: find a way to simply, traits would be good
             StepMeta::Claim(claim_step) => claim_step.runnable(nonce, context, client),
             StepMeta::Swap(swap_step) => swap_step.runnable(nonce, context, client),
             StepMeta::Bridge(bridge_step) => bridge_step.runnable(nonce, context, client),
-            _ => return Err("todo"),
+            StepMeta::Transfer(transfer_step) => transfer_step.runnable(nonce, context, client),
         }
     }
 
@@ -56,16 +66,17 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.run(nonce, context),
             StepMeta::Swap(swap_step) => swap_step.run(nonce, context),
             StepMeta::Bridge(bridge_step) => bridge_step.run(nonce, context),
-            _ => return Err("todo"),
+            StepMeta::Transfer(transfer_step) => transfer_step.run(nonce, context),
         }
     }
 
     fn check(&self, _nonce: u64, context: &Context) -> Result<bool, &'static str> {
         match &self.meta {
+            // TODO: remove unwrap
             StepMeta::Claim(claim_step) => claim_step.check(self.nonce.unwrap(), context),
             StepMeta::Swap(swap_step) => swap_step.check(self.nonce.unwrap(), context),
             StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap(), context),
-            _ => return Err("todo"),
+            StepMeta::Transfer(transfer_step) => transfer_step.check(self.nonce.unwrap(), context),
         }
     }
 
@@ -74,7 +85,9 @@ impl Runner for Step {
             StepMeta::Claim(claim_step) => claim_step.sync_check(self.nonce.unwrap(), context),
             StepMeta::Swap(swap_step) => swap_step.sync_check(self.nonce.unwrap(), context),
             StepMeta::Bridge(bridge_step) => bridge_step.sync_check(self.nonce.unwrap(), context),
-            _ => return Err("todo"),
+            StepMeta::Transfer(transfer_step) => {
+                transfer_step.sync_check(self.nonce.unwrap(), context)
+            }
         }
     }
 }

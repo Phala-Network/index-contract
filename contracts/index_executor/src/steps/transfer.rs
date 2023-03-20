@@ -24,14 +24,6 @@ pub struct TransferStep {
 }
 
 impl Runner for TransferStep {
-    // The way we check if a transfer task is available to run is by:
-    //
-    // first by checking the nonce of the worker account, if the account nonce on source chain is great than
-    // the nonce we apply to the step, that means the transaction revalant to the step already been executed.
-    // In this situation we return false.
-    //
-    // second by checking the `from` asset balance of the worker account on the source chain, if the balance is
-    // great than or equal to the `amount` to bridge, we think we can safely execute bridge transaction
     fn runnable(
         &self,
         nonce: u64,
@@ -119,6 +111,7 @@ impl Runner for TransferStep {
         Ok((recipient_balance - b0) == self.amount && b0 - worker_balance >= self.amount)
     }
 
+    // TODO: what's sync_check??
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         self.check(nonce, context)
     }
