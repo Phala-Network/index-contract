@@ -1,6 +1,6 @@
 use super::account::AccountInfo;
 use super::context::Context;
-use super::step::{Step, StepMeta};
+use crate::steps::{Step, StepMeta};
 use super::traits::Runner;
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
@@ -439,7 +439,7 @@ impl OnchainAccounts {
 mod tests {
     use super::*;
     use crate::account::AccountInfo;
-    use crate::claimer::ActivedTaskFetcher;
+    use crate::steps::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
     use index::graph::{Chain, ChainType, Graph};

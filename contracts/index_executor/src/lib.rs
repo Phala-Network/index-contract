@@ -3,23 +3,18 @@
 extern crate alloc;
 
 mod account;
-mod bridge;
 mod cache;
-mod claimer;
 mod context;
 mod graph;
-mod step;
-mod swap;
+mod steps;
 mod task;
 mod traits;
-mod transfer;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
     use crate::cache::*;
-    use crate::claimer::ActivedTaskFetcher;
     use crate::context::Context;
     use crate::graph::Graph as RegistryGraph;
     use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
@@ -37,6 +32,7 @@ mod index_executor {
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
+    use crate::steps::claimer::ActivedTaskFetcher;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]

@@ -2,14 +2,13 @@ use alloc::{string::String, vec::Vec};
 use index::graph::{Chain, ChainType, NonceFetcher};
 use scale::{Decode, Encode};
 
-use super::account::AccountInfo;
-use super::bridge::BridgeStep;
-use super::context::Context;
-use super::step::{Step, StepMeta};
-use super::swap::SwapStep;
-use super::task::{OnchainTasks, Task, TaskId};
-use super::traits::Runner;
-use xcm::latest::AssetId as XcmAssetId;
+use crate::account::AccountInfo;
+use crate::context::Context;
+use crate::steps::bridge::BridgeStep;
+use crate::steps::swap::SwapStep;
+use crate::steps::{Step, StepMeta};
+use crate::task::{OnchainTasks, Task, TaskId};
+use crate::traits::Runner;
 
 use pink_subrpc::{
     create_transaction, get_storage,
@@ -121,7 +120,7 @@ impl ClaimStep {
         let handler = Contract::from_json(
             transport,
             handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
+            include_bytes!("../abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
         let worker = KeyPair::from(*worker_key);
@@ -225,7 +224,7 @@ impl ActivedTaskFetcher {
         let handler = Contract::from_json(
             transport,
             handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
+            include_bytes!("../abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
 
