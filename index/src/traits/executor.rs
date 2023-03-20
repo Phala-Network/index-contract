@@ -34,8 +34,8 @@ pub trait TransferExecutor: DynClone {
         &self,
         signer: [u8; 32],
         asset: Vec<u8>,
-        amount: u128,
         recipient: Vec<u8>,
+        amount: u128,
         extra: ExtraParam,
     ) -> core::result::Result<Vec<u8>, Error>;
 }

@@ -62,13 +62,12 @@ impl Runner for TransferStep {
             .ok_or("MissingExecutor")?;
         pink_extension::debug!("Found transfer executor on {:?}", &self.chain);
 
-        // Do swap operation
         let tx_id = executor
             .transfer(
                 signer,
                 self.asset.clone(),
-                self.amount,
                 recipient.clone(),
+                self.amount,
                 ExtraParam {
                     tip: 0,
                     nonce: Some(nonce),
