@@ -11,18 +11,13 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::result::Result;
-use scale::Decode;
+use scale::{Compact, Decode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;
 
 #[derive(Clone)]
 pub struct AcalaTransferExecutor {
     rpc: String,
-}
-
-enum AcalaAsset {
-    Utility,
-    Other(CurrencyId),
 }
 
 impl AcalaTransferExecutor {
@@ -46,10 +41,11 @@ impl AcalaTransferExecutor {
         let asset_location =
             MultiLocation::decode(&mut asset.as_slice()).map_err(|_| Error::FailedToScaleDecode)?;
         let bytes: [u8; 32] = recipient.to_array();
-        let account = MultiAddress::Address32(bytes);
+        let recipient = MultiAddress::Address32(bytes);
         let asset_attrs = AcalaAssetMap::get_asset_attrs(&asset_location).ok_or(Error::BadAsset)?;
         let currency_id = CurrencyId::Token(asset_attrs.0);
         let asset_type = asset_attrs.1;
+        let amount = Compact(amount);
 
         match asset_type {
             AcalaTokenType::Utility => {
@@ -93,5 +89,47 @@ impl AcalaTransferExecutor {
                 send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assets::{CurrencyId, TokenSymbol};
+    use crate::utils::ToArray;
+    use pink_subrpc::ExtraParam;
+    use scale::Compact;
+    use scale::Encode;
+
+    #[test]
+    fn acala_transfer_encoding_is_right() {
+        let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
+        let bytes = hex::decode("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623")
+            .unwrap()
+            .to_array();
+        let recipient = MultiAddress::Address32(bytes);
+        let asset_attrs = AcalaAssetMap::get_asset_attrs(&lc_pha)
+            .ok_or(Error::BadAsset)
+            .unwrap();
+        let currency_id = CurrencyId::Token(asset_attrs.0);
+        let asset_type = asset_attrs.1;
+        let foreign_asset_id = asset_attrs.2.unwrap();
+        // 00 aa / 010900
+        let currency_id = CurrencyId::ForeignAsset(foreign_asset_id);
+        let amount = Compact(1000000000000_u128);
+        let call_data = (recipient, currency_id, amount).encode();
+        dbg!(hex::encode(call_data));
+    }
+
+    #[test]
+    fn acala_transfer_works() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
+
+        let executor = AcalaTransferExecutor::new("https://acala-rpc.dwellir.com");
     }
 }
