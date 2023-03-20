@@ -1,12 +1,17 @@
-use super::bridge::BridgeStep;
-use super::claimer::ClaimStep;
+pub mod bridge;
+pub mod claimer;
+pub mod swap;
+pub mod transfer;
+
 use super::context::Context;
-use super::swap::SwapStep;
 use super::traits::Runner;
-use super::transfer::TransferStep;
 use alloc::{string::String, vec::Vec};
+use bridge::BridgeStep;
+use claimer::ClaimStep;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
+use swap::SwapStep;
+use transfer::TransferStep;
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
