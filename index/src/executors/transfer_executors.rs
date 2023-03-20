@@ -65,14 +65,6 @@ impl AcalaTransferExecutor {
                 send_transaction(&self.rpc, &signed_tx).map_err(|_| Error::SubRPCRequestFailed)
             }
             _ => {
-                let currency_id = match asset_type {
-                    AcalaTokenType::Foreign => {
-                        let foreign_asset_id = asset_attrs.2.ok_or(Error::BadAsset)?;
-                        CurrencyId::ForeignAsset(foreign_asset_id)
-                    }
-                    _ => currency_id,
-                };
-
                 let signed_tx = create_transaction(
                     &signer,
                     "acala",
@@ -112,13 +104,13 @@ mod tests {
             .ok_or(Error::BadAsset)
             .unwrap();
         let currency_id = CurrencyId::Token(asset_attrs.0);
-        let asset_type = asset_attrs.1;
-        let foreign_asset_id = asset_attrs.2.unwrap();
-        // 00 aa / 010900
-        let currency_id = CurrencyId::ForeignAsset(foreign_asset_id);
         let amount = Compact(1000000000000_u128);
         let call_data = (recipient, currency_id, amount).encode();
-        dbg!(hex::encode(call_data));
+
+        assert_eq!(
+            hex::encode(call_data),
+            "03cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c37579062300aa070010a5d4e8"
+        );
     }
 
     #[test]
