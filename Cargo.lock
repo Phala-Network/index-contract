@@ -1338,6 +1338,7 @@ dependencies = [
  "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
  "primitive-types 0.12.1",
  "scale-info",
+ "serde",
  "sp-core-hashing 4.0.0",
  "sp-io",
  "sp-runtime",
