@@ -107,7 +107,7 @@ impl Runner for SwapStep {
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?
             .tx_indexer;
-        // if ok not is confirmed
+        // if ok then is confirmed
         tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))
     }
 
