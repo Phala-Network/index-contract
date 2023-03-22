@@ -117,8 +117,14 @@ impl Runner for BridgeStep {
         // TODO. query off-chain indexer directly get the execution result
 
         // Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
-        if onchain_nonce <= nonce {
+        // TODO: reuse this piece of code
+        let indexer = &context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?
+            .tx_indexer;
+        // if not ok then is not executed
+        if !tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))? {
             return Ok(false);
         }
 
