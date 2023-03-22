@@ -71,14 +71,14 @@ pub fn get_tx(
     }
 
     let body: Response = pink_json::from_slice(&response.body).or(Err(Error::InvalidBody))?;
-    let tx = body.data.transactions[0].clone();
+    let tx = &body.data.transactions[0];
 
     Ok(Some(Transaction {
         block_number: tx.block_number,
-        id: tx.id,
+        id: tx.id.clone(),
         nonce: tx.nonce,
         result: tx.result,
-        timestamp: tx.timestamp,
+        timestamp: tx.timestamp.clone(),
         account: hex::decode(&tx.account.id[2..]).or(Err(Error::InvalidAddress))?,
     }))
 }
