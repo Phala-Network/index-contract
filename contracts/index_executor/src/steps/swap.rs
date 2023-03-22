@@ -56,7 +56,7 @@ impl Runner for SwapStep {
             .ok_or("MissingChain")?
             .tx_indexer;
         // if ok then not runnable
-        Ok(!tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))?)
+        Ok(!tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))?)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -108,7 +108,7 @@ impl Runner for SwapStep {
             .ok_or("MissingChain")?
             .tx_indexer;
         // if ok not is confirmed
-        Ok(tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))?)
+        tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))
     }
 
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
