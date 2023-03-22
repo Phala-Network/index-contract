@@ -81,7 +81,7 @@ impl Task {
             // Apply a worker account
             self.worker = account;
             // Apply worker nonce for each step in task
-            self.aplly_nonce(context, client)?;
+            self.apply_nonce(context, client)?;
             // Apply recipient for each step in task
             self.apply_recipient(context)?;
             // TODO: query initial balance of worker account and setup to specific step
@@ -229,7 +229,7 @@ impl Task {
         Ok(())
     }
 
-    fn aplly_nonce(
+    fn apply_nonce(
         &mut self,
         context: &Context,
         _client: &SubstrateRollupClient,

@@ -78,9 +78,6 @@ impl Runner for TransferStep {
         Ok(tx_id)
     }
 
-    /// By checking the nonce we can known whether the transaction has been executed or not,
-    /// and with help of off-chain indexer, we can get the relevant transaction's execution result.
-    ///
     /// nonce: from the current state, haven't synced with the onchain state,
     ///     must be smaller than that of the current state if the last step succeeded
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
@@ -101,17 +98,16 @@ impl Runner for TransferStep {
         let worker_balance = chain
             .get_balance(self.asset.clone(), worker_account)
             .map_err(|_| "Fail to get balance")?;
-        let b0 = self.b0.ok_or("MissingB0")?;
-        let b1 = self.b1.ok_or("MissingB1")?;
+        let b0 = self.b0.ok_or("Missing worker balance")?;
+        let b1 = self.b1.ok_or("Missing recipient balance")?;
         let recipient_balance = chain
             .get_balance(self.asset.clone(), recipient)
             .map_err(|_| "Fail to get balance")?;
         // the recipient receives exactly the same amount as required
         // but the sender may pay more if the transfer asset is the native token
-        Ok((recipient_balance - b0) == self.amount && b0 - worker_balance >= self.amount)
+        Ok((recipient_balance - b1) == self.amount && b0 - worker_balance >= self.amount)
     }
 
-    // TODO: what's sync_check??
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         self.check(nonce, context)
     }

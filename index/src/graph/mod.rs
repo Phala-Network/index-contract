@@ -16,7 +16,6 @@ pub use self::{
     dex::{Dex, DexIndexer, DexPair},
 };
 
-// TODO: having 2 graphs is pretty confusing
 #[derive(Clone, Default, Encode, Decode, Debug)]
 pub struct Graph {
     pub chains: Vec<Chain>,

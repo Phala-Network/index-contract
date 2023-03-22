@@ -1,4 +1,3 @@
-// TODO: Remove sp-runtime to decline size of wasm blob
 use alloc::{
     string::{String, ToString},
     vec,
