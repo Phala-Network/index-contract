@@ -7,6 +7,7 @@ mod cache;
 mod context;
 mod gov;
 mod graph;
+mod nonce;
 mod steps;
 mod task;
 mod traits;
@@ -42,6 +43,7 @@ mod index_executor {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         BadOrigin,
+        CallIndexerFailed,
         NotConfigured,
         MissingPalletId,
         ChainNotFound,
@@ -846,6 +848,7 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
+                        tx_indexer: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,
