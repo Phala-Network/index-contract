@@ -50,8 +50,8 @@ pub fn get_tx_by_nonce(
         return Err(Error::CallIndexerFailed);
     }
 
-    dbg!(String::from_utf8_lossy(&response.body));
-    let body: Response = pink_json::from_slice(&response.body).unwrap(); //.or(Err(Error::InvalidBody))?;
+    let body: Response = pink_json::from_slice(&response.body).or(Err(Error::InvalidBody))?;
+    
     Ok(Some(body.data.transactions[0].clone()))
 }
 
