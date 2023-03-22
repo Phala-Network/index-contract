@@ -61,9 +61,8 @@ mod tests {
     #[test]
     fn indexer_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-
         let tx = get_tx_by_nonce("https://squid.subsquid.io/squid-acala/v/v1/graphql", 20).unwrap();
-        dbg!(tx);
+        assert_eq!(tx.unwrap().nonce, 20);
     }
 
     #[test]
