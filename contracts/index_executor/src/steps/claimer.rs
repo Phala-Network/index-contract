@@ -587,6 +587,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -638,6 +639,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {
@@ -697,6 +699,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("00").into(),
+                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: [0; 20],
@@ -748,6 +751,7 @@ mod tests {
             native_asset: pha.clone(),
             foreign_asset: None,
             handler_contract: hex!("79").into(),
+            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {

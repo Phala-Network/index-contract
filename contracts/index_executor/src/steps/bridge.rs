@@ -2,6 +2,7 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::traits::Runner;
 use alloc::{string::String, vec::Vec};
+use index::tx;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -56,10 +57,15 @@ impl Runner for BridgeStep {
         // TODO. query off-chain indexer directly get the execution result
 
         // 1. Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
-        if onchain_nonce > nonce {
+        let indexer = &context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?
+            .tx_indexer;
+        if tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))? {
             return Ok(false);
         }
+
         // 2. Check balance
         let onchain_balance =
             worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
