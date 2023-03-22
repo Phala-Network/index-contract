@@ -4,18 +4,36 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use pink_extension::http_post;
-use scale::{Decode, Encode};
+use scale::Decode;
 use serde::Deserialize;
 
-#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Transaction {
     pub block_number: u64,
     pub id: String,
     pub nonce: u64,
     pub result: bool,
     pub timestamp: String,
+    pub account: Vec<u8>,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[serde(rename_all = "camelCase")]
+/// online transaction structure
+struct Tx {
+    pub block_number: u64,
+    pub id: String,
+    pub nonce: u64,
+    pub result: bool,
+    pub timestamp: String,
+    pub account: Account,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+struct Account {
+    id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,16 +43,18 @@ struct Response {
 
 #[derive(Debug, Deserialize)]
 struct Data {
-    transactions: Vec<Transaction>,
+    transactions: Vec<Tx>,
 }
 
-pub fn get_tx_by_nonce(
+pub fn get_tx(
     indexer: &str,
+    account: &[u8],
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
+    let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}}}) {{ blockNumber id nonce result timestamp }} }}",
+            "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}, account: {{id_eq: \"{account}\"}} }}) {{ blockNumber id nonce result timestamp account {{ id }} }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
@@ -51,12 +71,20 @@ pub fn get_tx_by_nonce(
     }
 
     let body: Response = pink_json::from_slice(&response.body).or(Err(Error::InvalidBody))?;
+    let tx = body.data.transactions[0].clone();
 
-    Ok(Some(body.data.transactions[0].clone()))
+    Ok(Some(Transaction {
+        block_number: tx.block_number,
+        id: tx.id,
+        nonce: tx.nonce,
+        result: tx.result,
+        timestamp: tx.timestamp,
+        account: hex::decode(&tx.account.id[2..]).or(Err(Error::InvalidAddress))?,
+    }))
 }
 
-pub fn is_tx_by_nonce_ok(indexer: &str, nonce: u64) -> Result<bool, Error> {
-    let tx = get_tx_by_nonce(indexer, nonce)?;
+pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
+    let tx = get_tx(indexer, account, nonce)?;
     if let Some(tx) = tx {
         return Ok(tx.result);
     }
@@ -70,15 +98,14 @@ mod tests {
     #[test]
     fn indexer_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-        let tx = get_tx_by_nonce("https://squid.subsquid.io/squid-acala/v/v1/graphql", 20).unwrap();
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let tx = get_tx(
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            &account,
+            20,
+        )
+        .unwrap();
         assert_eq!(tx.unwrap().nonce, 20);
-    }
-
-    #[test]
-    fn deserializable() {
-        let json_string = "{\"data\":{\"transactions\":[{\"blockNumber\":3114089,\"id\":\"0003114089-000002-2492e\",\"nonce\":20,\"result\":true,\"timestamp\":\"2023-03-10T06:27:18.301000Z\"}]}}\n";
-        let response: Response = pink_json::from_str(json_string).unwrap();
-
-        println!("{:#?}", response);
     }
 }
