@@ -117,6 +117,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     },
                     handler_contract: hexified_to_vec_u8(&chain.handler_contract)
                         .or(Err("InvalidInput"))?,
+                    tx_indexer: chain.tx_indexer.clone(),
                 };
                 arr.push(item);
             }

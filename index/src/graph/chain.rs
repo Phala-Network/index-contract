@@ -47,6 +47,7 @@ pub struct Chain {
     pub native_asset: Vec<u8>,
     pub foreign_asset: Option<ForeignAssetModule>,
     pub handler_contract: Vec<u8>,
+    pub tx_indexer: String,
 }
 
 impl Chain {

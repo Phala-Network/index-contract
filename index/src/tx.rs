@@ -30,7 +30,7 @@ struct Data {
 
 pub fn get_tx_by_nonce(
     indexer: &str,
-    nonce: u32,
+    nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
     let query = format!(
         r#"{{ 
@@ -51,8 +51,17 @@ pub fn get_tx_by_nonce(
     }
 
     let body: Response = pink_json::from_slice(&response.body).or(Err(Error::InvalidBody))?;
-    
+
     Ok(Some(body.data.transactions[0].clone()))
+}
+
+pub fn is_tx_by_nonce_ok(indexer: &str, nonce: u64) -> Result<bool, Error> {
+    let tx = get_tx_by_nonce(indexer, nonce)?;
+    if let Some(tx) = tx {
+        return Ok(tx.result);
+    }
+
+    Ok(false)
 }
 
 #[cfg(test)]
