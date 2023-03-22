@@ -62,7 +62,7 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?
             .tx_indexer;
-        if tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))? {
+        if tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))? {
             return Ok(false);
         }
 
@@ -124,7 +124,7 @@ impl Runner for BridgeStep {
             .ok_or("MissingChain")?
             .tx_indexer;
         // if not ok then is not executed
-        if !tx::is_tx_by_nonce_ok(indexer, nonce).or(Err("Indexer failure"))? {
+        if !tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))? {
             return Ok(false);
         }
 
