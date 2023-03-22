@@ -7,6 +7,7 @@ pub enum Error {
     BadAbi,
     BadAsset,
     BadOrigin,
+    CallIndexerFailed,
     ExtractLocationFailed,
     InvalidAddress,
     ConstructContractFailed,
