@@ -13,7 +13,8 @@ pub struct Transaction {
     pub id: String,
     pub nonce: u64,
     pub result: bool,
-    pub timestamp: String,
+    // unix timestamp
+    pub timestamp: u64,
     pub account: Vec<u8>,
 }
 
@@ -71,6 +72,12 @@ pub fn get_tx(
     }
 
     let body: Response = pink_json::from_slice(&response.body).or(Err(Error::InvalidBody))?;
+    let transactions = &body.data.transactions;
+
+    if transactions.len() != 1 {
+        return Err(Error::TransactionNotFound);
+    }
+
     let tx = &body.data.transactions[0];
 
     Ok(Some(Transaction {
@@ -78,7 +85,8 @@ pub fn get_tx(
         id: tx.id.clone(),
         nonce: tx.nonce,
         result: tx.result,
-        timestamp: tx.timestamp.clone(),
+        // subsquid actually displays BigInt as string
+        timestamp: tx.timestamp.parse::<u64>().or(Err(Error::InvalidBody))?,
         account: hex::decode(&tx.account.id[2..]).or(Err(Error::InvalidAddress))?,
     }))
 }
@@ -103,9 +111,17 @@ mod tests {
         let tx = get_tx(
             "https://squid.subsquid.io/squid-acala/v/v1/graphql",
             &account,
-            20,
+            16,
         )
         .unwrap();
-        assert_eq!(tx.unwrap().nonce, 20);
+        dbg!(&tx);
+        assert_eq!(tx.unwrap().nonce, 16);
+    }
+
+    #[test]
+    fn decoding_works() {
+        let response = "{\"data\":{\"transactions\":[{\"blockNumber\":2709567,\"id\":\"0002709567-000002-37a14\",\"nonce\":16,\"result\":true,\"timestamp\":\"1673514894473\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"}}]}}\n";
+        let response: Response = pink_json::from_str(response).unwrap();
+        dbg!(response);
     }
 }
