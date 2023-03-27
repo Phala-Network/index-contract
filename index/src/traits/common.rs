@@ -25,6 +25,7 @@ pub enum Error {
     FailedToScaleDecode,
     DecodeStorageFailed,
     AssetNotRecognized,
+    TransactionNotFound,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
