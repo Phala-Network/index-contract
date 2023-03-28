@@ -214,7 +214,7 @@ pub fn is_bridge_tx_ok(
     // check if on dest chain the recipient has a corresponding event
     let event = get_deposit_event(dest_indexer, account, dest_timestamp)?;
     if let Some(event) = event {
-        if event.amount < dest_amount && event.amount == 0 {
+        if event.amount < dest_amount && event.amount > 0 {
             return Ok(event.result);
         }
     }
