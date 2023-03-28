@@ -1,5 +1,3 @@
-use core::time;
-
 use crate::prelude::Error;
 use alloc::format;
 use alloc::string::String;
@@ -54,8 +52,8 @@ struct Event {
     pub amount: String,
     pub account: Account,
     pub result: bool,
-    pub index_in_block: u64,
     pub block_number: u64,
+    pub index_in_block: u64,
     pub timestamp: String,
 }
 
@@ -86,11 +84,6 @@ struct DepositEventData {
     deposit_events: Vec<Event>,
 }
 
-#[derive(Debug, Deserialize)]
-struct LatestTimestamp {
-    data: String,
-}
-
 fn indexer_rpc(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, Error> {
     let content_length = format!("{}", query.len());
     let headers: Vec<(String, String)> = vec![
@@ -98,6 +91,8 @@ fn indexer_rpc(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, Erro
         ("Content-Length".into(), content_length),
     ];
     let response = http_post!(indexer, query, headers);
+
+    dbg!(String::from_utf8_lossy(&response.body));
 
     if response.status_code != 200 {
         return Err(Error::CallIndexerFailed);
@@ -147,7 +142,7 @@ pub fn get_deposit_event(
     let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}}, timestamp_gt: \"{timestamp}\" }}) {{ amount account {{ id }} id name timestamp }} }}",
+            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}}, timestamp_gt: \"{timestamp}\" }}) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
@@ -158,7 +153,7 @@ pub fn get_deposit_event(
     let events = &response.data.deposit_events;
 
     if events.len() != 1 {
-        return Err(Error::TransactionNotFound);
+        return Err(Error::DepositEventNotFound);
     }
 
     let ev = &response.data.deposit_events[0];
@@ -179,16 +174,23 @@ pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Er
     let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ timestamp }} }}",
+            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ amount account {{ id }} id name timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
     );
     let body = indexer_rpc(indexer, &query)?;
-    let timestamp: LatestTimestamp = pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
-    let timestamp = timestamp.data;
+    dbg!(String::from_utf8_lossy(&body));
+    let response: DepositEventResponse =
+        pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
+    let events = response.data.deposit_events;
 
-    Ok(timestamp)
+    if events.len() != 1 {
+        return Err(Error::DepositEventNotFound);
+    }
+    let timestamp = &events[0].timestamp;
+
+    Ok(timestamp.into())
 }
 
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
@@ -246,5 +248,39 @@ mod tests {
         let response = "{\"data\":{\"transactions\":[{\"blockNumber\":2709567,\"id\":\"0002709567-000002-37a14\",\"nonce\":16,\"result\":true,\"timestamp\":\"1673514894473\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"}}]}}\n";
         let response: Response = pink_json::from_str(response).unwrap();
         dbg!(response);
+
+        let response = "{\"data\":{\"depositEvents\":[{\"id\":\"0003204876-000006-7c4d3\",\"name\":\"Tokens.Deposited\",\"amount\":\"577018997\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"},\"result\":true,\"blockNumber\":3204876,\"indexInBlock\":6,\"timestamp\":\"1679593572593\"}]}}\n";
+        let response: DepositEventResponse = pink_json::from_str(response).unwrap();
+        dbg!(response);
+    }
+
+    #[test]
+    fn get_event() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let event = get_deposit_event(
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            &account,
+            "1679593044391",
+        )
+        .unwrap()
+        .unwrap();
+        dbg!(event);
+    }
+
+    #[test]
+    fn get_timestamp() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let timestamp = get_lastest_timestamp(
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            &account,
+        )
+        .unwrap();
+        dbg!(timestamp);
     }
 }

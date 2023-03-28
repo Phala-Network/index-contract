@@ -26,6 +26,7 @@ pub enum Error {
     DecodeStorageFailed,
     AssetNotRecognized,
     TransactionNotFound,
+    DepositEventNotFound,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
