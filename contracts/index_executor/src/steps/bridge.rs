@@ -68,9 +68,19 @@ impl Runner for BridgeStep {
             .ok_or("MissingChain")?
             .tx_indexer;
 
+        let chain = &context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?;
+
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+
         // if tx is ok then the step is not runnable
         Ok(!tx::is_bridge_tx_ok(
-            &worker_account.account32,
+            &account,
             src_indexer,
             nonce,
             dest_indexer,
@@ -133,8 +143,18 @@ impl Runner for BridgeStep {
             .ok_or("MissingChain")?
             .tx_indexer;
 
+        let chain = &context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?;
+
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+
         tx::is_bridge_tx_ok(
-            &worker_account.account32,
+            &account,
             src_indexer,
             nonce,
             dest_indexer,
