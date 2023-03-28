@@ -186,9 +186,8 @@ impl Task {
                         index::graph::ChainType::Sub => worker_account.account32.to_vec(),
                     };
 
-                    bridge_step.dest_timestamp =
-                        get_lastest_timestamp(&chain.tx_indexer, &account)
-                            .or(Err("Can't find timestamp"))?;
+                    bridge_step.dest_timestamp = get_lastest_timestamp(&chain.tx_indexer, &account)
+                        .or(Err("Can't find timestamp"))?;
                 }
                 _ => {}
             }
