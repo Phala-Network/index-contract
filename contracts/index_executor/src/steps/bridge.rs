@@ -35,6 +35,8 @@ pub struct BridgeStep {
     pub amount: u128,
     /// Recipient account on dest chain
     pub recipient: Option<Vec<u8>>,
+    /// Last timestamp when recipient received a deposit
+    pub dest_timestamp: String,
 }
 
 impl Runner for BridgeStep {
@@ -54,22 +56,28 @@ impl Runner for BridgeStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
-
-        // 1. Check nonce
-        let indexer = &context
+        let src_indexer = &context
             .graph
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?
             .tx_indexer;
-        if tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))? {
-            return Ok(false);
-        }
 
-        // 2. Check balance
-        let onchain_balance =
-            worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
-        Ok(onchain_balance >= self.amount)
+        let dest_indexer = &context
+            .graph
+            .get_chain(self.dest_chain.clone())
+            .ok_or("MissingChain")?
+            .tx_indexer;
+
+        // if tx is ok then the step is not runnable
+        Ok(!tx::is_bridge_tx_ok(
+            &worker_account.account32,
+            src_indexer,
+            nonce,
+            dest_indexer,
+            self.amount,
+            &self.dest_timestamp,
+        )
+        .or(Err("Can't confirm transaction"))?)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -113,30 +121,27 @@ impl Runner for BridgeStep {
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
-
-        // TODO. query off-chain indexer directly get the execution result
-
-        // Check nonce
-        // TODO: reuse this piece of code
-        let indexer = &context
+        let src_indexer = &context
             .graph
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?
             .tx_indexer;
-        // if not ok then is not executed
-        if !tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))? {
-            return Ok(false);
-        }
 
-        // Check balance change on source chain and dest chain
-        let latest_b0 =
-            worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
-        let latest_b1 =
-            worker_account.get_balance(self.dest_chain.clone(), self.to.clone(), context)?;
-        let b0 = self.b0.ok_or("MissingB0")?;
-        let b1 = self.b1.ok_or("MissingB1")?;
+        let dest_indexer = &context
+            .graph
+            .get_chain(self.dest_chain.clone())
+            .ok_or("MissingChain")?
+            .tx_indexer;
 
-        Ok((b0 - latest_b0) == self.amount && latest_b1 > b1)
+        tx::is_bridge_tx_ok(
+            &worker_account.account32,
+            src_indexer,
+            nonce,
+            dest_indexer,
+            self.amount,
+            &self.dest_timestamp,
+        )
+        .or(Err("Can't confirm transaction"))
     }
 
     fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
