@@ -50,13 +50,16 @@ impl Runner for SwapStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        let indexer = &context
+        let chain = &context
             .graph
             .get_chain(self.chain.clone())
-            .ok_or("MissingChain")?
-            .tx_indexer;
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
         // if ok then not runnable
-        Ok(!tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))?)
+        Ok(!tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -102,13 +105,15 @@ impl Runner for SwapStep {
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        let indexer = &context
+        let chain = &context
             .graph
             .get_chain(self.chain.clone())
-            .ok_or("MissingChain")?
-            .tx_indexer;
-        // if ok then is confirmed
-        tx::is_tx_ok(indexer, &worker_account.account32, nonce).or(Err("Indexer failure"))
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))
     }
 
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
