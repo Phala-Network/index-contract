@@ -92,8 +92,6 @@ fn indexer_rpc(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, Erro
     ];
     let response = http_post!(indexer, query, headers);
 
-    dbg!(String::from_utf8_lossy(&response.body));
-
     if response.status_code != 200 {
         return Err(Error::CallIndexerFailed);
     }
@@ -174,13 +172,12 @@ pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Er
     let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ amount account {{ id }} id name timestamp }} }}",
+            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
     );
     let body = indexer_rpc(indexer, &query)?;
-    dbg!(String::from_utf8_lossy(&body));
     let response: DepositEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
     let events = response.data.deposit_events;
