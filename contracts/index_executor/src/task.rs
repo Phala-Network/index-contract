@@ -176,13 +176,18 @@ impl Task {
             match &mut self.steps[self.execute_index as usize].meta {
                 StepMeta::Bridge(bridge_step) => {
                     let worker_account = AccountInfo::from(context.signer);
-                    let src_indexer = &context
+                    let chain = &context
                         .graph
                         .get_chain(bridge_step.source_chain.clone())
-                        .ok_or("MissingChain")?
-                        .tx_indexer;
+                        .ok_or("MissingChain")?;
+
+                    let account = match chain.chain_type {
+                        index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+                        index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+                    };
+
                     bridge_step.dest_timestamp =
-                        get_lastest_timestamp(&src_indexer, &worker_account.account32)
+                        get_lastest_timestamp(&chain.tx_indexer, &account)
                             .or(Err("Can't find timestamp"))?;
                 }
                 _ => {}
