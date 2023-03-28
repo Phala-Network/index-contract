@@ -491,6 +491,7 @@ impl DepositData {
                         b1: None,
                         amount: self.u128_from_string(&op.spend)?,
                         recipient: None,
+                        dest_timestamp: "0".into(),
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,

@@ -4,6 +4,7 @@ use super::traits::Runner;
 use crate::steps::{Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
+use index::tx::get_lastest_timestamp;
 use ink::storage::Mapping;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
@@ -170,6 +171,22 @@ impl Task {
             // Update balance that actually can be consumed
             self.update_balance(settle_balance, context)?;
             pink_extension::debug!("Finished previous step execution");
+
+            // update bridge recipient timestamp
+            match &mut self.steps[self.execute_index as usize].meta {
+                StepMeta::Bridge(bridge_step) => {
+                    let worker_account = AccountInfo::from(context.signer);
+                    let src_indexer = &context
+                        .graph
+                        .get_chain(bridge_step.source_chain.clone())
+                        .ok_or("MissingChain")?
+                        .tx_indexer;
+                    bridge_step.dest_timestamp =
+                        get_lastest_timestamp(&src_indexer, &worker_account.account32)
+                            .or(Err("Can't find timestamp"))?;
+                }
+                _ => {}
+            }
 
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
