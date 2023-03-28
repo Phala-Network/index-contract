@@ -173,23 +173,21 @@ impl Task {
             pink_extension::debug!("Finished previous step execution");
 
             // update bridge recipient timestamp
-            match &mut self.steps[self.execute_index as usize].meta {
-                StepMeta::Bridge(bridge_step) => {
-                    let worker_account = AccountInfo::from(context.signer);
-                    let chain = &context
-                        .graph
-                        .get_chain(bridge_step.source_chain.clone())
-                        .ok_or("MissingChain")?;
+            if let StepMeta::Bridge(bridge_step) = &mut self.steps[self.execute_index as usize].meta
+            {
+                let worker_account = AccountInfo::from(context.signer);
+                let chain = &context
+                    .graph
+                    .get_chain(bridge_step.source_chain.clone())
+                    .ok_or("MissingChain")?;
 
-                    let account = match chain.chain_type {
-                        index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-                        index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-                    };
+                let account = match chain.chain_type {
+                    index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+                    index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+                };
 
-                    bridge_step.dest_timestamp = get_lastest_timestamp(&chain.tx_indexer, &account)
-                        .or(Err("Can't find timestamp"))?;
-                }
-                _ => {}
+                bridge_step.dest_timestamp = get_lastest_timestamp(&chain.tx_indexer, &account)
+                    .or(Err("Can't find timestamp"))?;
             }
 
             // An executing task must have nonce applied
