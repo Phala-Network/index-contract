@@ -59,8 +59,8 @@ function createRequest() {
 }
 
 function getPhaAssetId(api) {
-    return api.createType('XcmV1MultiassetAssetId', {
-        Concrete: api.createType('XcmV1MultiLocation', {
+    return api.createType('XcmV3MultiassetAssetId', {
+        Concrete: api.createType('XcmV3MultiLocation', {
             parents: 0,
             interior: api.createType('Junctions', 'Here')
         })
@@ -73,22 +73,25 @@ async function main() {
     });
     const alice = new Keyring({ type: 'sr25519' }).addFromUri('//Alice');
 
-    const unsub = await api.tx.palletIndex.depositTask(
-        getPhaAssetId(api),
-        api.createType('Compact<U128>', bn1e12.mul(new BN(301))),
-        // Recipient address on Ethereum
-        '0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20',
-        WORKER_PUBKEY,
-        // Request id
-        '0x0000000000000000000000000000000000000000000000000000000000000001',
-        createRequest()
-    ).signAndSend(alice, (result) => {
-        if (result.status.isInBlock) {
-            console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
-        } else if (result.status.isFinalized) {
-            console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
-            unsub();
-        }
+    return new Promise(async (resolve) => {
+        const unsub = await api.tx.palletIndex.depositTask(
+            getPhaAssetId(api),
+            api.createType('Compact<U128>', bn1e12.mul(new BN(301))),
+            // Recipient address on Ethereum
+            '0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20',
+            WORKER_PUBKEY,
+            // Request id
+            '0x0000000000000000000000000000000000000000000000000000000000000003',
+            createRequest()
+        ).signAndSend(alice, (result) => {
+            if (result.status.isInBlock) {
+                console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
+            } else if (result.status.isFinalized) {
+                console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
+                unsub();
+                resolve();
+            }
+        });
     });
 }
 
