@@ -16,7 +16,7 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "requestId",
+        "name": "taskId",
         "type": "bytes32"
       }
     ],
@@ -53,7 +53,7 @@
       {
         "indexed": false,
         "internalType": "string",
-        "name": "request",
+        "name": "task",
         "type": "string"
       }
     ],
@@ -118,7 +118,7 @@
         "type": "uint256"
       }
     ],
-    "name": "_activedRequests",
+    "name": "_activedTasks",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -161,7 +161,7 @@
       },
       {
         "internalType": "string",
-        "name": "request",
+        "name": "task",
         "type": "string"
       }
     ],
@@ -191,7 +191,7 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "requestId",
+        "name": "taskId",
         "type": "bytes32"
       }
     ],
@@ -231,12 +231,12 @@
       },
       {
         "internalType": "bytes32",
-        "name": "requestId",
+        "name": "taskId",
         "type": "bytes32"
       },
       {
         "internalType": "string",
-        "name": "request",
+        "name": "task",
         "type": "string"
       }
     ],
@@ -253,7 +253,7 @@
         "type": "address"
       }
     ],
-    "name": "getActivedRequests",
+    "name": "getActivedTasks",
     "outputs": [
       {
         "internalType": "bytes32[]",
@@ -272,7 +272,7 @@
         "type": "address"
       }
     ],
-    "name": "getLastActivedRequest",
+    "name": "getLastActivedTask",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -287,11 +287,11 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "requestId",
+        "name": "taskId",
         "type": "bytes32"
       }
     ],
-    "name": "getRequestData",
+    "name": "getTaskData",
     "outputs": [
       {
         "components": [
@@ -317,7 +317,7 @@
           },
           {
             "internalType": "string",
-            "name": "request",
+            "name": "task",
             "type": "string"
           }
         ],
