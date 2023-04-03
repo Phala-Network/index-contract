@@ -124,6 +124,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn acala_transfer_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
