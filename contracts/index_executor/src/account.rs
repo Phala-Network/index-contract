@@ -27,7 +27,7 @@ impl AccountInfo {
     ) -> Result<Vec<u8>, &'static str> {
         let chain = context
             .graph
-            .get_chain(chain_name.clone())
+            .get_chain(chain_name)
             .ok_or("MissingChain")?;
         Ok(match chain.chain_type {
             ChainType::Evm => self.account20.into(),
@@ -43,14 +43,14 @@ impl AccountInfo {
     ) -> Result<u128, &'static str> {
         let chain = context
             .graph
-            .get_chain(chain_name.clone())
+            .get_chain(chain_name)
             .ok_or("MissingChain")?;
         let account: Vec<u8> = match chain.chain_type {
             ChainType::Evm => self.account20.into(),
             ChainType::Sub => self.account32.into(),
         };
         chain
-            .get_balance(asset.clone(), account.clone())
+            .get_balance(asset, account)
             .map_err(|_| "FetchBalanceFailed")
     }
 

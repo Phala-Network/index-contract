@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{vec, vec::Vec};
 
 use scale::Decode;
 use scale::Encode;
@@ -54,16 +50,27 @@ pub enum TokenSymbol {
 }
 
 pub type ForeignAssetId = u16;
+#[allow(dead_code)]
 const FA_GLMR: ForeignAssetId = 0;
+#[allow(dead_code)]
 const FA_PARA: ForeignAssetId = 1;
+#[allow(dead_code)]
 const FA_ASTR: ForeignAssetId = 2;
+#[allow(dead_code)]
 const FA_IBTC: ForeignAssetId = 3;
+#[allow(dead_code)]
 const FA_INTR: ForeignAssetId = 4;
+#[allow(dead_code)]
 const FA_WBTC: ForeignAssetId = 5;
+#[allow(dead_code)]
 const FA_WETH: ForeignAssetId = 6;
+#[allow(dead_code)]
 const FA_EQ: ForeignAssetId = 7;
+#[allow(dead_code)]
 const FA_EQD: ForeignAssetId = 8;
+#[allow(dead_code)]
 const FA_PHA: ForeignAssetId = 9;
+#[allow(dead_code)]
 const FA_UNQ: ForeignAssetId = 10;
 
 #[derive(Debug, Encode, Decode, Eq, PartialEq, Copy, Clone, PartialOrd, Ord)]

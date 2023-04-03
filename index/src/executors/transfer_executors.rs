@@ -9,9 +9,7 @@ use crate::{
     utils::ToArray,
 };
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
-use core::result::Result;
 use scale::{Compact, Decode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;
@@ -97,7 +95,7 @@ impl TransferExecutor for AcalaTransferExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::assets::{CurrencyId, TokenSymbol};
+    use crate::assets::CurrencyId;
     use crate::utils::ToArray;
     use pink_subrpc::ExtraParam;
     use scale::Compact;

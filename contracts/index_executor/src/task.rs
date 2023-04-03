@@ -365,7 +365,6 @@ impl Task {
                 )?;
                 latest_balance.saturating_sub(old_balance)
             }
-            _ => return Err("not implemented"),
         })
     }
 
