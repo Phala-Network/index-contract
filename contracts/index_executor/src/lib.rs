@@ -5,6 +5,7 @@ extern crate alloc;
 mod account;
 mod cache;
 mod context;
+mod gov;
 mod graph;
 mod steps;
 mod task;
@@ -16,6 +17,7 @@ mod index_executor {
     use crate::account::AccountInfo;
     use crate::cache::*;
     use crate::context::Context;
+    use crate::gov::WorkerGov;
     use crate::graph::Graph as RegistryGraph;
     use crate::steps::claimer::ActivedTaskFetcher;
     use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
@@ -24,7 +26,7 @@ mod index_executor {
     use index::traits::executor::TransferExecutor;
     use index::utils::ToArray;
     use index::{
-        graph::{Chain, Graph},
+        graph::{Chain, ChainType, Graph},
         prelude::AcalaDexExecutor,
     };
     use ink::storage::traits::StorageLayout;
@@ -58,7 +60,10 @@ mod index_executor {
         SetGraphFailed,
         TaskNotFoundInCache,
         TaskNotFoundOnChain,
-        Unimplemented,
+        UnexpectedChainType,
+        GraphNotSet,
+        ExecutorPaused,
+        ExecutorNotPaused,
     }
 
     type Result<T> = core::result::Result<T, Error>;
@@ -102,6 +107,7 @@ mod index_executor {
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
         pub executor_account: [u8; 32],
+        pub is_paused: bool,
     }
 
     impl Default for Executor {
@@ -117,7 +123,7 @@ mod index_executor {
             let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
             let mut worker_accounts: Vec<AccountInfo> = vec![];
 
-            for index in 0..1 {
+            for index in 0..5 {
                 let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
                     &[b"worker".to_vec(), [index].to_vec()].concat(),
                 )
@@ -134,6 +140,8 @@ mod index_executor {
                 worker_accounts,
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
+                // Make sure we configured the executor before running
+                is_paused: true,
             }
         }
 
@@ -250,6 +258,8 @@ mod index_executor {
 
         #[ink(message)]
         pub fn setup_worker_accounts(&self) -> Result<()> {
+            self.ensure_owner()?;
+
             let config = self.ensure_configured()?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
@@ -297,7 +307,58 @@ mod index_executor {
         }
 
         #[ink(message)]
+        pub fn pause_executor(&mut self) -> Result<()> {
+            self.ensure_owner()?;
+            self.ensure_running()?;
+            self.is_paused = true;
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn unpause_executor(&mut self) -> Result<()> {
+            self.ensure_owner()?;
+            self.ensure_paused()?;
+            self.is_paused = false;
+            Ok(())
+        }
+
+        /// Submit transaction to execute ERC20 approve on behalf of the call on an EVM chain.
+        #[ink(message)]
+        pub fn worker_approve(
+            &self,
+            worker: [u8; 32],
+            chain: String,
+            token: [u8; 20],
+            spender: [u8; 20],
+            amount: u128,
+        ) -> Result<()> {
+            self.ensure_owner()?;
+            let _ = self.ensure_configured()?;
+            self.ensure_graph_set()?;
+            // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
+            self.ensure_paused()?;
+
+            let chain = self.get_chain(chain).ok_or(Error::ChainNotFound)?;
+            if chain.chain_type != ChainType::Evm {
+                return Err(Error::UnexpectedChainType);
+            }
+            WorkerGov::erc20_approve(
+                self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?,
+                chain.endpoint,
+                token.into(),
+                spender.into(),
+                amount,
+            )
+            .log_err("failed to submit worker approve tx")
+            .or(Err(Error::FailedToSendTransaction))?;
+            Ok(())
+        }
+
+        #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
+            self.ensure_running()?;
+            self.ensure_graph_set()?;
+
             let config = self.ensure_configured()?;
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
@@ -569,6 +630,27 @@ mod index_executor {
         /// Returns the config reference or raise the error `NotConfigured`
         fn ensure_configured(&self) -> Result<&Config> {
             self.config.as_ref().ok_or(Error::NotConfigured)
+        }
+
+        fn ensure_graph_set(&self) -> Result<()> {
+            if self.graph == Vec::<u8>::default() {
+                return Err(Error::GraphNotSet);
+            }
+            Ok(())
+        }
+
+        fn ensure_paused(&self) -> Result<()> {
+            if !self.is_paused {
+                return Err(Error::ExecutorNotPaused);
+            }
+            Ok(())
+        }
+
+        fn ensure_running(&self) -> Result<()> {
+            if self.is_paused {
+                return Err(Error::ExecutorPaused);
+            }
+            Ok(())
         }
 
         fn pub_to_prv(&self, pub_key: [u8; 32]) -> Option<[u8; 32]> {
