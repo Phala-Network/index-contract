@@ -425,6 +425,7 @@ mod index_executor {
                             worker_accounts: self.worker_accounts.clone(),
                             bridge_executors: vec![],
                             dex_executors: vec![],
+                            transfer_executors: vec![],
                         },
                         client,
                     )
@@ -472,6 +473,7 @@ mod index_executor {
                                     worker_accounts: self.worker_accounts.clone(),
                                     bridge_executors: vec![],
                                     dex_executors: vec![],
+                                    transfer_executors: vec![],
                                 },
                                 client,
                             );
@@ -500,6 +502,7 @@ mod index_executor {
                         worker_accounts: self.worker_accounts.clone(),
                         bridge_executors: bridge_executors.clone(),
                         dex_executors: dex_executors.clone(),
+                        transfer_executors: transfer_executors.clone(),
                     },
                     client,
                 ) {

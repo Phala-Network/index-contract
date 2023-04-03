@@ -10,6 +10,8 @@ pub struct Context {
     pub bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)>,
     /// source_chain => dex_executor
     pub dex_executors: Vec<(String, Box<dyn DexExecutor>)>,
+    /// source_chain => transfer_executor
+    pub transfer_executors: Vec<(String, Box<dyn TransferExecutor>)>,
 }
 
 impl Context {
@@ -44,7 +46,11 @@ impl Context {
             .map(|idx| dyn_clone::clone_box(&*self.dex_executors[idx].1))
     }
 
-    pub fn get_transfer_executor(&self, source_chain: String) -> Option<Box<dyn TransferExecutor>> {
-        None
+    pub fn get_transfer_executor(&self, chain: String) -> Option<Box<dyn TransferExecutor>> {
+        pink_extension::debug!("Lookup transfer executor on {:?}", &chain);
+        self.transfer_executors
+            .iter()
+            .position(|e| e.0 == chain)
+            .map(|idx| dyn_clone::clone_box(&*self.transfer_executors[idx].1))
     }
 }
