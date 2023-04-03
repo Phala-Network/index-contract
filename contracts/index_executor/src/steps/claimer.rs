@@ -655,6 +655,7 @@ mod tests {
             worker_accounts: vec![],
             bridge_executors: vec![],
             dex_executors: vec![],
+            transfer_executors: vec![],
         };
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
@@ -759,6 +760,7 @@ mod tests {
             worker_accounts: vec![],
             bridge_executors: vec![],
             dex_executors: vec![],
+            transfer_executors: vec![],
         };
         // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
         assert_eq!(claim_step.run(nonce, &context).is_ok(), true);

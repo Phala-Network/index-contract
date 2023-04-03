@@ -653,6 +653,7 @@ mod tests {
                 worker_accounts: worker_accounts.clone(),
                 bridge_executors: vec![],
                 dex_executors: vec![],
+                transfer_executors: vec![],
             },
             &mut client,
         ), Ok(()));
