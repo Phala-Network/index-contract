@@ -17,6 +17,7 @@ mod index_executor {
     use crate::cache::*;
     use crate::context::Context;
     use crate::graph::Graph as RegistryGraph;
+    use crate::steps::claimer::ActivedTaskFetcher;
     use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
@@ -32,7 +33,6 @@ mod index_executor {
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
-    use crate::steps::claimer::ActivedTaskFetcher;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
