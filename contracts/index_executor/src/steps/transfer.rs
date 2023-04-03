@@ -19,6 +19,7 @@ pub struct TransferStep {
     pub b0: Option<u128>,
     // recipient's balance
     pub b1: Option<u128>,
+    pub flow: u128,
     // Recipient account on current chain
     pub recipient: Option<Vec<u8>>,
 }

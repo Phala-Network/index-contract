@@ -497,6 +497,7 @@ impl DepositData {
                         b0: None,
                         b1: None,
                         recipient: None,
+                        flow: self.u128_from_string(&op.flow)?,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,

@@ -1,7 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
-use crate::steps::{Step, StepMeta};
 use super::traits::Runner;
+use crate::steps::{Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use ink::storage::Mapping;
@@ -300,6 +300,23 @@ impl Task {
                         })
                     };
                 }
+                StepMeta::Transfer(transfer_step) => {
+                    transfer_step.recipient = if index == (step_count - 1) {
+                        Some(self.recipient.clone())
+                    } else {
+                        let chain = context
+                            .graph
+                            .get_chain(transfer_step.chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        Some(match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                            // ChainType::Unknown => panic!("chain not supported!"),
+                        })
+                    };
+                }
                 _ => {}
             }
         }
@@ -336,6 +353,16 @@ impl Task {
                 let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
                 let latest_balance =
                     worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
+                latest_balance.saturating_sub(old_balance)
+            }
+            StepMeta::Transfer(transfer_step) => {
+                // Old balance on dest chain
+                let old_balance = transfer_step.b1.ok_or("MisingOriginBalance")?;
+                let latest_balance = worker_account.get_balance(
+                    transfer_step.chain,
+                    transfer_step.asset,
+                    context,
+                )?;
                 latest_balance.saturating_sub(old_balance)
             }
             _ => return Err("not implemented"),
@@ -385,6 +412,24 @@ impl Task {
                 )?;
                 bridge_step.b0 = Some(latest_b0);
                 bridge_step.b1 = Some(latest_b1);
+            }
+            StepMeta::Transfer(transfer_step) => {
+                transfer_step.amount = settle_balance.min(transfer_step.flow);
+
+                // sender's balance
+                let latest_b0 = worker_account.get_balance(
+                    transfer_step.chain.clone(),
+                    transfer_step.asset.clone(),
+                    context,
+                )?;
+                // recipeint's balance
+                let latest_b1 = worker_account.get_balance(
+                    transfer_step.chain.clone(),
+                    transfer_step.asset.clone(),
+                    context,
+                )?;
+                transfer_step.b0 = Some(latest_b0);
+                transfer_step.b1 = Some(latest_b1);
             }
             _ => return Err("UnexpectedStep"),
         }
