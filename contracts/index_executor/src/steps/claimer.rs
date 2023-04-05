@@ -2,13 +2,14 @@ use alloc::{string::String, vec::Vec};
 use index::graph::{Chain, ChainType, NonceFetcher};
 use scale::{Decode, Encode};
 
-use super::account::AccountInfo;
-use super::bridge::BridgeStep;
-use super::context::Context;
-use super::step::{Step, StepMeta};
-use super::swap::SwapStep;
-use super::task::{OnchainTasks, Task, TaskId};
-use super::traits::Runner;
+use crate::account::AccountInfo;
+use crate::context::Context;
+use crate::steps::bridge::BridgeStep;
+use crate::steps::swap::SwapStep;
+use crate::steps::transfer::TransferStep;
+use crate::steps::{Step, StepMeta};
+use crate::task::{OnchainTasks, Task, TaskId};
+use crate::traits::Runner;
 use xcm::latest::AssetId as XcmAssetId;
 
 use pink_subrpc::{
@@ -121,7 +122,7 @@ impl ClaimStep {
         let handler = Contract::from_json(
             transport,
             handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
+            include_bytes!("../abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
         let worker = KeyPair::from(*worker_key);
@@ -225,7 +226,7 @@ impl ActivedTaskFetcher {
         let handler = Contract::from_json(
             transport,
             handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
+            include_bytes!("../abi/handler.json"),
         )
         .map_err(|_| "ConstructContractFailed")?;
 
@@ -487,6 +488,20 @@ impl DepositData {
                     chain: op.source_chain.clone(),
                     nonce: None,
                 });
+            } else if op.op_type == *"transfer" {
+                uninitialized_task.steps.push(Step {
+                    meta: StepMeta::Transfer(TransferStep {
+                        asset: self.decode_address(&op.spend_asset)?,
+                        amount: self.u128_from_string(&op.spend)?,
+                        chain: op.source_chain.clone(),
+                        b0: None,
+                        b1: None,
+                        recipient: None,
+                        flow: self.u128_from_string(&op.flow)?,
+                    }),
+                    chain: op.source_chain.clone(),
+                    nonce: None,
+                })
             } else {
                 return Err("Unrecognized op type");
             }
@@ -541,8 +556,8 @@ mod tests {
 
     #[test]
     fn test_json_parse() {
-        let task = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
-        let _task_data_json: TaskDataJson = pink_json::from_str(&task).unwrap();
+        let request = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
+        let _request_data_json: TaskDataJson = pink_json::from_str(&request).unwrap();
     }
 
     #[test]
@@ -640,6 +655,7 @@ mod tests {
             worker_accounts: vec![],
             bridge_executors: vec![],
             dex_executors: vec![],
+            transfer_executors: vec![],
         };
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
@@ -744,6 +760,7 @@ mod tests {
             worker_accounts: vec![],
             bridge_executors: vec![],
             dex_executors: vec![],
+            transfer_executors: vec![],
         };
         // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
         assert_eq!(claim_step.run(nonce, &context).is_ok(), true);

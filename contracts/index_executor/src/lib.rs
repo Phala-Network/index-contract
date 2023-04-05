@@ -3,13 +3,10 @@
 extern crate alloc;
 
 mod account;
-mod bridge;
 mod cache;
-mod claimer;
 mod context;
 mod graph;
-mod step;
-mod swap;
+mod steps;
 mod task;
 mod traits;
 
@@ -18,12 +15,13 @@ mod traits;
 mod index_executor {
     use crate::account::AccountInfo;
     use crate::cache::*;
-    use crate::claimer::ActivedTaskFetcher;
     use crate::context::Context;
     use crate::graph::Graph as RegistryGraph;
+    use crate::steps::claimer::ActivedTaskFetcher;
     use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
+    use index::traits::executor::TransferExecutor;
     use index::utils::ToArray;
     use index::{
         graph::{Chain, Graph},
@@ -427,6 +425,7 @@ mod index_executor {
                             worker_accounts: self.worker_accounts.clone(),
                             bridge_executors: vec![],
                             dex_executors: vec![],
+                            transfer_executors: vec![],
                         },
                         client,
                     )
@@ -448,6 +447,7 @@ mod index_executor {
         pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
             let bridge_executors = self.create_bridge_executors()?;
             let dex_executors = self.create_dex_executors()?;
+            let transfer_executors = self.create_transfer_executors()?;
 
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
@@ -473,6 +473,7 @@ mod index_executor {
                                     worker_accounts: self.worker_accounts.clone(),
                                     bridge_executors: vec![],
                                     dex_executors: vec![],
+                                    transfer_executors: vec![],
                                 },
                                 client,
                             );
@@ -501,6 +502,7 @@ mod index_executor {
                         worker_accounts: self.worker_accounts.clone(),
                         bridge_executors: bridge_executors.clone(),
                         dex_executors: dex_executors.clone(),
+                        transfer_executors: transfer_executors.clone(),
                     },
                     client,
                 ) {
@@ -707,6 +709,18 @@ mod index_executor {
                 )),
             ));
             Ok(dex_executors)
+        }
+
+        fn create_transfer_executors(&self) -> Result<Vec<(String, Box<dyn TransferExecutor>)>> {
+            let mut transfer_executors: Vec<(String, Box<dyn TransferExecutor>)> = vec![];
+            let acala = self
+                .get_chain(String::from("Acala"))
+                .ok_or(Error::ChainNotFound)?;
+            transfer_executors.push((
+                String::from("Acala"),
+                Box::new(AcalaTransferExecutor::new(&acala.endpoint)),
+            ));
+            Ok(transfer_executors)
         }
     }
 

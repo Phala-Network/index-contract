@@ -93,7 +93,7 @@ pub trait BalanceFetcher {
 
 impl BalanceFetcher for Chain {
     fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error> {
-        Ok(match self.chain_type {
+        match self.chain_type {
             ChainType::Evm => {
                 let transport = PinkHttp::new(&self.endpoint);
                 let account20: [u8; 20] = account.try_into().map_err(|_| Error::InvalidAddress)?;
@@ -104,7 +104,7 @@ impl BalanceFetcher for Chain {
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
                         .log_err("Fetch data [evm native balance] failed")
                         .map_err(|_| Error::FetchDataFailed)?;
-                    balance.try_into().expect("Balance onverflow")
+                    balance.try_into().map_err(|_| Error::BalanceOverflow)
                 } else {
                     let eth = Eth::new(transport);
                     let asset_account20: [u8; 20] =
@@ -125,7 +125,7 @@ impl BalanceFetcher for Chain {
                     ))
                     .log_err("Fetch data [evm erc20 balance] failed")
                     .map_err(|_| Error::FetchDataFailed)?;
-                    balance.try_into().expect("Balance onverflow")
+                    balance.try_into().map_err(|_| Error::BalanceOverflow)
                 }
             }
             ChainType::Sub => {
@@ -146,9 +146,9 @@ impl BalanceFetcher for Chain {
                             scale::Decode::decode(&mut raw_storage.as_slice())
                                 .log_err("Decode storage [sub native balance] failed")
                                 .map_err(|_| Error::DecodeStorageFailed)?;
-                        account_info.data.free
+                        Ok(account_info.data.free)
                     } else {
-                        0u128
+                        Ok(0u128)
                     }
                 } else {
                     let asset_location: MultiLocation =
@@ -177,15 +177,15 @@ impl BalanceFetcher for Chain {
                                     scale::Decode::decode(&mut raw_storage.as_slice())
                                     .log_err("Decode storage [sub foreign asset balance] from pallet-asset failed")
                                         .map_err(|_| Error::DecodeStorageFailed)?;
-                                account_info.balance
+                                Ok(account_info.balance)
                             } else {
-                                0u128
+                                Ok(0u128)
                             }
                         }
                         Some(ForeignAssetModule::OrmlToken) => {
-                            let currency_id = Location2Currencyid::new()
-                                .get_currencyid(self.name.clone(), &asset_location)
+                            let attrs = AcalaAssetMap::get_asset_attrs(&asset_location)
                                 .ok_or(Error::AssetNotRecognized)?;
+                            let currency_id = CurrencyId::Token(attrs.0);
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Twox64Concat>(
@@ -204,16 +204,16 @@ impl BalanceFetcher for Chain {
                                     scale::Decode::decode(&mut raw_storage.as_slice())
                                     .log_err("Decode storage [sub foreign asset balance] from orml-token failed")
                                         .map_err(|_| Error::DecodeStorageFailed)?;
-                                account_info.free
+                                Ok(account_info.free)
                             } else {
-                                0u128
+                                Ok(0u128)
                             }
                         }
-                        None => return Err(Error::Unimplemented),
+                        None => Err(Error::Unimplemented),
                     }
                 }
             }
-        })
+        }
     }
 }
 

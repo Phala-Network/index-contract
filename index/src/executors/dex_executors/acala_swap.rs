@@ -2,7 +2,7 @@ use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 use xcm::v1::prelude::*;
 
-use crate::assets::{AggregatedSwapPath, CurrencyId, Location2Currencyid, TokenSymbol};
+use crate::assets::{AcalaAssetMap, AggregatedSwapPath, CurrencyId, TokenSymbol};
 
 use crate::prelude::DexExecutor;
 use crate::traits::common::Error;
@@ -94,12 +94,10 @@ impl DexExecutor for AcalaDexExecutor {
             ))
             .map_err(|_| Error::FailedToScaleDecode)?;
 
-        let token0 = Location2Currencyid::new()
-            .get_currencyid("Acala".to_string(), &asset0_location)
-            .ok_or(Error::AssetNotRecognized)?;
-        let token1 = Location2Currencyid::new()
-            .get_currencyid("Acala".to_string(), &asset1_location)
-            .ok_or(Error::AssetNotRecognized)?;
+        let token0 =
+            AcalaAssetMap::get_currency_id(&asset0_location).ok_or(Error::AssetNotRecognized)?;
+        let token1 =
+            AcalaAssetMap::get_currency_id(&asset1_location).ok_or(Error::AssetNotRecognized)?;
 
         // FIXME: hardcode for demo
         if token0 != CurrencyId::Token(TokenSymbol::DOT)

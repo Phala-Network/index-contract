@@ -28,3 +28,15 @@ pub trait DexExecutor: DynClone {
     ) -> core::result::Result<Vec<u8>, Error>;
 }
 dyn_clone::clone_trait_object!(DexExecutor);
+
+pub trait TransferExecutor: DynClone {
+    fn transfer(
+        &self,
+        signer: [u8; 32],
+        asset: Vec<u8>,
+        recipient: Vec<u8>,
+        amount: u128,
+        extra: ExtraParam,
+    ) -> core::result::Result<Vec<u8>, Error>;
+}
+dyn_clone::clone_trait_object!(TransferExecutor);
