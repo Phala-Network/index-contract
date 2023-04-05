@@ -262,7 +262,7 @@ impl ActivedTaskFetcher {
             &evm_deposit_data,
         );
         let deposit_data: DepositData = evm_deposit_data.into();
-        let task = deposit_data.to_task(&chain.name, task_id)?;
+        let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
         Ok(Some(task))
     }
 
@@ -309,7 +309,8 @@ impl ActivedTaskFetcher {
                         &sub_deposit_data,
                     );
                     let deposit_data: DepositData = sub_deposit_data.into();
-                    let task = deposit_data.to_task(&chain.name, oldest_task)?;
+                    let task =
+                        deposit_data.to_task(&chain.name, oldest_task, self.worker.account32)?;
                     Ok(Some(task))
                 } else {
                     Err("DepositInfoNotFound")
@@ -417,7 +418,12 @@ impl From<SubDepositData> for DepositData {
 }
 
 impl DepositData {
-    fn to_task(&self, source_chain: &str, id: [u8; 32]) -> Result<Task, &'static str> {
+    fn to_task(
+        &self,
+        source_chain: &str,
+        id: [u8; 32],
+        worker: [u8; 32],
+    ) -> Result<Task, &'static str> {
         pink_extension::debug!("Trying to parse task data from json string");
         let task_data_json: TaskDataJson =
             pink_json::from_str(&self.task).map_err(|_| "InvalidTask")?;
@@ -435,6 +441,7 @@ impl DepositData {
             source: source_chain.into(),
             sender: self.sender.clone(),
             recipient: self.recipient.clone(),
+            worker,
             ..Default::default()
         };
 
