@@ -30,6 +30,8 @@ mod index_executor {
         prelude::AcalaDexExecutor,
     };
     use ink::storage::traits::StorageLayout;
+    use ink_env::call::FromAccountId;
+    use key_store::KeyStoreRef;
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
@@ -43,6 +45,7 @@ mod index_executor {
         NotConfigured,
         MissingPalletId,
         ChainNotFound,
+        ImportWorkerFailed,
         WorkerNotFound,
         FailedToGetNameOwner,
         RollupNotConfigured,
@@ -120,24 +123,12 @@ mod index_executor {
         #[ink(constructor)]
         /// Create an Executor entity
         pub fn default() -> Self {
-            let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
-            let mut worker_accounts: Vec<AccountInfo> = vec![];
-
-            for index in 0..5 {
-                let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
-                    &[b"worker".to_vec(), [index].to_vec()].concat(),
-                )
-                .private_key();
-                worker_prv_keys.push(private_key);
-                worker_accounts.push(AccountInfo::from(private_key));
-            }
-
             Self {
                 admin: Self::env().caller(),
                 config: None,
                 graph: Vec::default(),
-                worker_prv_keys,
-                worker_accounts,
+                worker_prv_keys: vec![],
+                worker_accounts: vec![],
                 executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
                     .private_key(),
                 // Make sure we configured the executor before running
@@ -145,46 +136,13 @@ mod index_executor {
             }
         }
 
-        /// Debug only, remove before merge
         #[ink(message)]
-        pub fn import_executor(&mut self, executor: Vec<u8>) -> Result<()> {
-            self.ensure_owner()?;
-            self.executor_account = executor.try_into().unwrap();
-            Ok(())
-        }
-
-        /// Debug only, remove before merge
-        #[ink(message)]
-        pub fn export_executor(&self) -> Result<[u8; 32]> {
-            self.ensure_owner()?;
-            Ok(self.executor_account)
-        }
-
-        /// Debug only, remove before merge
-        #[ink(message)]
-        pub fn import_workers(&mut self, worker: Vec<u8>) -> Result<()> {
-            self.ensure_owner()?;
-            let mut worker_prv_keys: Vec<[u8; 32]> = vec![];
-            let mut worker_accounts: Vec<AccountInfo> = vec![];
-
-            let private_key: [u8; 32] = worker.try_into().unwrap();
-            worker_prv_keys.push(private_key);
-            worker_accounts.push(AccountInfo::from(private_key));
-
-            self.worker_prv_keys = worker_prv_keys;
-            self.worker_accounts = worker_accounts;
-            Ok(())
-        }
-
-        /// Debug only, remove before merge
-        #[ink(message)]
-        pub fn export_workers(&self) -> Result<Vec<[u8; 32]>> {
-            self.ensure_owner()?;
-            Ok(self.worker_prv_keys.clone())
-        }
-
-        #[ink(message)]
-        pub fn config(&mut self, rollup_pallet_id: u8, rollup_endpoint: String) -> Result<()> {
+        pub fn config(
+            &mut self,
+            rollup_pallet_id: u8,
+            rollup_endpoint: String,
+            keystore_account: AccountId,
+        ) -> Result<()> {
             self.ensure_owner()?;
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
@@ -195,7 +153,20 @@ mod index_executor {
                 rollup_pallet_id,
                 rollup_endpoint,
             });
-            pink_extension::debug!("Set config as: {:?}", &self.config);
+
+            // Import worker private key form keystore contract, make sure executor already set in keystore contract
+            let key_store_contract = KeyStoreRef::from_account_id(keystore_account);
+            self.worker_prv_keys = key_store_contract
+                .get_worker_keys()
+                .or(Err(Error::ImportWorkerFailed))?;
+            for key in self.worker_prv_keys.iter() {
+                self.worker_accounts.push(AccountInfo::from(*key))
+            }
+            pink_extension::debug!(
+                "Configured rollup information as: {:?}, imported worker accounts: {:?}",
+                &self.config,
+                self.worker_accounts.clone()
+            );
             Self::env().emit_event(Configured {});
             Ok(())
         }
@@ -212,6 +183,9 @@ mod index_executor {
             Ok(())
         }
 
+        /// Claim rollup storage slot for this contract
+        ///
+        /// Note this is a query operation, an extrinsic would be sent to chain under the hood
         #[ink(message)]
         pub fn setup_rollup(&self) -> Result<()> {
             self.ensure_owner()?;
@@ -256,8 +230,9 @@ mod index_executor {
             Ok(())
         }
 
+        /// Save worker account information to rollup storage.
         #[ink(message)]
-        pub fn setup_worker_accounts(&self) -> Result<()> {
+        pub fn setup_worker_on_rollup(&self) -> Result<()> {
             self.ensure_owner()?;
 
             let config = self.ensure_configured()?;
@@ -432,13 +407,13 @@ mod index_executor {
             self.executor_account.into()
         }
 
-        /// Return worker accounts information
+        /// Return whole worker account information
         #[ink(message)]
-        pub fn get_worker_account(&self) -> Vec<AccountInfo> {
-            self.worker_accounts.clone()
+        pub fn get_worker_accounts(&self) -> Result<Vec<AccountInfo>> {
+            Ok(self.worker_accounts.clone())
         }
 
-        /// Return worker accounts information
+        /// Return worker accounts information that is free
         #[ink(message)]
         pub fn get_free_worker_account(&self) -> Result<Option<Vec<[u8; 32]>>> {
             let config = self.ensure_configured()?;
@@ -840,7 +815,7 @@ mod index_executor {
 
         #[ignore]
         #[ink::test]
-        fn setup_worker_accounts_should_work() {
+        fn setup_worker_on_rollup_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
             use crate::graph::Asset as RegistryAsset;
             use crate::graph::Chain as RegistryChain;
@@ -877,10 +852,10 @@ mod index_executor {
                 Ok(())
             );
             assert_eq!(executor.setup_rollup(), Ok(()));
-            assert_eq!(executor.setup_worker_accounts(), Ok(()));
+            assert_eq!(executor.setup_worker_on_rollup(), Ok(()));
             let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
-                .get_worker_account()
+                .worker_accounts
                 .into_iter()
                 .map(|account| account.account32.clone())
                 .collect();

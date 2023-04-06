@@ -5,6 +5,7 @@ members = [
     "examples/semi_bridge",
     "examples/system_remark",
     "contracts/index_executor",
+    "contracts/key_store",
 ]
 
 exclude = [
