@@ -7,36 +7,13 @@ const KhalaTypes = require('@phala/typedefs').khalaDev
 const fs = require('fs')
 const path = require('path')
 
+const { loadContractFile, createContract } = require('utils');
+
 const NODE_ENDPOINT = 'wss://poc5.phala.network/ws'
 const PRUNTIME_ENDPOINT = 'https://poc5.phala.network/tee-api-1'
 const CONTRACT_ID = '0x90a1cbf2a00c76e16d53cd3568c639eacbb30076138cf38270e4673f37c6a3ff'
 const EXE_WORKER = '0x2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955'
 const SOURCE = 'Moonbeam'
-
-function loadContractFile(contractFile) {
-    const metadata = JSON.parse(fs.readFileSync(contractFile, 'utf8'))
-    const constructor = metadata.V3.spec.constructors.find(
-      c => c.label == 'default',
-    ).selector
-    const name = metadata.contract.name
-    const wasm = metadata.source.wasm
-    return { wasm, metadata, constructor, name }
-}
-
-async function createContract(api, pruntimeUrl, contract, contractID) {
-    const { api: workerApi } = await PhalaSdk.create({
-      api,
-      baseURL: pruntimeUrl,
-      contractId: contractID,
-      autoDeposit: true,
-    })
-    const contractApi = new ContractPromise(
-      workerApi,
-      contract.metadata,
-      contractID,
-    )
-    return contractApi
-}
 
 async function loop_task() {
     return new Promise(async (_resolve, reject) => {
@@ -94,5 +71,3 @@ async function main() {
         console.error(`task run failed: ${err}`)
     }
 }
-
-main()

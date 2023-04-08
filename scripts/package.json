@@ -8,10 +8,16 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "@phala/sdk": "^0.3.8-beta.0",
-    "@polkadot/api": "^9.13.6",
-    "@polkadot/api-contract": "^9.13.6",
+    "@phala/sdk": "^0.4.0",
+    "@phala/typedefs": "^0.2.33",
+    "@polkadot/api": "^10.2.2",
+    "@polkadot/api-contract": "^10.2.2",
+    "@polkadot/types-support": "^10.2.1",
     "bn.js": "^5.2.1",
-    "console-stamp": "^3.1.0"
+    "commander": "^10.0.0",
+    "console-stamp": "^3.1.0",
+    "decimal.js": "^10.4.3",
+    "dotenv": "^16.0.3",
+    "ethers": "^6.2.3"
   }
 }

@@ -1,0 +1,24 @@
+{
+    "node_wss_endpoint": "wss://poc3.phala.network/ws",
+    "pruntine_endpoint": "https://poc5.phala.network/tee-api-1",
+
+    "executor_contract_id": "",
+    "key_store_contract_id": "",
+
+    "handlers": [
+        {
+            "Goerli": "0x1234567890abcdef"
+        }
+    ],
+    "Chains": [
+        {
+            "Goerli": "123"
+        },
+        {
+            "Khala": "456"
+        },
+        {
+            "Phala": "789"
+        }
+    ]
+}
