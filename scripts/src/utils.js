@@ -1,11 +1,12 @@
 const fs = require('fs')
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api')
+const { ContractPromise } = require('@polkadot/api-contract')
 const PhalaSdk = require('@phala/sdk')
 const PhalaSDKTypes = PhalaSdk.types
 
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile, 'utf8'))
-    const constructor = metadata.V3.spec.constructors.find(
+    const constructor = metadata.spec.constructors.find(
       c => c.label == 'default',
     ).selector
     const name = metadata.contract.name

@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const fs = require('fs');
+const path = require('path')
 const { program } = require('commander');
 const { Decimal } = require('decimal.js');
 const BN = require('bn.js');
@@ -39,7 +40,7 @@ function useChainEndpoint(config, chainName) {
 function useChainType(chain) {
     if (['ethereum', 'goerli', 'moonbeam', 'astar'].includes(chain)) {
         return 'Evm';
-    } else if (['khala', 'phala', 'acala'].includes(chain)) {
+    } else if (['poc3', 'poc5', 'khala', 'phala', 'acala'].includes(chain)) {
         return 'Sub';
     } else {
         throw new Error(`Unrecognized chain type: ${chain}`);
@@ -58,18 +59,18 @@ async function useApi(endpoint) {
     return api;
 }
 
-async function useCert(uri) {
+async function useCert(uri, api) {
     await cryptoWaitReady();
     const keyring = new Keyring({ type: 'sr25519' })
     const account = keyring.addFromUri(uri)
     return await PhalaSdk.signCertificate({
-        api: nodeApi,
+        api: api,
         pair: account,
     });
 }
 
 function useEtherProvider(endpoint) {
-    return new ethers.providers.JsonRpcProvider(endpoint)
+    return new ethers.JsonRpcProvider(endpoint)
 }
 
 function useERC20Token(provider, token) {
@@ -121,19 +122,20 @@ worker
     .command('list')
     .description('list worker accounts')
     .option('--worker <worker>', 'worker sr25519 public key', null)
-    .action(run(async () => {
+    .action(run(async (opt) => {
         let { uri } = program.opts();
         let config = useConfig();
         let api = await useApi(config.node_wss_endpoint);
         let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
-        let cert = await useCert(uri);
-        let workers = await executor.query.getWorkerAccounts(cert,
+        let cert = await useCert(uri, api);
+        let ret = (await executor.query.getWorkerAccounts(cert,
             {},
-        );
+        ));
+        let workers = ret.output.asOk.toJSON().ok;
         if (opt.worker !== null) {
-            console.log(workers.find(worker => worker.toLowerCase() === opt.worker.toLowerCase()));
+            console.log(workers.find(worker => worker.account32.toLowerCase() === opt.worker.toLowerCase()));
         } else {
-            console.log(workers);
+            console.log(JSON.stringify(workers, null, 2));
         }
     }));
 
@@ -146,12 +148,12 @@ worker
     .requiredOption('--spender <spender>', 'spender H160 address', null)
     .requiredOption('--amount <amount>', 'the amount set to allowance', null)
 
-    .action(run(async () => {
+    .action(run(async (opt) => {
         let { uri } = program.opts();
         let config = useConfig();
         let api = await useApi(config.node_wss_endpoint);
         let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
-        let cert = await useCert(uri);
+        let cert = await useCert(uri, api);
 
         console.log(`Call Executor::worker_approve to approve ERC20 for specific asset`);
         let queryRecipient = await executor.query.workerApprove(cert,
@@ -162,7 +164,7 @@ worker
             opt.spender,
             opt.amount,
         );
-        console.log(`Query recipient: ${queryRecipient}`);
+        console.log(`Query recipient: ${JSON.stringify(queryRecipient, null, 2)}`);
     }));
 
 worker
@@ -174,7 +176,7 @@ worker
     .action(run (async (opt) => {
         if (opt.chain) {
             let config = useConfig();
-            let endpoint = useChainEndpoint(config, opt.chain.toLowerCase());
+            let endpoint = useChainEndpoint(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase());
             if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
                 let provider = useEtherProvider(endpoint);
                 if (opt.asset === null) {

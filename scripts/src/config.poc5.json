@@ -1,24 +1,27 @@
 {
-    "node_wss_endpoint": "wss://poc3.phala.network/ws",
+    "node_wss_endpoint": "wss://poc5.phala.network/ws",
     "pruntine_endpoint": "https://poc5.phala.network/tee-api-1",
 
-    "executor_contract_id": "",
-    "key_store_contract_id": "",
+    "executor_contract_id": "0xfa96630b1873229315c01b20b59320f4d692fef1b2dc52a5f4f817cf3c860ba6",
+    "key_store_contract_id": "0x3a54c7576699d61ff1b5c57502d521a986b1f4bb83c4bca186ab2cb4a1a9769a",
 
     "handlers": [
         {
-            "Goerli": "0x1234567890abcdef"
+            "Goerli": "0x7da7D95B07Ba569945e33e93063600c4A434FC6a"
         }
     ],
-    "Chains": [
+    "chains": [
         {
-            "Goerli": "123"
+            "Goerli": "https://goerli.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
         },
         {
-            "Khala": "456"
+            "Poc5": "https://poc5.phala.network/rpc"
         },
         {
-            "Phala": "789"
+            "Khala": "https://khala-api.phala.network/rpc"
+        },
+        {
+            "Phala": "https://api.phala.network/rpc"
         }
     ]
 }
