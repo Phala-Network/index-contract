@@ -99,20 +99,85 @@ async function useExecutor(api, pruntime_endpoint, contract_id) {
 
 program
     .option('--config <path>', 'config that contains contract and node informations', process.env.CONFIG || 'config.json')
-    .option('--uri <path>', 'the account URI use to sign cert', process.env.URI || '//Alice')
-
+    .option('--uri <URI>', 'the account URI use to sign cert', process.env.URI || '//Alice')
 
 const executor = program
 .command('executor')
 .description('inDEX executor');
 
+executor
+    .command('account')
+    .description('show executor account information')
+    .option('--balance <worker>', 'worker sr25519 public key', null)
+    .action(run(async (opt) => {
+        // TODO
+    }));
+
+executor
+    .command('balance')
+    .description('return executor account balance on anchor chain')
+    .action(run(async (opt) => {
+        // TODO
+    }));
+
+executor
+    .command('worker')
+    .description('return worker accounts of the executor')
+    .option('--free', 'list worker account that currently not been allocated', false)
+    .action(run(async (opt) => {
+        // TODO
+    }));
+
+executor
+    .command('task')
+    .description('return tasks id list that currently running')
+    .action(run(async (opt) => {
+        // TODO
+    }));
+
+const task = program
+    .command('task')
+    .description('inDEX task inspector');
+    
+task
+    .command('list')
+    .description('Return tasks existing in local cache')
+    .option('--id <taskId>', 'task id', null)
+    .action(run(async (opt) => {
+        // TODO
+        // If id is not set, return all tasks existing in local cache
+    }));
+
 const hander = program
 .command('hander')
 .description('inDEX handler contract/pallet');
 
-const task = program
-.command('task')
-.description('inDEX task inspector');
+hander
+    .command('list')
+    .description('list handler account deployed on chains')
+    .option('--chain <chain>', 'chain name', null)
+    .action(run(async (opt) => {
+        // TODO
+        // If chain not given, list handker on all supported chains
+    }));
+
+hander
+    .command('task')
+    .description('list actived tasks that belong to the given worker')
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--worker <worker>', 'woker H160 address on EVM chain, sr25519 public key on substrate chain', null)
+    .action(run(async (opt) => {
+        // TODO
+    }));
+
+hander
+    .command('balance')
+    .description('Return balance of the given asset that handler holds')
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--asset <asset>', 'asset H160 address on EVM chain, encoded MultiLocation on substrate chain', null)
+    .action(run(async (opt) => {
+        // TODO
+    }));
 
 const worker = program
 .command('worker')
@@ -142,7 +207,7 @@ worker
 worker
     .command('approve')
     .description('approve ERC20 for specific asset')
-    .requiredOption('--worker <worker>', 'worker H160 address', null)
+    .requiredOption('--worker <worker>', 'worker sr25519 public key', null)
     .requiredOption('--chain <chain>', 'chain name', null)
     .requiredOption('--token <token>', 'ERC20 token contract address', null)
     .requiredOption('--spender <spender>', 'spender H160 address', null)

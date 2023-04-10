@@ -2,7 +2,7 @@
     "node_wss_endpoint": "wss://poc5.phala.network/ws",
     "pruntine_endpoint": "https://poc5.phala.network/tee-api-1",
 
-    "executor_contract_id": "0xfa96630b1873229315c01b20b59320f4d692fef1b2dc52a5f4f817cf3c860ba6",
+    "executor_contract_id": "0x3f32e1d4d4704437121f909c9db9241143ca3eddb1c09656cf62521ee1d9389e",
     "key_store_contract_id": "0x3a54c7576699d61ff1b5c57502d521a986b1f4bb83c4bca186ab2cb4a1a9769a",
 
     "handlers": [
