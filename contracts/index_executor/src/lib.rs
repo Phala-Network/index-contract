@@ -31,12 +31,12 @@ mod index_executor {
     };
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
-    use key_store::KeyStoreRef;
     use phat_offchain_rollup::clients::substrate::{
         claim_name, get_name_owner, SubstrateRollupClient,
     };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
+    use worker_key_store::KeyStoreRef;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -807,7 +807,7 @@ mod index_executor {
             let mut executor = deploy_executor();
             // Initial rollup
             assert_eq!(
-                executor.config(100, String::from("http://127.0.0.1:39933")),
+                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
                 Ok(())
             );
             assert_eq!(executor.setup_rollup(), Ok(()));
@@ -848,7 +848,7 @@ mod index_executor {
                 .unwrap();
             // Initial rollup
             assert_eq!(
-                executor.config(100, String::from("http://127.0.0.1:39933")),
+                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
                 Ok(())
             );
             assert_eq!(executor.setup_rollup(), Ok(()));

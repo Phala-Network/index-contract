@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-pub use key_store::{KeyStore, KeyStoreRef};
+pub use crate::key_store::{KeyStore, KeyStoreRef};
 
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod key_store {
