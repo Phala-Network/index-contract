@@ -8,6 +8,9 @@
     "handlers": [
         {
             "Goerli": "0x7da7D95B07Ba569945e33e93063600c4A434FC6a"
+        },
+        {
+            "Moonbeam": "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB"
         }
     ],
     "chains": [
@@ -22,6 +25,9 @@
         },
         {
             "Phala": "https://api.phala.network/rpc"
+        },
+        {
+            "Moonbeam": "https://rpc.api.moonbeam.network"
         }
     ]
 }

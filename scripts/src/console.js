@@ -37,6 +37,12 @@ function useChainEndpoint(config, chainName) {
     return endpoint;
 }
 
+function useChainHandler(config, chainName) {
+    const chain = config.handlers.find(chain => Object.keys(chain)[0] === chainName);
+    const handler = chain && Object.values(chain)[0];
+    return handler;
+}
+
 function useChainType(chain) {
     if (['ethereum', 'goerli', 'moonbeam', 'astar'].includes(chain)) {
         return 'Evm';
@@ -81,11 +87,16 @@ function useERC20Token(provider, token) {
     )
 }
 
-function useEvmHandler(provider, handler) {
+function useEvmHandler(config, chainName, key) {
+    let endpoint = useChainEndpoint(config, chainName);
+    let provider = useEtherProvider(endpoint);
+    let handlerAddress = useChainHandler(config, chainName);
+
+    const wallet = new ethers.Wallet(key, provider)
     return new ethers.Contract(
-        handler,
+        handlerAddress,
         HandlerABI,
-        provider
+        wallet
     )
 }
 
@@ -148,11 +159,11 @@ task
         // If id is not set, return all tasks existing in local cache
     }));
 
-const hander = program
-.command('hander')
+const handler = program
+.command('handler')
 .description('inDEX handler contract/pallet');
 
-hander
+handler
     .command('list')
     .description('list handler account deployed on chains')
     .option('--chain <chain>', 'chain name', null)
@@ -161,7 +172,63 @@ hander
         // If chain not given, list handker on all supported chains
     }));
 
-hander
+handler
+    .command('set-worker')
+    .description('whitelist worker on handler')
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--worker <worker>', 'worker to run the task', null)
+    .requiredOption('--key <key>', 'key of Handler contract admin', null)
+
+    .action(run(async (opt) => {
+        let config = useConfig();
+        if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
+            let handler = useEvmHandler(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(), opt.key)
+            let tx = await handler.setWorker(
+                opt.worker,
+                {
+                  gasLimit: 2000000,
+                }
+            );
+            console.log(`Whitelist worker on ${opt.chain}: ${tx.hash}`);
+        } else {    // Sub
+            throw new Error("not implemented")
+        }
+    }));
+
+handler
+    .command('deposit')
+    .description('deposit task on specified chains')
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--asset <asset>', 'asset address or encoded location', null)
+    .requiredOption('--amount <amount>', 'amount of the asset to deposit', null)
+    .requiredOption('--recipient <recipient>', 'recipient account on dest chain', null)
+    .requiredOption('--worker <worker>', 'worker to run the task', null)
+    .requiredOption('--id <id>', 'pre-generated id of the task', null)
+    .requiredOption('--data <data>', 'data(solution) of the task', null)
+    .requiredOption('--key <key>', 'key of depositor', null)
+
+    .action(run(async (opt) => {
+        let config = useConfig();
+        if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
+            let handler = useEvmHandler(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(), opt.key)
+            let tx = await handler.deposit(
+                opt.asset,
+                opt.amount,
+                opt.recipient,
+                opt.worker,
+                opt.id,
+                opt.data,
+                {
+                  gasLimit: 2000000,
+                }
+            );
+            console.log(`Deposited task on ${opt.chain}: ${tx.hash}`);
+        } else {    // Sub
+            throw new Error("not implemented")
+        }
+    }));
+
+handler
     .command('task')
     .description('list actived tasks that belong to the given worker')
     .requiredOption('--chain <chain>', 'chain name', null)
@@ -170,7 +237,7 @@ hander
         // TODO
     }));
 
-hander
+handler
     .command('balance')
     .description('Return balance of the given asset that handler holds')
     .requiredOption('--chain <chain>', 'chain name', null)
