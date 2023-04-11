@@ -2118,7 +2118,7 @@ dependencies = [
 [[package]]
 name = "phat_offchain_rollup"
 version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#7609bfc7e153308d0063299e8b842bae9e6f1063"
+source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#25fec0b376b5454c966b14fcf496172f1d1e846e"
 dependencies = [
  "ethabi",
  "hex",
@@ -3872,7 +3872,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.6",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
