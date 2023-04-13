@@ -1,4 +1,5 @@
 //#[allow(clippy::large_enum_variant)]
+use crate::alloc::string::ToString;
 use alloc::{string::String, vec::Vec};
 use index::graph as index_graph;
 use ink::storage::traits::StorageLayout;
@@ -104,7 +105,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     native_asset: {
                         let asset_id = chain.native_asset;
                         let asset = &self.assets[asset_id as usize - 1];
-                        hex::decode(asset.location.clone()).or(Err("InvalidInput"))?
+                        hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?
                     },
                     foreign_asset: {
                         match chain.foreign_asset_type {
@@ -113,8 +114,8 @@ impl TryInto<index_graph::Graph> for Graph {
                             _ => return Err("Unsupported chain!"),
                         }
                     },
-                    handler_contract: hex::decode(chain.handler_contract.clone())
-                        .or(Err("DecodeFailed"))?,
+                    handler_contract: hexified_to_vec_u8(&chain.handler_contract)
+                        .or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -128,15 +129,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     id: asset.id,
                     symbol: asset.symbol.clone(),
                     name: asset.name.clone(),
-                    // beware the special treatment for locations!
-                    // reason:
-                    //  ink! treats any string that starts with a 0x prefix as a hex string,
-                    //  if `location` starts with 0x then we will get an unreadable character string here,
-                    //  a workaround is to encode the location
-                    //      (and anything that is possibly a string prefixed with 0x) by hex-ing it,
-                    //      before putting it in the ink! storage;
-                    //  now in time of use, we decode the location by hex::decode()
-                    location: hex::decode(asset.location.clone()).or(Err("DecodeFailed"))?,
+                    location: hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?,
                     decimals: asset.decimals,
                     chain_id: asset.chain_id,
                 };
@@ -179,12 +172,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
                     dex_id: pair.dex_id,
-                    // caveat, for now we have two kinds of pair_id:
-                    //  1. 0x1234...23
-                    //  2. lp:$TOEKN1/$TOKEN2
-                    // we need to hexify the first kind to get around the ink! string treatment,
-                    // to that end, we hexify all kinds of pair_id
-                    pair_id: hex::decode(pair.pair_id.clone()).or(Err("DecodeFailed"))?,
+                    pair_id: hexified_to_string(&pair.pair_id).or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -197,7 +185,7 @@ impl TryInto<index_graph::Graph> for Graph {
                 let item = index_graph::Bridge {
                     id: bridge.id,
                     name: bridge.name.clone(),
-                    location: hex::decode(bridge.location.clone()).or(Err("DecodeFailed"))?,
+                    location: hexified_to_vec_u8(&bridge.location).or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -256,7 +244,7 @@ impl From<index_graph::Graph> for Graph {
                             None => 3,
                         }
                     },
-                    handler_contract: hex::encode(chain.handler_contract.clone()),
+                    handler_contract: vec_u8_to_hexified(&chain.handler_contract),
                 };
                 arr.push(item);
             }
@@ -270,7 +258,7 @@ impl From<index_graph::Graph> for Graph {
                     id: asset.id,
                     symbol: asset.symbol.clone(),
                     name: asset.name.clone(),
-                    location: hex::encode(asset.location.clone()),
+                    location: vec_u8_to_hexified(&asset.location),
                     decimals: asset.decimals,
                     chain_id: asset.chain_id,
                 };
@@ -313,7 +301,7 @@ impl From<index_graph::Graph> for Graph {
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
                     dex_id: pair.dex_id,
-                    pair_id: hex::encode(pair.pair_id.clone()),
+                    pair_id: string_to_hexified(&pair.pair_id),
                 };
                 arr.push(item);
             }
@@ -326,7 +314,7 @@ impl From<index_graph::Graph> for Graph {
                 let item = Bridge {
                     id: bridge.id,
                     name: bridge.name.clone(),
-                    location: hex::encode(bridge.location.clone()),
+                    location: vec_u8_to_hexified(&bridge.location),
                 };
                 arr.push(item);
             }
@@ -351,9 +339,79 @@ impl From<index_graph::Graph> for Graph {
     }
 }
 
+// some field from the first graph(the RegistryGraph) is a String that is hexified somewhere else,
+// the right way to decode it is:
+//  - de-hexify it to be Vec<u8>
+//  - restore the string from Vec<u8>
+// for example:
+// - a tool hexifies a string "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB" into 33613632613439383062393532433932663464343234336334413030393333364565306132366542
+// - Phat contract receives 33613632613439383062393532433932663464343234336334413030393333364565306132366542
+// - Phat contract needs to decode 33613632613439383062393532433932663464343234336334413030393333364565306132366542 into 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB
+// - 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB is in bytes because the hex::decode gives Vec<u8> output
+// - restore string from bytes using String::from_utf8_lossy
+fn hexified_to_string(hs: &str) -> core::result::Result<String, &'static str> {
+    Ok(
+        String::from_utf8_lossy(&hex::decode(hs).or(Err("DecodeFailed"))?)
+            .to_string()
+            .to_lowercase(),
+    )
+}
+
+// when we restore a string from hexified string, to turn that into Vec<u8>,
+// first thing is to remove the prefixing 0x, then hex::decode again
+fn hexified_to_vec_u8(hs: &str) -> core::result::Result<Vec<u8>, &'static str> {
+    let binding = hex::decode(hs).or(Err("DecodeFailed"))?;
+    let withhead = &String::from_utf8_lossy(&binding);
+
+    if let Some(headless) = withhead.strip_prefix("0x") {
+        hex::decode(headless).or(Err("DecodeFailed"))
+    } else {
+        Err("wrong hex string")
+    }
+}
+
+fn vec_u8_to_hexified(v: &[u8]) -> String {
+    let headless = hex::encode(v);
+    let withhead = String::from("0x") + &headless;
+    hex::encode(withhead.as_bytes())
+}
+
+fn string_to_hexified(s: &str) -> String {
+    hex::encode(s.as_bytes())
+}
+
 #[cfg(test)]
 mod tests {
+    use core::str::FromStr;
+    use primitive_types::H160;
+
     use super::*;
+
+    #[test]
+    fn string_codec_should_work() {
+        let input =
+            "307833613632613439383062393532633932663464343234336334613030393333366565306132366562"
+                .to_string();
+        assert_eq!(
+            "0x3a62a4980b952c92f4d4243c4a009336ee0a26eb".to_string(),
+            hexified_to_string(&input).unwrap()
+        );
+        let v = hexified_to_vec_u8(&input).unwrap();
+        assert_eq!(
+            vec![
+                0x3a, 0x62, 0xa4, 0x98, 0x0b, 0x95, 0x2C, 0x92, 0xf4, 0xd4, 0x24, 0x3c, 0x4A, 0x00,
+                0x93, 0x36, 0xEe, 0x0a, 0x26, 0xeB
+            ],
+            v
+        );
+        let h1 = H160::from_slice(&v);
+        let h2 = H160::from_str("0x3a62a4980b952c92f4d4243c4a009336ee0a26eb").unwrap();
+        assert_eq!(h1, h2);
+
+        let s = vec_u8_to_hexified(&v);
+
+        assert_eq!(s, input);
+    }
 
     #[test]
     fn graph_conversion_should_work() {
@@ -367,7 +425,7 @@ mod tests {
             endpoint: "endpoint".to_string(),
             native_asset: 3,
             foreign_asset_type: 1,
-            handler_contract: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
+            handler_contract: string_to_hexified("0x12"),
         };
         let phala = Chain {
             id: 2,
@@ -376,7 +434,7 @@ mod tests {
             endpoint: "endpoint".to_string(),
             native_asset: 2,
             foreign_asset_type: 1,
-            handler_contract: hex::encode("056C0E37d026f9639313C281250cA932C9dbe921"),
+            handler_contract: string_to_hexified("0x23"),
         };
         let pha_on_ethereum = Asset {
             id: 1,
@@ -384,7 +442,7 @@ mod tests {
             name: "Phala Token".to_string(),
             symbol: "PHA".to_string(),
             decimals: 18,
-            location: hex::encode("Somewhere on Ethereum"),
+            location: string_to_hexified("0x34"),
         };
         let pha_on_phala = Asset {
             id: 2,
@@ -392,7 +450,7 @@ mod tests {
             name: "Phala Token".to_string(),
             symbol: "PHA".to_string(),
             decimals: 12,
-            location: hex::encode("Somewhere on Phala"),
+            location: string_to_hexified("0x45"),
         };
         let weth_on_ethereum = Asset {
             id: 3,
@@ -400,7 +458,7 @@ mod tests {
             name: "Wrap Ether".to_string(),
             symbol: "WETH".to_string(),
             decimals: 18,
-            location: hex::encode("Somewhere on Ethereum2"),
+            location: string_to_hexified("0x56"),
         };
         let weth_on_phala = Asset {
             id: 4,
@@ -408,7 +466,7 @@ mod tests {
             name: "Phala Wrap Ether".to_string(),
             symbol: "pWETH".to_string(),
             decimals: 18,
-            location: hex::encode("Somewhere on Phala2"),
+            location: string_to_hexified("0x67"),
         };
         let ethereum2phala_pha_pair = BridgePair {
             id: 1,
@@ -431,14 +489,14 @@ mod tests {
         let pha_weth_dex_pair = DexPair {
             id: 1,
             dex_id: 1,
-            pair_id: hex::encode("pair_address"),
+            pair_id: string_to_hexified("pair_address"),
             asset0_id: 1,
             asset1_id: 3,
         };
         let bridge = Bridge {
             id: 1,
             name: "demo bridge".to_string(),
-            location: hex::encode("xtoken://0x1213435"),
+            location: string_to_hexified("0x78"),
         };
         let dex = Dex {
             id: 1,

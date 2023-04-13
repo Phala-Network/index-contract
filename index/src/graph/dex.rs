@@ -1,5 +1,4 @@
 use alloc::string::String;
-use alloc::vec::Vec;
 
 #[derive(Debug, Clone, Default, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -24,5 +23,6 @@ pub struct DexPair {
     pub asset0_id: u32,
     pub asset1_id: u32,
     pub dex_id: u32,
-    pub pair_id: Vec<u8>,
+    // not always prefixed with 0x!
+    pub pair_id: String,
 }
