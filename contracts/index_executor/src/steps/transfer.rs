@@ -15,11 +15,11 @@ pub struct TransferStep {
     pub asset: Vec<u8>,
     pub amount: u128,
     pub chain: String,
-    // worker's balance
-    pub b0: Option<u128>,
-    // recipient's balance
-    pub b1: Option<u128>,
-    pub flow: u128,
+    /// Actual amount of token0
+    pub spend: u128,
+    /// Reception in the form of range
+    pub receive_min: u128,
+    pub receive_max: u128,
     // Recipient account on current chain
     pub recipient: Option<Vec<u8>>,
 }
@@ -95,18 +95,7 @@ impl Runner for TransferStep {
         if onchain_nonce <= nonce {
             return Ok(false);
         }
-        // Check balance change on source chain
-        let worker_balance = chain
-            .get_balance(self.asset.clone(), worker_account)
-            .map_err(|_| "Fail to get balance")?;
-        let b0 = self.b0.ok_or("Missing worker balance")?;
-        let b1 = self.b1.ok_or("Missing recipient balance")?;
-        let recipient_balance = chain
-            .get_balance(self.asset.clone(), recipient)
-            .map_err(|_| "Fail to get balance")?;
-        // the recipient receives exactly the same amount as required
-        // but the sender may pay more if the transfer asset is the native token
-        Ok((recipient_balance - b1) == self.amount && b0 - worker_balance >= self.amount)
+        Ok(true)
     }
 
     fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {

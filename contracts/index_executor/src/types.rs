@@ -7,12 +7,6 @@ use scale::{Decode, Encode};
 pub struct SourceEdge {
     /// asset/chain
     pub to: Vec<u8>,
-    /// Capacity of the edge
-    pub cap: u128,
-    /// Flow of the edge
-    pub flow: u128,
-    /// Price impact after executing the edge
-    pub impact: u128,
 }
 
 /// Definition of SINK edge
@@ -21,12 +15,6 @@ pub struct SourceEdge {
 pub struct SinkEdge {
     /// asset/chain
     pub from: Vec<u8>,
-    /// Capacity of the edge
-    pub cap: u128,
-    /// Flow of the edge
-    pub flow: u128,
-    /// Price impact after executing the edge
-    pub impact: u128,
 }
 
 /// Definition of swap operation edge
@@ -37,20 +25,13 @@ pub struct SwapEdge {
     pub from: Vec<u8>,
     /// asset/chain
     pub to: Vec<u8>,
-    /// Chain name
-    pub chain: Vec<u8>,
     /// Dex name
     pub dex: Vec<u8>,
-    /// Capacity of the edge
-    pub cap: u128,
-    /// Flow of the edge
-    pub flow: u128,
-    /// Price impact after executing the edge
-    pub impact: u128,
-    /// Original relayer account balance of spend asset
-    pub b0: Option<u128>,
-    /// Original relayer account balance of received asset
-    pub b1: Option<u128>,
+    /// The amount flows in this step
+    pub in_amount: u128,
+    /// estimation in the form of range
+    pub out_min: u128,
+    pub out_max: u128,
 }
 
 /// Definition of bridge operation edge
@@ -58,19 +39,25 @@ pub struct SwapEdge {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct BridgeEdge {
     /// asset/chain
-    from: Vec<u8>,
+    pub from: Vec<u8>,
     /// asset/chain
-    to: Vec<u8>,
-    /// Capacity of the edge
-    cap: u128,
-    /// Flow of the edge
-    flow: u128,
-    /// Price impact after executing the edge
-    impact: u128,
-    /// Original relayer account balance of asset on source chain
-    b0: Option<u128>,
-    /// Original relayer account balance of asset on dest chain
-    b1: Option<u128>,
+    pub to: Vec<u8>,
+    pub in_amount: u128,
+    /// estimation in the form of range
+    pub out_min: u128,
+    pub out_max: u128,
+}
+
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct TransferEdge {
+    /// asset/chain
+    pub from: Vec<u8>,
+    /// asset/chain
+    pub to: Vec<u8>,
+    pub in_amount: u128,
+    pub out_min: u128,
+    pub out_max: u128,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -95,6 +82,7 @@ pub enum EdgeMeta {
     Sink(SinkEdge),
     Swap(SwapEdge),
     Bridge(BridgeEdge),
+    Transfer(TransferEdge),
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
