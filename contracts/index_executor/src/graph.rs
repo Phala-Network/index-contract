@@ -104,7 +104,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     native_asset: {
                         let asset_id = chain.native_asset;
                         let asset = &self.assets[asset_id as usize - 1];
-                        hex::decode(asset.location.clone()).or(Err("InvalidInput"))?
+                        hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?
                     },
                     foreign_asset: {
                         match chain.foreign_asset_type {
@@ -113,8 +113,8 @@ impl TryInto<index_graph::Graph> for Graph {
                             _ => return Err("Unsupported chain!"),
                         }
                     },
-                    handler_contract: hex::decode(chain.handler_contract.clone())
-                        .or(Err("DecodeFailed"))?,
+                    handler_contract: hexified_to_vec_u8(&chain.handler_contract)
+                        .or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -128,15 +128,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     id: asset.id,
                     symbol: asset.symbol.clone(),
                     name: asset.name.clone(),
-                    // beware the special treatment for locations!
-                    // reason:
-                    //  ink! treats any string that starts with a 0x prefix as a hex string,
-                    //  if `location` starts with 0x then we will get an unreadable character string here,
-                    //  a workaround is to encode the location
-                    //      (and anything that is possibly a string prefixed with 0x) by hex-ing it,
-                    //      before putting it in the ink! storage;
-                    //  now in time of use, we decode the location by hex::decode()
-                    location: hex::decode(asset.location.clone()).or(Err("DecodeFailed"))?,
+                    location: hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?,
                     decimals: asset.decimals,
                     chain_id: asset.chain_id,
                 };
@@ -179,12 +171,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
                     dex_id: pair.dex_id,
-                    // caveat, for now we have two kinds of pair_id:
-                    //  1. 0x1234...23
-                    //  2. lp:$TOEKN1/$TOKEN2
-                    // we need to hexify the first kind to get around the ink! string treatment,
-                    // to that end, we hexify all kinds of pair_id
-                    pair_id: hex::decode(pair.pair_id.clone()).or(Err("DecodeFailed"))?,
+                    pair_id: hexified_to_vec_u8(&pair.pair_id).or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -197,7 +184,7 @@ impl TryInto<index_graph::Graph> for Graph {
                 let item = index_graph::Bridge {
                     id: bridge.id,
                     name: bridge.name.clone(),
-                    location: hex::decode(bridge.location.clone()).or(Err("DecodeFailed"))?,
+                    location: hexified_to_vec_u8(&bridge.location).or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -351,9 +338,58 @@ impl From<index_graph::Graph> for Graph {
     }
 }
 
+// some field from the first graph(the RegistryGraph) is a String that is hexified somewhere else,
+// the right way to decode it is:
+//  - de-hexify it to be Vec<u8>
+//  - restore the string from Vec<u8>
+// for example:
+// - a tool hexifies a string "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB" into 33613632613439383062393532433932663464343234336334413030393333364565306132366542
+// - Phat contract receives 33613632613439383062393532433932663464343234336334413030393333364565306132366542
+// - Phat contract needs to decode 33613632613439383062393532433932663464343234336334413030393333364565306132366542 into 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB
+// - 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB is in bytes because the hex::decode gives Vec<u8> output
+// - restore string from bytes using String::from_utf8_lossy
+#[allow(dead_code)]
+fn hexified_to_string(hs: &str) -> core::result::Result<String, &'static str> {
+    Ok(String::from_utf8_lossy(&hex::decode(hs).or(Err("DecodeFailed"))?).to_string())
+}
+
+// when we restore a string from hexified string, to turn that into Vec<u8>,
+// first thing is to remove the prefixing 0x, then hex::decode again
+fn hexified_to_vec_u8(hs: &str) -> core::result::Result<Vec<u8>, &'static str> {
+    let binding = hex::decode(hs).or(Err("DecodeFailed"))?;
+    let headless = &String::from_utf8_lossy(&binding)[2..];
+    Ok(hex::decode(headless).or(Err("DecodeFailed"))?)
+}
+
 #[cfg(test)]
 mod tests {
+    use core::str::FromStr;
+
+    use primitive_types::H160;
+
     use super::*;
+
+    #[test]
+    fn string_codec_should_work() {
+        let input =
+            "307833613632613439383062393532433932663464343234336334413030393333364565306132366542"
+                .to_string();
+        assert_eq!(
+            "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB".to_string(),
+            hexified_to_string(&input).unwrap()
+        );
+        let v = hexified_to_vec_u8(&input).unwrap();
+        assert_eq!(
+            vec![
+                0x3a, 0x62, 0xa4, 0x98, 0x0b, 0x95, 0x2C, 0x92, 0xf4, 0xd4, 0x24, 0x3c, 0x4A, 0x00,
+                0x93, 0x36, 0xEe, 0x0a, 0x26, 0xeB
+            ],
+            v
+        );
+        let h1 = H160::from_slice(&v);
+        let h2 = H160::from_str("0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB").unwrap();
+        assert_eq!(h1, h2);
+    }
 
     #[test]
     fn graph_conversion_should_work() {
