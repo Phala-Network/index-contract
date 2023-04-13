@@ -357,8 +357,13 @@ fn hexified_to_string(hs: &str) -> core::result::Result<String, &'static str> {
 // first thing is to remove the prefixing 0x, then hex::decode again
 fn hexified_to_vec_u8(hs: &str) -> core::result::Result<Vec<u8>, &'static str> {
     let binding = hex::decode(hs).or(Err("DecodeFailed"))?;
-    let headless = &String::from_utf8_lossy(&binding)[2..];
-    hex::decode(headless).or(Err("DecodeFailed"))
+    let withhead = &String::from_utf8_lossy(&binding);
+    if withhead.starts_with("0x") || withhead.starts_with("0X") {
+        let headless = &withhead[2..];
+        hex::decode(headless).or(Err("DecodeFailed"))
+    } else {
+        Err("wrong hex string")
+    }
 }
 
 #[cfg(test)]
