@@ -171,7 +171,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
                     dex_id: pair.dex_id,
-                    pair_id: hexified_to_vec_u8(&pair.pair_id).or(Err("InvalidInput"))?,
+                    pair_id: hexified_to_string(&pair.pair_id).or(Err("InvalidInput"))?,
                 };
                 arr.push(item);
             }
@@ -358,7 +358,7 @@ fn hexified_to_string(hs: &str) -> core::result::Result<String, &'static str> {
 fn hexified_to_vec_u8(hs: &str) -> core::result::Result<Vec<u8>, &'static str> {
     let binding = hex::decode(hs).or(Err("DecodeFailed"))?;
     let headless = &String::from_utf8_lossy(&binding)[2..];
-    Ok(hex::decode(headless).or(Err("DecodeFailed"))?)
+    hex::decode(headless).or(Err("DecodeFailed"))
 }
 
 #[cfg(test)]
