@@ -2,6 +2,7 @@
 use alloc::{string::String, vec::Vec};
 use index::graph as index_graph;
 use ink::storage::traits::StorageLayout;
+use crate::alloc::string::ToString;
 
 #[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
