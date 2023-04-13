@@ -18,21 +18,12 @@ pub struct SwapStep {
     /// Chain name
     pub chain: String,
     /// Dex name
-    pub dex: String,
-    /// Capacity of the step
-    pub cap: u128,
-    /// Flow of the step
-    pub flow: u128,
-    /// Price impact after executing the step
-    pub impact: u128,
-    /// Original relayer account balance of spend asset
-    /// Should be set when initializing task
-    pub b0: Option<u128>,
-    /// Original relayer account balance of received asset
-    /// Should be set when initializing task
-    pub b1: Option<u128>,
-    /// Amount to be spend
+    pub name: String,
+    /// Actual amount of token0
     pub spend: u128,
+    /// Reception in the form of range
+    pub receive_min: u128,
+    pub receive_max: u128,
     /// Recipient account on current chain
     pub recipient: Option<Vec<u8>>,
 }

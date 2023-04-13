@@ -11,6 +11,7 @@ use scale::{Decode, Encode};
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct BridgeStep {
+    name: String,
     /// Asset id on source chain
     pub from: Vec<u8>,
     /// Name of source chain
@@ -19,24 +20,16 @@ pub struct BridgeStep {
     pub to: Vec<u8>,
     /// Name of dest chain
     pub dest_chain: String,
-    /// Fee of the bridge represented by the transfer asset
-    pub fee: u128,
-    /// Capacity of the step
-    pub cap: u128,
-    /// Flow of the step
-    pub flow: u128,
-    /// Original relayer account balance of asset on source chain
-    /// Should be set when initializing task
-    pub b0: Option<u128>,
-    /// Original relayer account balance of asset on dest chain
-    /// Should be set when initializing task
-    pub b1: Option<u128>,
-    /// Bridge amount
-    pub amount: u128,
     /// Recipient account on dest chain
     pub recipient: Option<Vec<u8>>,
+    /// Actual amount of token0
+    pub spend: u128,
+    /// Reception in the form of range
+    pub receive_min: u128,
+    pub receive_max: u128,
     /// Last timestamp when recipient received a deposit
     pub dest_timestamp: String,
+    
 }
 
 impl Runner for BridgeStep {
@@ -84,7 +77,7 @@ impl Runner for BridgeStep {
             src_indexer,
             nonce,
             dest_indexer,
-            self.amount,
+            self.spend,
             &self.dest_timestamp,
         )
         .or(Err("Can't confirm transaction"))?)
@@ -107,7 +100,7 @@ impl Runner for BridgeStep {
                 signer,
                 self.from.clone(),
                 recipient.clone(),
-                self.amount,
+                self.spend,
                 ExtraParam {
                     tip: 0,
                     nonce: Some(nonce),
@@ -121,7 +114,7 @@ impl Runner for BridgeStep {
             &self.source_chain,
             &self.dest_chain,
             &hex::encode(&recipient),
-            self.amount,
+            self.spend,
             hex::encode(&tx_id)
         );
         Ok(tx_id)
@@ -158,7 +151,7 @@ impl Runner for BridgeStep {
             src_indexer,
             nonce,
             dest_indexer,
-            self.amount,
+            self.spend,
             &self.dest_timestamp,
         )
         .or(Err("Can't confirm transaction"))

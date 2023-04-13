@@ -138,6 +138,8 @@ impl DexExecutor for AcalaDexExecutor {
 
 #[cfg(test)]
 mod tests {
+    use core::str::FromStr;
+
     use super::*;
     use crate::assets::{CurrencyId, TokenSymbol};
     use crate::utils::ToArray;
@@ -231,5 +233,16 @@ mod tests {
         assert!(executor
             .aggregated_swap(signer, path, spend, recipient, ExtraParam::default())
             .is_ok());
+    }
+
+    use pink_web3::types::H160;
+    #[test]
+    fn abcde() {
+        // 307833613632613439383062393532433932663464343234336334413030393333364565306132366542 => 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB
+        let a = hex::decode("307833613632613439383062393532433932663464343234336334413030393333364565306132366542").unwrap();
+        let s = String::from_utf8_lossy(&a);
+        let b = H160::from_str(&s).unwrap();
+        dbg!(s);
+        dbg!(b);
     }
 }

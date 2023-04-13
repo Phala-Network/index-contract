@@ -465,13 +465,10 @@ impl DepositData {
                         spend_asset: self.decode_address(&op.spend_asset)?,
                         receive_asset: self.decode_address(&op.receive_asset)?,
                         chain: op.source_chain.clone(),
-                        dex: op.dex.clone(),
-                        cap: self.u128_from_string(&op.cap)?,
-                        flow: self.u128_from_string(&op.flow)?,
-                        impact: self.u128_from_string(&op.impact)?,
-                        b0: None,
-                        b1: None,
+                        name: op.tag.clone(),
                         spend: self.u128_from_string(&op.spend)?,
+                        receive_max: self.u128_from_string(&op.receive_max)?,
+                        receive_min: self.u128_from_string(&op.receive_min)?,
                         recipient: None,
                     }),
                     chain: op.source_chain.clone(),
@@ -480,16 +477,14 @@ impl DepositData {
             } else if op.op_type == *"bridge" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Bridge(BridgeStep {
+                        name: op.tag.clone(),
                         from: self.decode_address(&op.spend_asset)?,
                         source_chain: op.source_chain.clone(),
                         to: self.decode_address(&op.receive_asset)?,
                         dest_chain: op.dest_chain.clone(),
-                        fee: self.u128_from_string(&op.fee)?,
-                        cap: self.u128_from_string(&op.cap)?,
-                        flow: self.u128_from_string(&op.flow)?,
-                        b0: None,
-                        b1: None,
-                        amount: self.u128_from_string(&op.spend)?,
+                        spend: self.u128_from_string(&op.spend)?,
+                        receive_max: self.u128_from_string(&op.receive_max)?,
+                        receive_min: self.u128_from_string(&op.receive_min)?,
                         recipient: None,
                         dest_timestamp: "0".into(),
                     }),
@@ -502,10 +497,10 @@ impl DepositData {
                         asset: self.decode_address(&op.spend_asset)?,
                         amount: self.u128_from_string(&op.spend)?,
                         chain: op.source_chain.clone(),
-                        b0: None,
-                        b1: None,
+                        spend: self.u128_from_string(&op.spend)?,
+                        receive_max: self.u128_from_string(&op.receive_max)?,
+                        receive_min: self.u128_from_string(&op.receive_min)?,
                         recipient: None,
-                        flow: self.u128_from_string(&op.flow)?,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -538,16 +533,14 @@ type TaskDataJson = Vec<OperationJson>;
 #[derive(Deserialize)]
 struct OperationJson {
     op_type: String,
+    tag: String,
     source_chain: String,
     dest_chain: String,
     spend_asset: String,
     receive_asset: String,
-    dex: String,
-    fee: String,
-    cap: String,
-    flow: String,
-    impact: String,
     spend: String,
+    receive_min: String,
+    receive_max: String,
 }
 
 #[cfg(test)]
@@ -564,7 +557,32 @@ mod tests {
 
     #[test]
     fn test_json_parse() {
-        let request = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
+        let request = r#"
+        [
+            {
+              tag: 'AcalaDex',
+              spend: 9577071932307798,
+              sourceChain: 'Acala',
+              destChain: 'Acala',
+              spendAsset: 'ACA',
+              receiveAsset: 'AUSD',
+              receiveMin: 1970478348022065,
+              receiveMax: 2092363606662605,
+              opType: 'dex'
+            },
+            {
+              tag: 'Acala',
+              spend: 2031420977342335,
+              sourceChain: 'Acala',
+              destChain: 'Acala',
+              spendAsset: 'AUSD',
+              receiveAsset: 'AUSD',
+              receiveMin: 1970275743439996,
+              receiveMax: 2092148469838346,
+              opType: 'transfer'
+            }
+        ]
+        "#;
         let _request_data_json: TaskDataJson = pink_json::from_str(&request).unwrap();
     }
 
@@ -611,7 +629,7 @@ mod tests {
             ) => {
                 assert_eq!(claim_step.chain, String::from("Ethereum"));
                 assert_eq!(swap_meta.spend, 100_000_000_000_000_000_000 as u128);
-                assert_eq!(bridge_meta.amount, 12_000_000);
+                assert_eq!(bridge_meta.spend, 12_000_000);
             }
             _ => assert!(false),
         }
@@ -722,7 +740,7 @@ mod tests {
                 StepMeta::Swap(swap_meta),
             ) => {
                 assert_eq!(claim_step.chain, String::from("Khala"));
-                assert_eq!(bridge_meta.amount, 301_000_000_000_000);
+                assert_eq!(bridge_meta.spend, 301_000_000_000_000);
                 assert_eq!(swap_meta.spend, 1_000_000_000_000_000_000 as u128);
             }
             _ => assert!(false),
