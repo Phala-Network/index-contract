@@ -475,10 +475,9 @@ impl OnchainAccounts {
     /// Return worker account that hasn't been allocated yet. Return `Nonce` if not set in rollup storage.
     pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Option<Vec<[u8; 32]>> {
         if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
-            return match Decode::decode(&mut raw_accounts.as_slice()) {
-                Ok(free_accounts) => free_accounts,
-                Err(_) => None,
-            };
+            let free_accounts: Option<Vec<[u8; 32]>> =
+                Decode::decode(&mut raw_accounts.as_slice()).ok();
+            return free_accounts;
         }
         None
     }
