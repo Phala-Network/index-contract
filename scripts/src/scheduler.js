@@ -1,18 +1,16 @@
 require('console-stamp')(console, '[HH:MM:ss.l]')
-const { ContractPromise } = require('@polkadot/api-contract')
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api')
 const PhalaSdk = require('@phala/sdk')
 const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
-const fs = require('fs')
 const path = require('path')
 
-const { loadContractFile, createContract } = require('utils');
+const { loadContractFile, createContract } = require('./utils');
 
 const NODE_ENDPOINT = 'wss://poc5.phala.network/ws'
 const PRUNTIME_ENDPOINT = 'https://poc5.phala.network/tee-api-1'
-const CONTRACT_ID = '0x90a1cbf2a00c76e16d53cd3568c639eacbb30076138cf38270e4673f37c6a3ff'
-const EXE_WORKER = '0x2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955'
+const CONTRACT_ID = '0x73764ed5e41d6d702a8ba80475a4d46a9597876b055ac6866e05a4cfee2b9db6'
+const EXE_WORKER = '0xf455d5ae94e19db3ff7e045602a449febdf713ec26941b9005da8f80ddbcab43'
 const SOURCE = 'Moonbeam'
 
 async function loop_task() {
@@ -50,16 +48,16 @@ async function loop_task() {
                 {},
                 {'Fetch': [SOURCE, EXE_WORKER]}
             )
-        }, 30000)
+        }, 15000)
 
         // Trigger task executing every 10 seconds
-        setInterval(async () => {
-            console.log(`🐌Trigger task executing`)
-            await executor.query.run(certAlice,
-                {},
-                'Execute'
-            )
-        }, 10000)
+        // setInterval(async () => {
+        //     console.log(`🐌Trigger task executing`)
+        //     await executor.query.run(certAlice,
+        //         {},
+        //         'Execute'
+        //     )
+        // }, 10000)
     })
 }
 
@@ -71,3 +69,5 @@ async function main() {
         console.error(`task run failed: ${err}`)
     }
 }
+
+main()
