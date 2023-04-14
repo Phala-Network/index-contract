@@ -290,7 +290,7 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn unpause_executor(&mut self) -> Result<()> {
+        pub fn resume_executor(&mut self) -> Result<()> {
             self.ensure_owner()?;
             self.ensure_paused()?;
             self.is_paused = false;

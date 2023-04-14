@@ -66,7 +66,7 @@ mod key_store {
             Ok(())
         }
 
-        /// Only whitelisted executors are allowed to call this function
+        /// Only the whitelisted executor are allowed to call this function
         #[ink(message)]
         pub fn get_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
             self.ensure_executor()?;
