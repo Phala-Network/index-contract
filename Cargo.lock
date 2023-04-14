@@ -1661,7 +1661,6 @@ name = "key_store"
 version = "0.1.0"
 dependencies = [
  "dotenv",
- "index",
  "ink",
  "ink_env",
  "parity-scale-codec",

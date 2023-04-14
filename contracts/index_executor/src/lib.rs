@@ -335,7 +335,6 @@ mod index_executor {
             self.ensure_graph_set()?;
 
             let config = self.ensure_configured()?;
-            pink_extension::debug!("Runing check passed, start to run");
             let contract_id = self.env().account_id();
             let mut client = SubstrateRollupClient::new(
                 &config.rollup_endpoint,
@@ -348,7 +347,6 @@ mod index_executor {
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
-                    pink_extension::debug!("Runing type: fetch");
                     self.fetch_task(&mut client, source_chain, worker)?
                 }
                 RunningType::Execute => self.execute_task(&mut client)?,
@@ -445,8 +443,6 @@ mod index_executor {
             // Worker sr25519 public key
             worker: [u8; 32],
         ) -> Result<()> {
-            pink_extension::debug!("Fetch actived task from {:?}, chain ifno: ${:?}", &source_chain, self.get_chain(source_chain.clone())
-            .ok_or(Error::ChainNotFound)?);
             // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
                 self.get_chain(source_chain.clone())

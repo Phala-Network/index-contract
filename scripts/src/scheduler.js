@@ -5,12 +5,13 @@ const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const path = require('path')
 
-const { loadContractFile, createContract } = require('./utils');
+const { loadContractFile, createContract } = require('./utils')
+const config = require('./config.poc5.json')
 
 const NODE_ENDPOINT = 'wss://poc5.phala.network/ws'
 const PRUNTIME_ENDPOINT = 'https://poc5.phala.network/tee-api-1'
-const CONTRACT_ID = '0x73764ed5e41d6d702a8ba80475a4d46a9597876b055ac6866e05a4cfee2b9db6'
-const EXE_WORKER = '0xf455d5ae94e19db3ff7e045602a449febdf713ec26941b9005da8f80ddbcab43'
+const CONTRACT_ID = config.executor_contract_id
+const EXE_WORKERS = config.workers
 const SOURCE = 'Moonbeam'
 
 async function loop_task() {
@@ -39,25 +40,33 @@ async function loop_task() {
             pair: alice,
         })
 
+        if ((await executor.query.isRunning(certAlice, {})).asOk === false) {
+            throw new Error("Executor not running")
+        }
+
         console.log(`Start query contract periodically...`)
 
         // Trigger task search every 30 seconds
         setInterval(async () => {
-            console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${EXE_WORKER}`)
-            await executor.query.run(certAlice,
-                {},
-                {'Fetch': [SOURCE, EXE_WORKER]}
-            )
+            for (let worker in EXE_WORKERS) {
+                console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${worker}`)
+                let { output } = await executor.query.run(certAlice,
+                    {},
+                    {'Fetch': [SOURCE, worker]}
+                )
+                console.log(`Fetch result: ${JSON.stringify(output, null, 2)}`)
+            }
         }, 15000)
 
         // Trigger task executing every 10 seconds
-        // setInterval(async () => {
-        //     console.log(`🐌Trigger task executing`)
-        //     await executor.query.run(certAlice,
-        //         {},
-        //         'Execute'
-        //     )
-        // }, 10000)
+        setInterval(async () => {
+            console.log(`🐌Trigger task executing`)
+            let {output} = await executor.query.run(certAlice,
+                {},
+                'Execute'
+            )
+            console.log(`Execute result: ${JSON.stringify(output, null, 2)}`)
+        }, 10000)
     })
 }
 

@@ -13,6 +13,13 @@
             "Moonbeam": "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB"
         }
     ],
+    "workers": [
+        "0xf243902011fdd1fb49b607740a4a5019da3a2116c3b39e63ccc70b1383627839",
+        "0x74cd4b3e1004398180d7c19a9e43375895b57fe3b131ad191ed5b761318c737b",
+        "0xf455d5ae94e19db3ff7e045602a449febdf713ec26941b9005da8f80ddbcab43",
+        "0x46a5c708bbf00a660c89d21d225943f9c975a1ccd11c2cb20401e1fd52e4d640",
+        "0xb48110e1d0de453d62e7e2508ad64152cc0b2a0a8c873d10cc5c54fb8a9f8175"
+    ],
     "chains": [
         {
             "Goerli": "https://goerli.infura.io/v3/6d61e7957c1c489ea8141e947447405b"

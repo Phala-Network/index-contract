@@ -17,8 +17,6 @@ scale-info = { version = "2.1", default-features = false, features = ["derive"],
 pink-extension = { version = "0.4.1", default-features = false }
 pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 
-index = { path = "../../index", default-features = false }
-
 [dev-dependencies]
 pink-extension-runtime = "0.4.0"
 dotenv = "0.15.0"
@@ -47,7 +45,6 @@ std = [
     "scale-info/std",
     "pink-extension/std",
     "pink-web3/std",
-    "index/std",
 ]
 ink-as-dependency = []
 
