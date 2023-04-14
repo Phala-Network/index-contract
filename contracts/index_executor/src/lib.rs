@@ -381,7 +381,7 @@ mod index_executor {
         /// Return executor status
         #[ink(message)]
         pub fn is_running(&self) -> Result<bool> {
-            Ok(self.is_paused == false)
+            Ok(!self.is_paused)
         }
 
         /// For cross-contract call test
