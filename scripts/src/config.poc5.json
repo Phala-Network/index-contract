@@ -1,0 +1,40 @@
+{
+    "node_wss_endpoint": "wss://poc5.phala.network/ws",
+    "pruntine_endpoint": "https://poc5.phala.network/tee-api-1",
+
+    "executor_contract_id": "0xa51e5bb5e5678bc5a7212931ae344c88df3b5d405b7a0323b05e7ad19cbe4514",
+    "key_store_contract_id": "0x3a54c7576699d61ff1b5c57502d521a986b1f4bb83c4bca186ab2cb4a1a9769a",
+
+    "handlers": [
+        {
+            "Goerli": "0x7da7D95B07Ba569945e33e93063600c4A434FC6a"
+        },
+        {
+            "Moonbeam": "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB"
+        }
+    ],
+    "workers": [
+        "0xf243902011fdd1fb49b607740a4a5019da3a2116c3b39e63ccc70b1383627839",
+        "0x74cd4b3e1004398180d7c19a9e43375895b57fe3b131ad191ed5b761318c737b",
+        "0xf455d5ae94e19db3ff7e045602a449febdf713ec26941b9005da8f80ddbcab43",
+        "0x46a5c708bbf00a660c89d21d225943f9c975a1ccd11c2cb20401e1fd52e4d640",
+        "0xb48110e1d0de453d62e7e2508ad64152cc0b2a0a8c873d10cc5c54fb8a9f8175"
+    ],
+    "chains": [
+        {
+            "Goerli": "https://goerli.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
+        },
+        {
+            "Poc5": "https://poc5.phala.network/rpc"
+        },
+        {
+            "Khala": "https://khala-api.phala.network/rpc"
+        },
+        {
+            "Phala": "https://api.phala.network/rpc"
+        },
+        {
+            "Moonbeam": "https://rpc.api.moonbeam.network"
+        }
+    ]
+}

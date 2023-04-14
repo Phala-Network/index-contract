@@ -1,0 +1,52 @@
+[package]
+name = "key_store"
+version = "0.1.0"
+authors = ["Phala Network"]
+edition = "2021"
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/index-contract"
+
+[dependencies]
+serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
+ink = { version = "4.0.1", default-features = false }
+ink_env = { version = "4.0.1", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
+
+pink-extension = { version = "0.4.1", default-features = false }
+pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink", "signing"]}
+
+[dev-dependencies]
+pink-extension-runtime = "0.4.0"
+dotenv = "0.15.0"
+
+[profile.release]
+overflow-checks = false     # Disable integer overflow checks.
+lto = false  
+
+[lib]
+name = "key_store"
+path = "src/lib.rs"
+crate-type = [
+	# Used for normal contract Wasm blobs.
+	"cdylib",
+    # Used for ABI generation.
+    "rlib",
+]
+
+[features]
+default = ["std"]
+std = [
+    "serde/std",
+    "ink/std",
+    "ink_env/std",
+    "scale/std",
+    "scale-info/std",
+    "pink-extension/std",
+    "pink-web3/std",
+]
+ink-as-dependency = []
+
+[patch.crates-io]
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }

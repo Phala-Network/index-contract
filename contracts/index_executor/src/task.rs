@@ -77,24 +77,35 @@ impl Task {
             // Task already saved, return
             return Ok(());
         }
-        if let Some(account) = free_accounts.pop() {
-            // Apply a worker account
-            self.worker = account;
-            // Apply worker nonce for each step in task
-            self.apply_nonce(context, client)?;
-            // Apply recipient for each step in task
-            self.apply_recipient(context)?;
-            // TODO: query initial balance of worker account and setup to specific step
-            self.status = TaskStatus::Initialized;
-            self.execute_index = 0;
-            // Push to pending tasks queue
-            pending_tasks.push(self.id);
-            // Save task data
-            client.session().put(self.id.as_ref(), self.encode());
+
+        // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
+        if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
+            free_accounts.remove(index);
+            pink_extension::debug!(
+                "Worker {:?} is free, will be applied to this task {:?}.",
+                hex::encode(self.worker),
+                hex::encode(self.id)
+            );
         } else {
-            // We can not handle more tasks any more
-            return Ok(());
+            pink_extension::debug!(
+                "Worker {:?} is busy, try again later for this task {:?}.",
+                hex::encode(self.worker),
+                hex::encode(self.id)
+            );
+            return Err("WorkerIsBusy");
         }
+
+        // Apply worker nonce for each step in task
+        self.apply_nonce(context, client)?;
+        // Apply recipient for each step in task
+        self.apply_recipient(context)?;
+        // TODO: query initial balance of worker account and setup to specific step
+        self.status = TaskStatus::Initialized;
+        self.execute_index = 0;
+        // Push to pending tasks queue
+        pending_tasks.push(self.id);
+        // Save task data
+        client.session().put(self.id.as_ref(), self.encode());
 
         client
             .session()
@@ -464,10 +475,9 @@ impl OnchainAccounts {
     /// Return worker account that hasn't been allocated yet. Return `Nonce` if not set in rollup storage.
     pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Option<Vec<[u8; 32]>> {
         if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
-            return match Decode::decode(&mut raw_accounts.as_slice()) {
-                Ok(free_accounts) => free_accounts,
-                Err(_) => None,
-            };
+            let free_accounts: Option<Vec<[u8; 32]>> =
+                Decode::decode(&mut raw_accounts.as_slice()).ok();
+            return free_accounts;
         }
         None
     }

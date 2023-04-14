@@ -1,42 +1,18 @@
 require('console-stamp')(console, '[HH:MM:ss.l]')
-const { ContractPromise } = require('@polkadot/api-contract')
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api')
 const PhalaSdk = require('@phala/sdk')
 const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
-const fs = require('fs')
 const path = require('path')
+
+const { loadContractFile, createContract } = require('./utils')
+const config = require('./config.poc5.json')
 
 const NODE_ENDPOINT = 'wss://poc5.phala.network/ws'
 const PRUNTIME_ENDPOINT = 'https://poc5.phala.network/tee-api-1'
-const CONTRACT_ID = '0x90a1cbf2a00c76e16d53cd3568c639eacbb30076138cf38270e4673f37c6a3ff'
-const EXE_WORKER = '0x2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955'
+const CONTRACT_ID = config.executor_contract_id
+const EXE_WORKERS = config.workers
 const SOURCE = 'Moonbeam'
-
-function loadContractFile(contractFile) {
-    const metadata = JSON.parse(fs.readFileSync(contractFile, 'utf8'))
-    const constructor = metadata.V3.spec.constructors.find(
-      c => c.label == 'default',
-    ).selector
-    const name = metadata.contract.name
-    const wasm = metadata.source.wasm
-    return { wasm, metadata, constructor, name }
-}
-
-async function createContract(api, pruntimeUrl, contract, contractID) {
-    const { api: workerApi } = await PhalaSdk.create({
-      api,
-      baseURL: pruntimeUrl,
-      contractId: contractID,
-      autoDeposit: true,
-    })
-    const contractApi = new ContractPromise(
-      workerApi,
-      contract.metadata,
-      contractID,
-    )
-    return contractApi
-}
 
 async function loop_task() {
     return new Promise(async (_resolve, reject) => {
@@ -64,24 +40,32 @@ async function loop_task() {
             pair: alice,
         })
 
+        if ((await executor.query.isRunning(certAlice, {})).asOk === false) {
+            throw new Error("Executor not running")
+        }
+
         console.log(`Start query contract periodically...`)
 
         // Trigger task search every 30 seconds
         setInterval(async () => {
-            console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${EXE_WORKER}`)
-            await executor.query.run(certAlice,
-                {},
-                {'Fetch': [SOURCE, EXE_WORKER]}
-            )
-        }, 30000)
+            for (let worker in EXE_WORKERS) {
+                console.log(`🔍Trigger actived task search from ${SOURCE} for worker ${worker}`)
+                let { output } = await executor.query.run(certAlice,
+                    {},
+                    {'Fetch': [SOURCE, worker]}
+                )
+                console.log(`Fetch result: ${JSON.stringify(output, null, 2)}`)
+            }
+        }, 15000)
 
         // Trigger task executing every 10 seconds
         setInterval(async () => {
             console.log(`🐌Trigger task executing`)
-            await executor.query.run(certAlice,
+            let {output} = await executor.query.run(certAlice,
                 {},
                 'Execute'
             )
+            console.log(`Execute result: ${JSON.stringify(output, null, 2)}`)
         }, 10000)
     })
 }

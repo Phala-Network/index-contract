@@ -29,6 +29,7 @@ pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-w
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
 pink-subrpc = { version = "0.4.2", default-features = false }
 index = { path = "../../index", default-features = false }
+worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
 env_logger = "0.10.0"
@@ -70,6 +71,7 @@ std = [
     "pink-json/std",
     "pink-subrpc/std",
     "index/std",
+    "worker_key_store/std",
     "sp-std/std",
 ]
 ink-as-dependency = []
