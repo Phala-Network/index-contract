@@ -161,17 +161,6 @@ impl Task {
                 return Ok(self.status.clone());
             }
 
-            // Settle before execute next step
-            let settle_balance = self.settle(context)?;
-            pink_extension::debug!(
-                "Settle balance of last step[{:?}], settle amount: {:?}",
-                (self.execute_index - 1),
-                settle_balance,
-            );
-            // Update balance that actually can be consumed
-            self.update_balance(settle_balance, context)?;
-            pink_extension::debug!("Finished previous step execution");
-
             // update bridge recipient timestamp
             if let StepMeta::Bridge(bridge_step) = &mut self.steps[self.execute_index as usize].meta
             {
@@ -354,116 +343,6 @@ impl Task {
         Ok(())
     }
 
-    fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-
-        let last_step = self.steps[(self.execute_index - 1) as usize].clone();
-        let worker_account = AccountInfo::from(context.signer);
-        Ok(match last_step.meta {
-            StepMeta::Claim(claim_step) => {
-                let old_balance = claim_step.b0.ok_or("MisingOriginBalance")?;
-                let latest_balance =
-                    worker_account.get_balance(claim_step.chain, claim_step.asset, context)?;
-                // FIXME: what if some bad guy transfer this asset into worker account
-                latest_balance.saturating_sub(old_balance)
-            }
-            StepMeta::Swap(swap_step) => {
-                let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance = worker_account.get_balance(
-                    swap_step.chain,
-                    swap_step.receive_asset,
-                    context,
-                )?;
-                latest_balance.saturating_sub(old_balance)
-            }
-            StepMeta::Bridge(bridge_step) => {
-                // Old balance on dest chain
-                let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance =
-                    worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
-                latest_balance.saturating_sub(old_balance)
-            }
-            StepMeta::Transfer(transfer_step) => {
-                // Old balance on dest chain
-                let old_balance = transfer_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance = worker_account.get_balance(
-                    transfer_step.chain,
-                    transfer_step.asset,
-                    context,
-                )?;
-                latest_balance.saturating_sub(old_balance)
-            }
-        })
-    }
-
-    fn update_balance(
-        &mut self,
-        settle_balance: u128,
-        context: &Context,
-    ) -> Result<(), &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-        let worker_account = AccountInfo::from(context.signer);
-        match &mut self.steps[self.execute_index as usize].meta {
-            StepMeta::Swap(swap_step) => {
-                swap_step.spend = settle_balance.min(swap_step.flow);
-
-                // Update the original balance of worker account
-                let latest_b0 = worker_account.get_balance(
-                    swap_step.chain.clone(),
-                    swap_step.spend_asset.clone(),
-                    context,
-                )?;
-                let latest_b1 = worker_account.get_balance(
-                    swap_step.chain.clone(),
-                    swap_step.receive_asset.clone(),
-                    context,
-                )?;
-                swap_step.b0 = Some(latest_b0);
-                swap_step.b1 = Some(latest_b1);
-            }
-            StepMeta::Bridge(bridge_step) => {
-                bridge_step.amount = settle_balance.min(bridge_step.flow);
-
-                // Update bridge asset the original balance of worker account
-                let latest_b0 = worker_account.get_balance(
-                    bridge_step.source_chain.clone(),
-                    bridge_step.from.clone(),
-                    context,
-                )?;
-                let latest_b1 = worker_account.get_balance(
-                    bridge_step.dest_chain.clone(),
-                    bridge_step.to.clone(),
-                    context,
-                )?;
-                bridge_step.b0 = Some(latest_b0);
-                bridge_step.b1 = Some(latest_b1);
-            }
-            StepMeta::Transfer(transfer_step) => {
-                transfer_step.amount = settle_balance.min(transfer_step.flow);
-
-                // sender's balance
-                let latest_b0 = worker_account.get_balance(
-                    transfer_step.chain.clone(),
-                    transfer_step.asset.clone(),
-                    context,
-                )?;
-                // recipeint's balance
-                let latest_b1 = worker_account.get_balance(
-                    transfer_step.chain.clone(),
-                    transfer_step.asset.clone(),
-                    context,
-                )?;
-                transfer_step.b0 = Some(latest_b0);
-                transfer_step.b1 = Some(latest_b1);
-            }
-            _ => return Err("UnexpectedStep"),
-        }
-        Ok(())
-    }
 }
 
 pub struct OnchainTasks;

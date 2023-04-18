@@ -11,7 +11,7 @@ use scale::{Decode, Encode};
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct BridgeStep {
-    name: String,
+    pub name: String,
     /// Asset id on source chain
     pub from: Vec<u8>,
     /// Name of source chain
