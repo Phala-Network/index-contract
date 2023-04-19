@@ -36,6 +36,7 @@ We need to config executor contract after deployed, stuff contains:
 1) import worker key from KeyStore contract (call executor.config);
 2) claim rollup storage (call executor.setup_rollup);
 3) setup worker account in rollup storage (call executor.setup_worker_on_rollup);
+4) resume executor (call executor.resume_executor);
 
 Now, issue command
 
