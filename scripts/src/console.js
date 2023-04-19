@@ -7,11 +7,12 @@ const { Decimal } = require('decimal.js');
 const BN = require('bn.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
+const { stringToHex } = require('@polkadot/util');
 const ethers = require('ethers')
 const PhalaSdk = require('@phala/sdk')
 const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
-const { loadContractFile, createContract } = require('./utils');
+const { loadContractFile, createContract, delay } = require('./utils');
 
 const ERC20ABI = require('./ERC20ABI.json')
 const HandlerABI = require('./HandlerABI.json')
@@ -75,6 +76,12 @@ async function useCert(uri, api) {
     });
 }
 
+async function usePair(uri) {
+    await cryptoWaitReady();
+    const keyring = new Keyring({ type: 'sr25519' })
+    return keyring.addFromUri(uri)
+}
+
 function useEtherProvider(endpoint) {
     return new ethers.JsonRpcProvider(endpoint)
 }
@@ -108,9 +115,41 @@ async function useExecutor(api, pruntime_endpoint, contract_id) {
     return await createContract(api, pruntime_endpoint, contract, contract_id)
 }
 
+async function useKeystore(api, pruntime_endpoint, contract_id) {
+    const contract = loadContractFile(
+        path.join(__dirname, '../../target/ink/key_store/key_store.contract'),
+    )
+    console.log(`Connected to node, create contract object`)
+    return await createContract(api, pruntime_endpoint, contract, contract_id)
+}
+
 program
     .option('--config <path>', 'config that contains contract and node informations', process.env.CONFIG || 'config.json')
     .option('--uri <URI>', 'the account URI use to sign cert', process.env.URI || '//Alice')
+
+const keystore = program
+.command('keystore')
+.description('inDEX keystore');
+
+keystore
+    .command('set-executor')
+    .description('set executor contract id to keystore')
+    .action(run(async (opt) => {
+        let { uri } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let cert = await useCert(uri, api);
+        let pair = await usePair(uri);
+        let keystore = await useKeystore(api, config.pruntine_endpoint, config.key_store_contract_id);
+        // costs estimation
+        let { gasRequired, storageDeposit } = await keystore.query.setExecutor(cert, {}, config.executor_contract_id);
+        // transaction / extrinct
+        let options = {
+            gasLimit: gasRequired.refTime,
+            storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+        };
+        await keystore.tx.setExecutor(options, config.executor_contract_id).signAndSend(pair, { nonce: -1 });
+    }));
 
 const executor = program
 .command('executor')
@@ -119,16 +158,80 @@ const executor = program
 executor
     .command('account')
     .description('show executor account information')
-    .option('--balance <worker>', 'worker sr25519 public key', null)
+    .option('--balance', 'executor account sr25519 public key', false)
     .action(run(async (opt) => {
-        // TODO
+        let { uri } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
+        let cert = await useCert(uri, api);
+        let {output} = (await executor.query.getExecutorAccount(cert,
+            {},
+        ));
+        let executor_account = output.toJSON().ok;
+        if (opt.balance !== false) {
+            console.log(`account: ${JSON.stringify(executor_account, null, 2)}, balance: ${(await api.query.system.account(executor_account.account32)).data.free}`);
+        } else {
+            console.log(`account: ${JSON.stringify(executor_account, null, 2)}`);
+        }
     }));
 
 executor
-    .command('balance')
-    .description('return executor account balance on anchor chain')
+    .command('setup')
+    .description('setup executor, stuff contains 1) import worker key from KeyStore contract; 2) claim rollup storage; 3) setup worker account in rollup storage')
+    .option('--resume', 'resume executor', false)
     .action(run(async (opt) => {
-        // TODO
+        let { uri } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
+        let cert = await useCert(uri, api);
+        let pair = await usePair(uri);
+
+        {
+            // costs estimation
+            let { gasRequired, storageDeposit } = await executor.query.config(cert, {},
+                100,
+                config.node_rpc_endpoint,
+                config.key_store_contract_id,
+            );
+            // transaction / extrinct
+            let options = {
+                gasLimit: gasRequired.refTime,
+                storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+            };
+            await executor.tx.config(options,
+                100,
+                config.node_rpc_endpoint,
+                config.executor_contract_id,
+            ).signAndSend(pair, { nonce: -1 });
+            console.log(`1) Config done`)
+        }
+
+        await delay(10*1000);   // 10 seconds
+        {
+            await executor.query.setupRollup(cert, {});
+            console.log(`2) Claim rollup storage done`)
+        }
+
+        await delay(10*1000);   // 10 seconds
+        {
+            await executor.query.setupWorkerOnRollup(cert, {});
+            console.log(`3) Setup worker on rollup done`)
+        }
+
+        if (opt.resume !== false) {
+            // costs estimation
+            let { gasRequired, storageDeposit } = await executor.query.resumeExecutor(cert, {});
+            // transaction / extrinct
+            let options = {
+                gasLimit: gasRequired.refTime,
+                storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+            };
+            await executor.tx.resumeExecutor(options).signAndSend(pair, { nonce: -1 });
+            console.log(`4) Resume executor done`);
+        }
+        console.log(`Finished executor configuration!`);
     }));
 
 executor
