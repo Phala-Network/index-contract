@@ -1,3 +1,5 @@
+use crate::steps::ExtraResult;
+
 use super::context::Context;
 use alloc::vec::Vec;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
@@ -21,7 +23,7 @@ pub trait Runner {
     /// Check if a job is already executed successfully when executing the job.
     ///
     /// Only when the transaction was successfully executed, it can return `true`
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str>;
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str>;
 
     /// Check if a job is already executed successfully when sync (recover) from rollup.
     ///
@@ -29,5 +31,9 @@ pub trait Runner {
     /// source chain, but also need to be executed on dest chain. We can not acquire
     /// enough information from phat contract, so to check result on dest chain, we
     /// must depend on the information of off-chain indexer
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str>;
+    fn sync_check(
+        &self,
+        nonce: u64,
+        context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str>;
 }

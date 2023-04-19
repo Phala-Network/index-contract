@@ -33,6 +33,8 @@ use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_extension::ResultExt;
 use serde::Deserialize;
 
+use super::ExtraResult;
+
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
 /// For example, call RPC method defined here:
 ///     https://github.com/Phala-Network/index-solidity/blob/0a1efe4b228185a37635dd872e1130eb3564ef6a/contracts/Handler.sol#L108
@@ -86,7 +88,7 @@ impl Runner for ClaimStep {
         }
     }
 
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
         let worker = KeyPair::from(context.signer);
 
         // TODO. query off-chain indexer directly get the execution result
@@ -99,12 +101,16 @@ impl Runner for ClaimStep {
         let onchain_nonce = chain
             .get_nonce(worker.address().as_bytes().into())
             .map_err(|_| "FetchNonceFailed")?;
-        Ok((onchain_nonce - nonce) == 1)
+        Ok(((onchain_nonce - nonce) == 1, ExtraResult::None))
 
         // TODO: Check if the transaction is successed or not
     }
 
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn sync_check(
+        &self,
+        nonce: u64,
+        context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str> {
         self.check(nonce, context)
     }
 }
@@ -532,6 +538,7 @@ impl DepositData {
 type TaskDataJson = Vec<OperationJson>;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OperationJson {
     op_type: String,
     tag: String,
@@ -697,7 +704,7 @@ mod tests {
         // Wait 60 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(60000));
 
-        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+        assert_eq!(claim_step.check(nonce, &context).unwrap().0, true);
     }
 
     #[test]
@@ -799,7 +806,7 @@ mod tests {
         // Wait 30 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(30000));
 
-        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
+        assert_eq!(claim_step.check(nonce, &context).unwrap().0, true);
         // After claim, asset sent from pallet-index account to worker account
         assert_eq!(
             khala.get_balance(pha, mock_worker_pub_key.into()).unwrap() - 301_000_000_000_000u128
