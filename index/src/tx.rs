@@ -4,6 +4,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use pink_extension::http_post;
+use pink_web3::futures::executor::block_on;
 use scale::Decode;
 use serde::Deserialize;
 
@@ -247,10 +248,10 @@ pub fn is_bridge_tx_ok(
     receive_max: u128,
     block_number: u64,
     index_in_block: u64,
-) -> Result<(bool, Option<(u64, u64)>), Error> {
+) -> Result<(bool, (u64, u64)), Error> {
     // check if source tx is ok
     if !is_tx_ok(src_indexer, account, src_nonce)? {
-        return Ok((false, None));
+        return Ok((false, (block_number, index_in_block)));
     }
     // check if dest tx is ok
     is_bridge_dest_tx_ok(
@@ -270,7 +271,7 @@ fn is_bridge_dest_tx_ok(
     receive_max: u128,
     block_number: u64,
     index_in_block: u64,
-) -> Result<(bool, Option<(u64, u64)>), Error> {
+) -> Result<(bool, (u64, u64)), Error> {
     // check if on dest chain the recipient has a corresponding event
     let events =
         get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
@@ -278,11 +279,11 @@ fn is_bridge_dest_tx_ok(
     for event in events {
         if receive_min < event.amount && receive_max > event.amount {
             // event found! the block info should be saved to the next step
-            return Ok((true, Some((event.block_number, event.index_in_block))));
+            return Ok((true, (event.block_number, event.index_in_block)));
         }
     }
 
-    Ok((false, None))
+    Ok((false, (block_number, index_in_block)))
 }
 
 #[cfg(test)]
@@ -379,6 +380,6 @@ mod tests {
         .unwrap();
         dbg!(res);
         assert!(res.0);
-        assert_eq!(res.1.unwrap(), (2705255, 7));
+        assert_eq!(res.1, (2705255, 7));
     }
 }

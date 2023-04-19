@@ -2,10 +2,11 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use index::graph::BalanceFetcher;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
+
+use super::ExtraResult;
 
 /// Definition of swap operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -81,7 +82,7 @@ impl Runner for TransferStep {
 
     /// nonce: from the current state, haven't synced with the onchain state,
     ///     must be smaller than that of the current state if the last step succeeded
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
         let recipient = self.recipient.clone().ok_or("No recipient")?;
         let worker = AccountInfo::from(context.signer);
         let worker_account = worker.get_raw_account(self.chain.clone(), context)?;
@@ -93,12 +94,16 @@ impl Runner for TransferStep {
         // Check nonce
         let onchain_nonce = worker.get_nonce(self.chain.clone(), context)?;
         if onchain_nonce <= nonce {
-            return Ok(false);
+            return Ok((false, ExtraResult::None));
         }
-        Ok(true)
+        Ok((true, ExtraResult::None))
     }
 
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn sync_check(
+        &self,
+        nonce: u64,
+        context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str> {
         self.check(nonce, context)
     }
 }

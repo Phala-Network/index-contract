@@ -7,6 +7,8 @@ use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
+use super::ExtraResult;
+
 /// Definition of swap operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -93,7 +95,7 @@ impl Runner for SwapStep {
 
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
         let chain = &context
@@ -104,10 +106,17 @@ impl Runner for SwapStep {
             index::graph::ChainType::Evm => worker_account.account20.to_vec(),
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
-        tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))
+        Ok((
+            tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?,
+            ExtraResult::None,
+        ))
     }
 
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn sync_check(
+        &self,
+        nonce: u64,
+        context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str> {
         self.check(nonce, context)
     }
 }

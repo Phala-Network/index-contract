@@ -7,6 +7,8 @@ use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
+use super::ExtraResult;
+
 /// Definition of bridge operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -126,7 +128,7 @@ impl Runner for BridgeStep {
 
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
         let worker_account = AccountInfo::from(context.signer);
         let src_indexer = &context
             .graph
@@ -162,11 +164,14 @@ impl Runner for BridgeStep {
         )
         .or(Err("Can't confirm transaction"))?;
 
-        Ok(tx_result.0) 
+        Ok((tx_result.0, ExtraResult::BlockInfo(tx_result.1)))
     }
 
-    fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
-        Ok(true)
-        // TODO: implement
+    fn sync_check(
+        &self,
+        _nonce: u64,
+        _context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str> {
+        Ok((true, ExtraResult::None))
     }
 }

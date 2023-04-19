@@ -1,12 +1,11 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::steps::{bridge, Step, StepMeta};
+use crate::steps::{bridge, ExtraResult, Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
-use index::tx::{get_lastest_timestamp, get_latest_event_block_info};
+use index::tx::get_latest_event_block_info;
 use ink::storage::Mapping;
-use ink_env::block_number;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
@@ -47,6 +46,8 @@ pub struct Task {
     pub sender: Vec<u8>,
     /// Recipient address on dest chain
     pub recipient: Vec<u8>,
+    /// Mapping from chain to Vec<step_index>
+    pub bridges: Vec<(String, Vec<u8>)>,
 }
 
 impl Default for Task {
@@ -60,6 +61,7 @@ impl Default for Task {
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
+            bridges: vec![],
         }
     }
 }
@@ -78,6 +80,29 @@ impl Task {
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
             // Task already saved, return
             return Ok(());
+        }
+
+        // scan for bridges
+        for (i, step) in self.steps.iter_mut().enumerate() {
+            match &mut step.meta {
+                StepMeta::Bridge(bridge_step) => {
+                    // only update the first bridge step
+                    let found = self
+                        .bridges
+                        .iter()
+                        .position(|x| x.0 == bridge_step.dest_chain);
+                    match found {
+                        Some(found) => {
+                            self.bridges[found].1.push(i as u8);
+                        }
+                        None => {
+                            self.bridges
+                                .push((bridge_step.dest_chain.clone(), vec![i as u8]));
+                        }
+                    }
+                }
+                _ => {}
+            }
         }
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
@@ -123,7 +148,7 @@ impl Task {
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         for step in self.steps.iter() {
             // A initialized task must have nonce applied
-            if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
+            if step.sync_check(step.nonce.unwrap(), context).is_ok() {
                 self.execute_index += 1;
                 // If all step executed successfully, set task as `Completed`
                 if self.execute_index as usize == self.steps.len() {
@@ -148,13 +173,12 @@ impl Task {
             return Ok(TaskStatus::Completed);
         }
 
-        // If step already executed successfully, execute next step
-        if self.steps[self.execute_index as usize].check(
+        if let Ok((true, extra)) = self.steps[self.execute_index as usize].check(
             // An executing task must have nonce applied
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
-        ) == Ok(true)
-        {
+        ) {
+            // If step already executed successfully, execute next step
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
             if self.execute_index as usize == self.steps.len() {
@@ -162,24 +186,29 @@ impl Task {
                 return Ok(self.status.clone());
             }
 
-            // update bridge recipient timestamp
-            if let StepMeta::Bridge(bridge_step) = &mut self.steps[self.execute_index as usize].meta
-            {
-                let worker_account = AccountInfo::from(context.signer);
-                let chain = &context
-                    .graph
-                    .get_chain(bridge_step.source_chain.clone())
-                    .ok_or("MissingChain")?;
-
-                let account = match chain.chain_type {
-                    index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-                    index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-                };
-
-                let block_info = get_latest_event_block_info(&chain.tx_indexer, &account)
-                    .or(Err("Can't find timestamp"))?;
-                bridge_step.block_number = block_info.block_number;
-                bridge_step.index_in_block = block_info.index_in_block;
+            if let ExtraResult::BlockInfo(block_info) = extra {
+                // the last step is a bridge step, check its dest chain
+                if let StepMeta::Bridge(bridge_step) =
+                    &mut self.steps[self.execute_index as usize - 1].meta
+                {
+                    if let Some(found) = self
+                        .bridges
+                        .iter()
+                        .position(|x| x.0 == bridge_step.dest_chain)
+                    {
+                        let step_indexes = &self.bridges[found].1;
+                        let found = step_indexes.iter().find(|x| **x > self.execute_index - 1);
+                        if let Some(i) = found {
+                            match &mut self.steps[*i as usize].meta {
+                                StepMeta::Bridge(next_bridge_step) => {
+                                    next_bridge_step.block_number = block_info.0;
+                                    next_bridge_step.index_in_block = block_info.1;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
             }
 
             // An executing task must have nonce applied
@@ -222,6 +251,7 @@ impl Task {
                 }
             }
         }
+
         Ok(self.status.clone())
     }
 
