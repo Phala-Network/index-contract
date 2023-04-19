@@ -5,7 +5,7 @@ Suppose we are playing on poc5, after deployed executor and keystore contract, a
 ```sh
 URI="<your mnemonic"
 ```
-then update `scripts/src/config.poc5.json` with the proper contract id
+then update `executor_contract_id` and `key_store_contract_id` in `scripts/src/config.poc5.json` with the proper contract id
 
 Now we are ready to start config executor and keystore contract
 
