@@ -537,7 +537,7 @@ impl DepositData {
 
 type TaskDataJson = Vec<OperationJson>;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 struct OperationJson {
     op_type: String,
@@ -568,26 +568,26 @@ mod tests {
         let request = r#"
         [
             {
-              tag: 'AcalaDex',
-              spend: 9577071932307798,
-              sourceChain: 'Acala',
-              destChain: 'Acala',
-              spendAsset: 'ACA',
-              receiveAsset: 'AUSD',
-              receiveMin: 1970478348022065,
-              receiveMax: 2092363606662605,
-              opType: 'dex'
+              "tag": "AcalaDex",
+              "spend": "9577071932307798",
+              "sourceChain": "Acala",
+              "destChain": "Acala",
+              "spendAsset": "ACA",
+              "receiveAsset": "AUSD",
+              "receiveMin": "1970478348022065",
+              "receiveMax": "2092363606662605",
+              "opType": "dex"
             },
             {
-              tag: 'Acala',
-              spend: 2031420977342335,
-              sourceChain: 'Acala',
-              destChain: 'Acala',
-              spendAsset: 'AUSD',
-              receiveAsset: 'AUSD',
-              receiveMin: 1970275743439996,
-              receiveMax: 2092148469838346,
-              opType: 'transfer'
+              "tag": "Acala",
+              "spend": "2031420977342335",
+              "sourceChain": "Acala",
+              "destChain": "Acala",
+              "spendAsset": "AUSD",
+              "receiveAsset": "AUSD",
+              "receiveMin": "1970275743439996",
+              "receiveMax": "2092148469838346",
+              "opType": "transfer"
             }
         ]
         "#;
