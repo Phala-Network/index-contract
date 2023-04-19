@@ -84,6 +84,12 @@ struct DepositEventData {
     deposit_events: Vec<Event>,
 }
 
+#[derive(Debug)]
+pub struct BlockInfo {
+    pub block_number: u64,
+    pub index_in_block: u64,
+}
+
 fn indexer_rpc(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, Error> {
     let content_length = format!("{}", query.len());
     let headers: Vec<(String, String)> = vec![
@@ -132,15 +138,16 @@ pub fn get_tx(
     }))
 }
 
-pub fn get_deposit_event(
+pub fn get_deposit_events_by_block_info(
     indexer: &str,
     account: &[u8],
-    timestamp: &str,
-) -> core::result::Result<Option<DepositEvent>, Error> {
+    block_number: u64,
+    index_in_block: u64,
+) -> core::result::Result<Vec<DepositEvent>, Error> {
     let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}}, timestamp_gt: \"{timestamp}\" }}) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
+            "query": "query Query {{ depositEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }}) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
@@ -148,24 +155,22 @@ pub fn get_deposit_event(
     let body = indexer_rpc(indexer, &query)?;
     let response: DepositEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
-    let events = &response.data.deposit_events;
 
-    if events.len() != 1 {
-        return Err(Error::DepositEventNotFound);
+    let mut devents = vec![];
+    for ev in response.data.deposit_events {
+        let dev = DepositEvent {
+            block_number: ev.block_number,
+            index_in_block: ev.index_in_block,
+            id: ev.id,
+            result: ev.result,
+            amount: ev.amount.parse::<u128>().or(Err(Error::InvalidAmount))?,
+            name: ev.name,
+            timestamp: ev.timestamp,
+            account: hex::decode(&ev.account.id[2..]).or(Err(Error::InvalidAddress))?,
+        };
+        devents.push(dev);
     }
-
-    let ev = &response.data.deposit_events[0];
-
-    Ok(Some(DepositEvent {
-        id: ev.id.clone(),
-        name: ev.name.clone(),
-        amount: ev.amount.parse::<u128>().or(Err(Error::InvalidAmount))?,
-        account: hex::decode(&ev.account.id[2..]).or(Err(Error::InvalidAddress))?,
-        result: ev.result,
-        index_in_block: ev.index_in_block,
-        block_number: ev.block_number,
-        timestamp: ev.timestamp.clone(),
-    }))
+    Ok(devents)
 }
 
 pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Error> {
@@ -190,6 +195,40 @@ pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Er
     Ok(timestamp.into())
 }
 
+pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<BlockInfo, Error> {
+    let account = format!("0x{}", hex::encode(account));
+    let query = format!(
+        r#"{{ 
+            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: [blockNumber_DESC, indexInBlock_DESC], limit: 1) {{ id name account {{ id }} amount result indexInBlock blockNumber timestamp }} }}",
+            "variables": null,
+            "operationName": "Query"
+        }}"#
+    );
+    let body = indexer_rpc(indexer, &query)?;
+    let response: DepositEventResponse =
+        pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
+    let events = response.data.deposit_events;
+
+    if events.len() == 0 {
+        return Ok(BlockInfo {
+            block_number: 0,
+            index_in_block: 0,
+        });
+    }
+
+    if events.len() != 1 {
+        return Err(Error::DepositEventNotFound);
+    }
+
+    let block_number = events[0].block_number;
+    let index_in_block = events[0].index_in_block;
+
+    Ok(BlockInfo {
+        block_number,
+        index_in_block,
+    })
+}
+
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
     let tx = get_tx(indexer, account, nonce)?;
     if let Some(tx) = tx {
@@ -204,22 +243,46 @@ pub fn is_bridge_tx_ok(
     src_indexer: &str,
     src_nonce: u64,
     dest_indexer: &str,
-    dest_amount: u128,
-    dest_timestamp: &str,
-) -> Result<bool, Error> {
+    receive_min: u128,
+    receive_max: u128,
+    block_number: u64,
+    index_in_block: u64,
+) -> Result<(bool, Option<(u64, u64)>), Error> {
     // check if source tx is ok
     if !is_tx_ok(src_indexer, account, src_nonce)? {
-        return Ok(false);
+        return Ok((false, None));
     }
+    // check if dest tx is ok
+    is_bridge_dest_tx_ok(
+        account,
+        dest_indexer,
+        receive_min,
+        receive_max,
+        block_number,
+        index_in_block,
+    )
+}
+
+fn is_bridge_dest_tx_ok(
+    account: &[u8],
+    dest_indexer: &str,
+    receive_min: u128,
+    receive_max: u128,
+    block_number: u64,
+    index_in_block: u64,
+) -> Result<(bool, Option<(u64, u64)>), Error> {
     // check if on dest chain the recipient has a corresponding event
-    let event = get_deposit_event(dest_indexer, account, dest_timestamp)?;
-    if let Some(event) = event {
-        if event.amount < dest_amount && event.amount > 0 {
-            return Ok(event.result);
+    let events =
+        get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
+
+    for event in events {
+        if receive_min < event.amount && receive_max > event.amount {
+            // event found! the block info should be saved to the next step
+            return Ok((true, Some((event.block_number, event.index_in_block))));
         }
     }
 
-    Ok(false)
+    Ok((false, None))
 }
 
 #[cfg(test)]
@@ -252,22 +315,6 @@ mod tests {
     }
 
     #[test]
-    fn get_event() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
-        let event = get_deposit_event(
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
-            &account,
-            "1679593044391",
-        )
-        .unwrap()
-        .unwrap();
-        dbg!(event);
-    }
-
-    #[test]
     fn get_timestamp() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
@@ -279,5 +326,59 @@ mod tests {
         )
         .unwrap();
         dbg!(timestamp);
+    }
+
+    #[test]
+    fn get_block_info() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let block_info = get_latest_event_block_info(
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            &account,
+        )
+        .unwrap();
+        dbg!(block_info);
+    }
+
+    #[test]
+    fn get_events() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let events = get_deposit_events_by_block_info(
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            &account,
+            0,
+            0,
+        )
+        .unwrap();
+        dbg!(events);
+    }
+
+    #[test]
+    fn checker_works() {
+        // https://acala.subscan.io/extrinsic/2705255-1?event=2705255-10
+        // receive: 528352559
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let account =
+            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+
+        // the aim is the catch the first event
+        let res = is_bridge_dest_tx_ok(
+            &account,
+            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            500_352_559,
+            600_352_559,
+            0,
+            0,
+        )
+        .unwrap();
+        dbg!(res);
+        assert!(res.0);
+        assert_eq!(res.1.unwrap(), (2705255, 7));
     }
 }

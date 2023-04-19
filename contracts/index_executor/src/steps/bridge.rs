@@ -27,9 +27,9 @@ pub struct BridgeStep {
     /// Reception in the form of range
     pub receive_min: u128,
     pub receive_max: u128,
-    /// Last timestamp when recipient received a deposit
-    pub dest_timestamp: String,
-    
+    // the block info before this step is executed
+    pub block_number: u64,
+    pub index_in_block: u64,
 }
 
 impl Runner for BridgeStep {
@@ -71,16 +71,20 @@ impl Runner for BridgeStep {
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
 
-        // if tx is ok then the step is not runnable
-        Ok(!tx::is_bridge_tx_ok(
+        let tx_result = tx::is_bridge_tx_ok(
             &account,
             src_indexer,
             nonce,
             dest_indexer,
-            self.spend,
-            &self.dest_timestamp,
+            self.receive_min,
+            self.receive_max,
+            self.block_number,
+            self.index_in_block,
         )
-        .or(Err("Can't confirm transaction"))?)
+        .or(Err("Can't confirm transaction"))?;
+
+        // if tx is ok then the step is not runnable
+        Ok(!tx_result.0)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -146,15 +150,19 @@ impl Runner for BridgeStep {
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
 
-        tx::is_bridge_tx_ok(
+        let tx_result = tx::is_bridge_tx_ok(
             &account,
             src_indexer,
             nonce,
             dest_indexer,
-            self.spend,
-            &self.dest_timestamp,
+            self.receive_min,
+            self.receive_max,
+            self.block_number,
+            self.index_in_block,
         )
-        .or(Err("Can't confirm transaction"))
+        .or(Err("Can't confirm transaction"))?;
+
+        Ok(tx_result.0) 
     }
 
     fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
