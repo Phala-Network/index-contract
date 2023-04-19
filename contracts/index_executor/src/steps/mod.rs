@@ -62,7 +62,6 @@ impl Runner for Step {
 
     fn check(&self, _nonce: u64, context: &Context) -> Result<bool, &'static str> {
         match &self.meta {
-            // TODO: remove unwrap
             StepMeta::Claim(claim_step) => claim_step.check(self.nonce.unwrap(), context),
             StepMeta::Swap(swap_step) => swap_step.check(self.nonce.unwrap(), context),
             StepMeta::Bridge(bridge_step) => bridge_step.check(self.nonce.unwrap(), context),

@@ -1,11 +1,12 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::steps::{Step, StepMeta};
+use crate::steps::{bridge, Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
-use index::tx::get_lastest_timestamp;
+use index::tx::{get_lastest_timestamp, get_latest_event_block_info};
 use ink::storage::Mapping;
+use ink_env::block_number;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
@@ -100,6 +101,7 @@ impl Task {
         self.apply_nonce(context, client)?;
         // Apply recipient for each step in task
         self.apply_recipient(context)?;
+        self.apply_block_info(context)?;
         // TODO: query initial balance of worker account and setup to specific step
         self.status = TaskStatus::Initialized;
         self.execute_index = 0;
@@ -152,7 +154,6 @@ impl Task {
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
         ) == Ok(true)
-        // FIXME: handle returned error
         {
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
@@ -175,8 +176,10 @@ impl Task {
                     index::graph::ChainType::Sub => worker_account.account32.to_vec(),
                 };
 
-                bridge_step.dest_timestamp = get_lastest_timestamp(&chain.tx_indexer, &account)
+                let block_info = get_latest_event_block_info(&chain.tx_indexer, &account)
                     .or(Err("Can't find timestamp"))?;
+                bridge_step.block_number = block_info.block_number;
+                bridge_step.index_in_block = block_info.index_in_block;
             }
 
             // An executing task must have nonce applied
@@ -343,6 +346,37 @@ impl Task {
         Ok(())
     }
 
+    /// give the first step on each chain a block record
+    /// this record is saved on pallet and can be recovered after cache crashes.
+    fn apply_block_info(&mut self, context: &Context) -> Result<(), &'static str> {
+        let mut known_chains: Vec<String> = vec![];
+        for (_, step) in self.steps.iter_mut().enumerate() {
+            match &mut step.meta {
+                StepMeta::Bridge(bridge_step) => {
+                    // only update the first bridge step
+                    if !known_chains.contains(&bridge_step.dest_chain) {
+                        let chain = context
+                            .graph
+                            .get_chain(bridge_step.dest_chain.clone())
+                            .ok_or("MissingChain")?;
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        let account = match chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                        };
+                        let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
+                            .or(Err("Can't find timestamp"))?;
+                        bridge_step.block_number = blockinfo.block_number;
+                        bridge_step.index_in_block = blockinfo.index_in_block;
+                        known_chains.push(bridge_step.dest_chain.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
 }
 
 pub struct OnchainTasks;
