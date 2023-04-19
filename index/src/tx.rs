@@ -4,7 +4,6 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use pink_extension::http_post;
-use pink_web3::futures::executor::block_on;
 use scale::Decode;
 use serde::Deserialize;
 
@@ -210,7 +209,7 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
     let events = response.data.deposit_events;
 
-    if events.len() == 0 {
+    if events.is_empty() {
         return Ok(BlockInfo {
             block_number: 0,
             index_in_block: 0,
@@ -239,6 +238,7 @@ pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error
     Ok(false)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn is_bridge_tx_ok(
     account: &[u8],
     src_indexer: &str,

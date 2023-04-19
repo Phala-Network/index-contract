@@ -1,7 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::steps::{bridge, ExtraResult, Step, StepMeta};
+use crate::steps::{ExtraResult, Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use index::tx::get_latest_event_block_info;
@@ -124,26 +124,23 @@ impl Task {
         Ok(())
     }
 
-    pub fn scan_from_bridge_step(&mut self, context: &Context) {
+    pub fn scan_from_bridge_step(&mut self, _context: &Context) {
         for (i, step) in self.steps.iter_mut().enumerate() {
-            match &mut step.meta {
-                StepMeta::Bridge(bridge_step) => {
-                    // only update the first bridge step
-                    let found = self
-                        .bridges
-                        .iter()
-                        .position(|x| x.0 == bridge_step.dest_chain);
-                    match found {
-                        Some(found) => {
-                            self.bridges[found].1.push(i as u8);
-                        }
-                        None => {
-                            self.bridges
-                                .push((bridge_step.dest_chain.clone(), vec![i as u8]));
-                        }
+            if let StepMeta::Bridge(bridge_step) = &mut step.meta {
+                // only update the first bridge step
+                let found = self
+                    .bridges
+                    .iter()
+                    .position(|x| x.0 == bridge_step.dest_chain);
+                match found {
+                    Some(found) => {
+                        self.bridges[found].1.push(i as u8);
+                    }
+                    None => {
+                        self.bridges
+                            .push((bridge_step.dest_chain.clone(), vec![i as u8]));
                     }
                 }
-                _ => {}
             }
         }
     }
@@ -176,12 +173,11 @@ impl Task {
                             let step_indexes = &self.bridges[found].1;
                             let found = step_indexes.iter().find(|x| **x > self.execute_index - 1);
                             if let Some(i) = found {
-                                match &mut self.steps[*i as usize].meta {
-                                    StepMeta::Bridge(next_bridge_step) => {
-                                        next_bridge_step.block_number = block_info.0;
-                                        next_bridge_step.index_in_block = block_info.1;
-                                    }
-                                    _ => {}
+                                if let StepMeta::Bridge(next_bridge_step) =
+                                    &mut self.steps[*i as usize].meta
+                                {
+                                    next_bridge_step.block_number = block_info.0;
+                                    next_bridge_step.index_in_block = block_info.1;
                                 }
                             }
                         }
@@ -231,12 +227,11 @@ impl Task {
                         let step_indexes = &self.bridges[found].1;
                         let found = step_indexes.iter().find(|x| **x > self.execute_index - 1);
                         if let Some(i) = found {
-                            match &mut self.steps[*i as usize].meta {
-                                StepMeta::Bridge(next_bridge_step) => {
-                                    next_bridge_step.block_number = block_info.0;
-                                    next_bridge_step.index_in_block = block_info.1;
-                                }
-                                _ => {}
+                            if let StepMeta::Bridge(next_bridge_step) =
+                                &mut self.steps[*i as usize].meta
+                            {
+                                next_bridge_step.block_number = block_info.0;
+                                next_bridge_step.index_in_block = block_info.1;
                             }
                         }
                     }
@@ -413,28 +408,24 @@ impl Task {
     fn apply_block_info(&mut self, context: &Context) -> Result<(), &'static str> {
         let mut known_chains: Vec<String> = vec![];
         for (_, step) in self.steps.iter_mut().enumerate() {
-            match &mut step.meta {
-                StepMeta::Bridge(bridge_step) => {
-                    // only update the first bridge step
-                    if !known_chains.contains(&bridge_step.dest_chain) {
-                        let chain = context
-                            .graph
-                            .get_chain(bridge_step.dest_chain.clone())
-                            .ok_or("MissingChain")?;
-                        let account_info =
-                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        let account = match chain.chain_type {
-                            ChainType::Evm => account_info.account20.to_vec(),
-                            ChainType::Sub => account_info.account32.to_vec(),
-                        };
-                        let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
-                            .or(Err("Can't find timestamp"))?;
-                        bridge_step.block_number = blockinfo.block_number;
-                        bridge_step.index_in_block = blockinfo.index_in_block;
-                        known_chains.push(bridge_step.dest_chain.clone());
-                    }
+            if let StepMeta::Bridge(bridge_step) = &mut step.meta {
+                // only update the first bridge step
+                if !known_chains.contains(&bridge_step.dest_chain) {
+                    let chain = context
+                        .graph
+                        .get_chain(bridge_step.dest_chain.clone())
+                        .ok_or("MissingChain")?;
+                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                    let account = match chain.chain_type {
+                        ChainType::Evm => account_info.account20.to_vec(),
+                        ChainType::Sub => account_info.account32.to_vec(),
+                    };
+                    let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
+                        .or(Err("Can't find timestamp"))?;
+                    bridge_step.block_number = blockinfo.block_number;
+                    bridge_step.index_in_block = blockinfo.index_in_block;
+                    known_chains.push(bridge_step.dest_chain.clone());
                 }
-                _ => {}
             }
         }
         Ok(())
