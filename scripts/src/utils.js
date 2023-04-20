@@ -29,7 +29,12 @@ async function createContract(api, pruntimeUrl, contract, contractID) {
     return contractApi
 }
 
+async function delay(ms) {
+  return new Promise( resolve => setTimeout(resolve, ms) );
+}
+
 module.exports = {
     loadContractFile,
     createContract,
+    delay,
 }

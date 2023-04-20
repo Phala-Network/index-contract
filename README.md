@@ -82,3 +82,7 @@ directory.
 ## Deploy contract on live network
 
 You can either use [phala/sdk](https://github.com/Phala-Network/js-sdk) or the [Webpage App](https://phat.phala.network/) deploy the contract, we highly recommend use the Webpage App to save your time.
+
+## Play with inDEX
+
+Follow [play-with-index](./doc/play-with-index.md) and have a try
