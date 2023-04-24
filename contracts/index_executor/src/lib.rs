@@ -866,7 +866,6 @@ mod index_executor {
                     bridges: vec![],
                     dex_pairs: vec![],
                     bridge_pairs: vec![],
-                    dex_indexers: vec![],
                 })
                 .unwrap();
             // Initial rollup

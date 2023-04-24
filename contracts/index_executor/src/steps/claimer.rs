@@ -686,7 +686,6 @@ mod tests {
                 bridges: vec![],
                 dex_pairs: vec![],
                 bridge_pairs: vec![],
-                dex_indexers: vec![],
             },
             worker_accounts: vec![],
             bridge_executors: vec![],

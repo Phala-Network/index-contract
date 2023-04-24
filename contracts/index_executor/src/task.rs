@@ -649,7 +649,6 @@ mod tests {
                     assets: vec![],
                     dexs: vec![],
                     dex_pairs: vec![],
-                    dex_indexers: vec![],
                     bridges: vec![],
                     bridge_pairs: vec![],
                 },
