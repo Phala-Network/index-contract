@@ -33,7 +33,10 @@ with `--balance` will get balance returned
 ### 2. Setup executor
 
 We need to config executor contract after deployed, stuff contains:
-1) import worker key from KeyStore contract (call executor.config);
+1) import worker key from KeyStore contract (call executor.config), with
+    - rollup_pallet_id: 100
+    - rollup_endpoint: https://poc5.phala.network/rpc
+    - keystore_account: keystore contract's account, eg.: 0xccb96fbcbea761409c60a8002dc81c203533cf951db8e758005139f2b2f2e199
 2) claim rollup storage (call executor.setup_rollup);
 3) setup worker account in rollup storage (call executor.setup_worker_on_rollup);
 4) resume executor (call executor.resume_executor);
@@ -53,6 +56,12 @@ Use tablizer tool, clone source code from [here](), and
 rm db.sqlite && ./bin/dev parse -c dotflow.yaml
 
 ./bin/dev contract -n wss://poc5.phala.network/ws -r https://poc5.phala.network/tee-api-1 -a <executor contract id> -s "<mnemonic>" --set
+```
+
+### Approve handlers to use your assets
+
+```sh
+node src/console.js --uri <your uri> erc20 approve --rpc https://1rpc.io/glmr --token 0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080 --spender 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB --amount 10000000000000000
 ```
 
 ## Run scheduler

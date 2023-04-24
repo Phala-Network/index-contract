@@ -46,8 +46,8 @@ pub struct Task {
     pub sender: Vec<u8>,
     /// Recipient address on dest chain
     pub recipient: Vec<u8>,
-    /// Mapping from chain to Vec<step_index>
-    pub bridges: Vec<(String, Vec<u8>)>,
+    /// Mapping: chain -> (last blockinfo)
+    pub bridges: Vec<(String, (u64, u64))>,
 }
 
 impl Default for Task {
@@ -83,7 +83,7 @@ impl Task {
         }
 
         // scan for bridges
-        self.scan_from_bridge_step(context);
+        self.scan_for_bridge_steps(context);
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -124,22 +124,15 @@ impl Task {
         Ok(())
     }
 
-    pub fn scan_from_bridge_step(&mut self, _context: &Context) {
-        for (i, step) in self.steps.iter_mut().enumerate() {
+    pub fn scan_for_bridge_steps(&mut self, _context: &Context) {
+        for (_i, step) in self.steps.iter_mut().enumerate() {
             if let StepMeta::Bridge(bridge_step) = &mut step.meta {
-                // only update the first bridge step
                 let found = self
                     .bridges
                     .iter()
                     .position(|x| x.0 == bridge_step.dest_chain);
-                match found {
-                    Some(found) => {
-                        self.bridges[found].1.push(i as u8);
-                    }
-                    None => {
-                        self.bridges
-                            .push((bridge_step.dest_chain.clone(), vec![i as u8]));
-                    }
+                if found.is_none() {
+                    self.bridges.push((bridge_step.dest_chain.clone(), (0, 0)))
                 }
             }
         }
@@ -148,7 +141,7 @@ impl Task {
     // Recover execution status according to on-chain storage
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
         // scan for bridges
-        self.scan_from_bridge_step(context);
+        self.scan_for_bridge_steps(context);
         for i in 0..self.steps.len() {
             if let Ok((true, extra)) =
                 self.steps[i].sync_check(self.steps[i].nonce.unwrap(), context)
@@ -170,17 +163,23 @@ impl Task {
                             .iter()
                             .position(|x| x.0 == bridge_step.dest_chain)
                         {
-                            let step_indexes = &self.bridges[found].1;
-                            let found = step_indexes.iter().find(|x| **x > self.execute_index - 1);
-                            if let Some(i) = found {
-                                if let StepMeta::Bridge(next_bridge_step) =
-                                    &mut self.steps[*i as usize].meta
-                                {
-                                    next_bridge_step.block_number = block_info.0;
-                                    next_bridge_step.index_in_block = block_info.1;
-                                }
-                            }
+                            self.bridges[found].1 = block_info;
                         }
+                    }
+                }
+
+                // if this step is a bridge step, update its blockinfo
+                if let StepMeta::Bridge(bridge_step) =
+                    &mut self.steps[self.execute_index as usize].meta
+                {
+                    let found = self
+                        .bridges
+                        .iter()
+                        .position(|x| x.0 == bridge_step.dest_chain);
+                    if let Some(found) = found {
+                        let block_info = self.bridges[found].1;
+                        bridge_step.block_number = block_info.0;
+                        bridge_step.index_in_block = block_info.1;
                     }
                 }
             } else {
@@ -224,17 +223,22 @@ impl Task {
                         .iter()
                         .position(|x| x.0 == bridge_step.dest_chain)
                     {
-                        let step_indexes = &self.bridges[found].1;
-                        let found = step_indexes.iter().find(|x| **x > self.execute_index - 1);
-                        if let Some(i) = found {
-                            if let StepMeta::Bridge(next_bridge_step) =
-                                &mut self.steps[*i as usize].meta
-                            {
-                                next_bridge_step.block_number = block_info.0;
-                                next_bridge_step.index_in_block = block_info.1;
-                            }
-                        }
+                        self.bridges[found].1 = block_info;
                     }
+                }
+            }
+
+            // if this step is a bridge step, update its blockinfo
+            if let StepMeta::Bridge(bridge_step) = &mut self.steps[self.execute_index as usize].meta
+            {
+                let found = self
+                    .bridges
+                    .iter()
+                    .position(|x| x.0 == bridge_step.dest_chain);
+                if let Some(found) = found {
+                    let block_info = self.bridges[found].1;
+                    bridge_step.block_number = block_info.0;
+                    bridge_step.index_in_block = block_info.1;
                 }
             }
 

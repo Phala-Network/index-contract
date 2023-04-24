@@ -645,6 +645,11 @@ mod index_executor {
             Ok(())
         }
 
+        #[ink(message)]
+        pub fn echo(&self, words: String) {
+            pink_extension::debug!("You were saying: {}", words);
+        }
+
         fn pub_to_prv(&self, pub_key: [u8; 32]) -> Option<[u8; 32]> {
             self.worker_accounts
                 .iter()
