@@ -235,7 +235,7 @@ impl From<SDKGraph> for Graph {
                         }
                     },
                     handler_contract: vec_u8_to_hexified(&chain.handler_contract),
-                    tx_indexer: Default::default(),
+                    tx_indexer: chain.tx_indexer.clone(),
                 };
                 arr.push(item);
             }
