@@ -137,6 +137,13 @@ mod index_executor {
         }
 
         #[ink(message)]
+        pub fn transfer_ownership(&mut self, new_admin: AccountId) -> Result<()> {
+            self.ensure_owner()?;
+            self.admin = new_admin;
+            Ok(())
+        }
+
+        #[ink(message)]
         pub fn config(
             &mut self,
             rollup_pallet_id: u8,
