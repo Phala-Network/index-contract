@@ -22,7 +22,7 @@ mod key_store {
     pub struct KeyStore {
         pub admin: AccountId,
         pub prv_keys: Vec<[u8; 32]>,
-        pub executor: Option<AccountId>,
+        pub executor: Option<[u8; 32]>,
     }
 
     impl Default for KeyStore {
@@ -53,7 +53,7 @@ mod key_store {
         }
 
         #[ink(message)]
-        pub fn set_executor(&mut self, executor: AccountId) -> Result<()> {
+        pub fn set_executor(&mut self, executor: [u8; 32]) -> Result<()> {
             self.ensure_owner()?;
             self.executor = Some(executor);
             Ok(())
@@ -74,7 +74,7 @@ mod key_store {
         }
 
         #[ink(message)]
-        pub fn get_executor(&self) -> Result<Option<AccountId>> {
+        pub fn get_executor(&self) -> Result<Option<[u8; 32]>> {
             Ok(self.executor)
         }
 
@@ -90,7 +90,7 @@ mod key_store {
         /// Returns BadOrigin error if the caller is not the owner
         fn ensure_executor(&self) -> Result<()> {
             let executor = self.executor.ok_or(Error::MissingExecutor)?;
-            if self.env().caller() == executor {
+            if self.env().caller() == executor.into() {
                 Ok(())
             } else {
                 Err(Error::BadOrigin)
