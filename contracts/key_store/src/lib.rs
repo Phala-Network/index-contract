@@ -37,7 +37,7 @@ mod key_store {
         pub fn default() -> Self {
             let mut prv_keys: Vec<[u8; 32]> = vec![];
 
-            for index in 0..5 {
+            for index in 0..10 {
                 let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
                     &[b"worker".to_vec(), [index].to_vec()].concat(),
                 )
@@ -50,6 +50,13 @@ mod key_store {
                 prv_keys,
                 executor: None,
             }
+        }
+
+        #[ink(message)]
+        pub fn renounce_admin(&mut self, new_admin: AccountId) -> Result<()> {
+            self.ensure_owner()?;
+            self.admin = new_admin;
+            Ok(())
         }
 
         #[ink(message)]
