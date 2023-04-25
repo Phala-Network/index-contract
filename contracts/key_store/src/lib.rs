@@ -53,7 +53,7 @@ mod key_store {
         }
 
         #[ink(message)]
-        pub fn renounce_admin(&mut self, new_admin: AccountId) -> Result<()> {
+        pub fn transfer_ownership(&mut self, new_admin: AccountId) -> Result<()> {
             self.ensure_owner()?;
             self.admin = new_admin;
             Ok(())
