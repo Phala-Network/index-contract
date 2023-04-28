@@ -33,6 +33,7 @@ pub struct Step {
     pub nonce: Option<u64>,
 }
 
+#[derive(Debug)]
 pub enum ExtraResult {
     BlockInfo((u64, u64)),
     None,

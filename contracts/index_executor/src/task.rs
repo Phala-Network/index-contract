@@ -47,7 +47,7 @@ pub struct Task {
     /// Recipient address on dest chain
     pub recipient: Vec<u8>,
     /// Mapping: chain -> (last blockinfo)
-    pub bridges: Vec<(String, (u64, u64))>,
+    pub bridges_last_blockinfo: Vec<(String, (u64, u64))>,
 }
 
 impl Default for Task {
@@ -61,7 +61,7 @@ impl Default for Task {
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
-            bridges: vec![],
+            bridges_last_blockinfo: vec![],
         }
     }
 }
@@ -83,19 +83,19 @@ impl Task {
         }
 
         // scan for bridges
-        self.scan_for_bridge_steps(context);
+        _ = self.setup_bridge_steps(context);
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
             free_accounts.remove(index);
             pink_extension::debug!(
-                "Worker {:?} is free, will be applied to this task {:?}.",
+                "Task::init_and_submit: Worker {:?} is free, will be applied to this task {:?}.",
                 hex::encode(self.worker),
                 hex::encode(self.id)
             );
         } else {
             pink_extension::debug!(
-                "Worker {:?} is busy, try again later for this task {:?}.",
+                "Task::init_and_submit: Worker {:?} is busy, try again later for this task {:?}.",
                 hex::encode(self.worker),
                 hex::encode(self.id)
             );
@@ -103,10 +103,15 @@ impl Task {
         }
 
         // Apply worker nonce for each step in task
-        self.apply_nonce(context, client)?;
+        if let Err(e) = self.apply_nonce(context, client) {
+            pink_extension::debug!("Task::init_and_submit: applying nonce failed: {}", e);
+        }
+        pink_extension::debug!("Task::init_and_submit: done applying nonce");
         // Apply recipient for each step in task
-        self.apply_recipient(context)?;
-        self.apply_block_info(context)?;
+        if let Err(e) = self.apply_recipient(context) {
+            pink_extension::debug!("Task::init_and_submit: applying recipient failed: {}", e);
+        }
+        pink_extension::debug!("Task::init_and_submit: done applying recipient");
         // TODO: query initial balance of worker account and setup to specific step
         self.status = TaskStatus::Initialized;
         self.execute_index = 0;
@@ -121,27 +126,48 @@ impl Task {
         client
             .session()
             .put(b"pending_tasks".as_ref(), pending_tasks.encode());
+        pink_extension::debug!("Task::init_and_submit: exits");
         Ok(())
     }
 
-    pub fn scan_for_bridge_steps(&mut self, _context: &Context) {
+    /// scan for bridge steps and give the first step on each chain a initial block info
+    pub fn setup_bridge_steps(&mut self, context: &Context) -> Result<(), &'static str> {
         for (_i, step) in self.steps.iter_mut().enumerate() {
-            if let StepMeta::Bridge(bridge_step) = &mut step.meta {
+            if let StepMeta::Bridge(bridge_step) = &step.meta {
                 let found = self
-                    .bridges
+                    .bridges_last_blockinfo
                     .iter()
                     .position(|x| x.0 == bridge_step.dest_chain);
                 if found.is_none() {
-                    self.bridges.push((bridge_step.dest_chain.clone(), (0, 0)))
+                    let chain = context
+                        .graph
+                        .get_chain(bridge_step.dest_chain.clone())
+                        .ok_or("MissingChain")?;
+                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                    let account = match chain.chain_type {
+                        ChainType::Evm => account_info.account20.to_vec(),
+                        ChainType::Sub => account_info.account32.to_vec(),
+                    };
+                    let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
+                        .or(Err("Can't find timestamp"))?;
+                    // we know the Task will be saved on pallet!
+                    self.bridges_last_blockinfo.push((
+                        bridge_step.dest_chain.clone(),
+                        (blockinfo.block_number, blockinfo.index_in_block),
+                    ))
                 }
             }
         }
+        pink_extension::debug!(
+            "setup_bridge_steps: successfully exits with {:?}",
+            self.bridges_last_blockinfo
+        );
+        Ok(())
     }
 
     // Recover execution status according to on-chain storage
     pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
-        // scan for bridges
-        self.scan_for_bridge_steps(context);
+        // don't need to setup bridge steps because that info is saved on the init_and_submit process.
         for i in 0..self.steps.len() {
             if let Ok((true, extra)) =
                 self.steps[i].sync_check(self.steps[i].nonce.unwrap(), context)
@@ -159,11 +185,11 @@ impl Task {
                         &mut self.steps[self.execute_index as usize - 1].meta
                     {
                         if let Some(found) = self
-                            .bridges
+                            .bridges_last_blockinfo
                             .iter()
                             .position(|x| x.0 == bridge_step.dest_chain)
                         {
-                            self.bridges[found].1 = block_info;
+                            self.bridges_last_blockinfo[found].1 = block_info;
                         }
                     }
                 }
@@ -173,11 +199,11 @@ impl Task {
                     &mut self.steps[self.execute_index as usize].meta
                 {
                     let found = self
-                        .bridges
+                        .bridges_last_blockinfo
                         .iter()
                         .position(|x| x.0 == bridge_step.dest_chain);
                     if let Some(found) = found {
-                        let block_info = self.bridges[found].1;
+                        let block_info = self.bridges_last_blockinfo[found].1;
                         bridge_step.block_number = block_info.0;
                         bridge_step.index_in_block = block_info.1;
                     }
@@ -195,7 +221,7 @@ impl Task {
         context: &Context,
         client: &mut SubstrateRollupClient,
     ) -> Result<TaskStatus, &'static str> {
-        // To avoid unnecessary remote check, we check index in advance
+        pink_extension::debug!("execute: Executing step {}", self.execute_index);
         if self.execute_index as usize == self.steps.len() {
             return Ok(TaskStatus::Completed);
         }
@@ -205,6 +231,12 @@ impl Task {
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
         ) {
+            pink_extension::debug!(
+                "execute: step {} is Ok! extra: {:?}",
+                self.execute_index,
+                extra
+            );
+
             // If step already executed successfully, execute next step
             self.execute_index += 1;
             // If all step executed successfully, set task as `Completed`
@@ -214,16 +246,23 @@ impl Task {
             }
 
             if let ExtraResult::BlockInfo(block_info) = extra {
-                // the last step is a bridge step, check its dest chain
+                pink_extension::debug!("execute: found block info! {:?}", block_info);
+                // the last step is a bridge step, update the bridge block info
+                // actually it must be a bridge step, otherwise extra is not of BlockInfo type
+                // we just need to get bridge_step out of the step enum
                 if let StepMeta::Bridge(bridge_step) =
                     &mut self.steps[self.execute_index as usize - 1].meta
                 {
                     if let Some(found) = self
-                        .bridges
+                        .bridges_last_blockinfo
                         .iter()
                         .position(|x| x.0 == bridge_step.dest_chain)
                     {
-                        self.bridges[found].1 = block_info;
+                        self.bridges_last_blockinfo[found].1 = block_info;
+                        pink_extension::debug!(
+                            "execute: update bridge block info to {:?}",
+                            self.bridges_last_blockinfo
+                        );
                     }
                 }
             }
@@ -232,50 +271,52 @@ impl Task {
             if let StepMeta::Bridge(bridge_step) = &mut self.steps[self.execute_index as usize].meta
             {
                 let found = self
-                    .bridges
+                    .bridges_last_blockinfo
                     .iter()
                     .position(|x| x.0 == bridge_step.dest_chain);
                 if let Some(found) = found {
-                    let block_info = self.bridges[found].1;
+                    let block_info = self.bridges_last_blockinfo[found].1;
                     bridge_step.block_number = block_info.0;
                     bridge_step.index_in_block = block_info.1;
+                    pink_extension::debug!(
+                        "execute: update current bridge step block info to {:?}",
+                        block_info
+                    );
                 }
             }
 
             // An executing task must have nonce applied
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             // FIXME: handle returned error
-            if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
-                == Ok(true)
-            {
-                pink_extension::debug!(
-                    "Trying to run step[{:?}] with nonce {:?}",
-                    self.execute_index,
-                    nonce
-                );
-                self.steps[self.execute_index as usize].run(nonce, context)?;
-                self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
-            } else {
-                pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
+            match self.steps[self.execute_index as usize].runnable(nonce, context, Some(client)) {
+                Ok(true) => {
+                    pink_extension::debug!(
+                        "Trying to run step[{:?}] with nonce {:?}",
+                        self.execute_index,
+                        nonce
+                    );
+                    self.steps[self.execute_index as usize].run(nonce, context)?;
+                    self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+                }
+                Ok(false) => {
+                    pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
+                }
+                Err(e) => {
+                    pink_extension::debug!(
+                        "Something wrong during checking if Step[{:?}] is runnable! error: {}",
+                        self.execute_index,
+                        e
+                    );
+                }
             }
         } else {
             let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
             // Claim step should be considered separately
             if let StepMeta::Claim(claim_step) = &mut self.steps[self.execute_index as usize].meta {
-                let worker_account = AccountInfo::from(context.signer);
-                let latest_balance = worker_account.get_balance(
-                    claim_step.chain.clone(),
-                    claim_step.asset.clone(),
-                    context,
-                )?;
-                claim_step.b0 = Some(latest_balance);
-
                 // FIXME: handle returned error
-                if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
-                    == Ok(true)
-                {
+                if claim_step.runnable(nonce, context, Some(client)) == Ok(true) {
                     pink_extension::debug!("Trying to claim task with nonce {:?}", nonce);
-                    self.steps[self.execute_index as usize].run(nonce, context)?;
+                    claim_step.run(nonce, context)?;
                     self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
                 } else {
                     pink_extension::debug!("Claim step not runnable, return");
@@ -320,6 +361,7 @@ impl Task {
         // Only in last step the recipient with be set as real recipient on destchain,
         // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
+        pink_extension::debug!("apply_nonce: steps: {:?}", self.steps);
         for step in self.steps.iter_mut() {
             let nonce = match nonce_map.get(&step.chain) {
                 Some(nonce) => nonce,
@@ -332,7 +374,6 @@ impl Task {
                     let account = match chain.chain_type {
                         ChainType::Evm => account_info.account20.to_vec(),
                         ChainType::Sub => account_info.account32.to_vec(),
-                        // ChainType::Unknown => panic!("chain not supported!"),
                     };
                     chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?
                 }
@@ -404,34 +445,6 @@ impl Task {
             }
         }
 
-        Ok(())
-    }
-
-    /// give the first step on each chain a block record
-    /// this record is saved on pallet and can be recovered after cache crashes.
-    fn apply_block_info(&mut self, context: &Context) -> Result<(), &'static str> {
-        let mut known_chains: Vec<String> = vec![];
-        for (_, step) in self.steps.iter_mut().enumerate() {
-            if let StepMeta::Bridge(bridge_step) = &mut step.meta {
-                // only update the first bridge step
-                if !known_chains.contains(&bridge_step.dest_chain) {
-                    let chain = context
-                        .graph
-                        .get_chain(bridge_step.dest_chain.clone())
-                        .ok_or("MissingChain")?;
-                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                    let account = match chain.chain_type {
-                        ChainType::Evm => account_info.account20.to_vec(),
-                        ChainType::Sub => account_info.account32.to_vec(),
-                    };
-                    let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
-                        .or(Err("Can't find timestamp"))?;
-                    bridge_step.block_number = blockinfo.block_number;
-                    bridge_step.index_in_block = blockinfo.index_in_block;
-                    known_chains.push(bridge_step.dest_chain.clone());
-                }
-            }
-        }
         Ok(())
     }
 }

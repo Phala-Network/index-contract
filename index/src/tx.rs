@@ -111,6 +111,7 @@ pub fn get_tx(
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
     let account = format!("0x{}", hex::encode(account));
+    pink_extension::debug!("get_tx: enter with account: {}", account);
     let query = format!(
         r#"{{ 
             "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}, account: {{id_eq: \"{account}\"}} }}) {{ blockNumber id nonce result timestamp account {{ id }} }} }}",
@@ -121,6 +122,8 @@ pub fn get_tx(
     let body = indexer_rpc(indexer, &query)?;
     let response: Response = pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
     let transactions = &response.data.transactions;
+
+    pink_extension::debug!("get_tx: got transaction: {:?}", transactions);
 
     if transactions.len() != 1 {
         return Err(Error::TransactionNotFound);
@@ -147,7 +150,7 @@ pub fn get_deposit_events_by_block_info(
     let account = format!("0x{}", hex::encode(account));
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }}) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
+            "query": "query Query {{ depositEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }} orderBy: [blockNumber_ASC, indexInBlock_ASC]) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
@@ -229,8 +232,12 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
     })
 }
 
+// the nonce given to this API is an expected value
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
-    let tx = get_tx(indexer, account, nonce)?;
+    // nonce from storage is one larger than the last tx's nonce
+    pink_extension::debug!("is_tx_ok: enter");
+    let tx = get_tx(indexer, account, nonce - 1)?;
+    pink_extension::debug!("is_tx_ok: got tx: {:?}", tx);
     if let Some(tx) = tx {
         return Ok(tx.result);
     }
@@ -240,7 +247,8 @@ pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error
 
 #[allow(clippy::too_many_arguments)]
 pub fn is_bridge_tx_ok(
-    account: &[u8],
+    src_account: &[u8],
+    dest_account: &[u8],
     src_indexer: &str,
     src_nonce: u64,
     dest_indexer: &str,
@@ -249,13 +257,15 @@ pub fn is_bridge_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
+    pink_extension::debug!("is_bridge_tx_ok: enter");
     // check if source tx is ok
-    if !is_tx_ok(src_indexer, account, src_nonce)? {
+    if !is_tx_ok(src_indexer, src_account, src_nonce)? {
         return Ok((false, (block_number, index_in_block)));
     }
+    pink_extension::debug!("is_bridge_tx_ok: source chain tx is ok! now check the dest chain tx");
     // check if dest tx is ok
     is_bridge_dest_tx_ok(
-        account,
+        dest_account,
         dest_indexer,
         receive_min,
         receive_max,
@@ -272,6 +282,7 @@ fn is_bridge_dest_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
+    pink_extension::debug!("is_bridge_dest_tx_ok: enter");
     // check if on dest chain the recipient has a corresponding event
     let events =
         get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
@@ -283,6 +294,7 @@ fn is_bridge_dest_tx_ok(
         }
     }
 
+    pink_extension::debug!("is_bridge_dest_tx_ok: exit");
     Ok((false, (block_number, index_in_block)))
 }
 
@@ -374,12 +386,33 @@ mod tests {
             "https://squid.subsquid.io/squid-acala/v/v1/graphql",
             500_352_559,
             600_352_559,
+            3204833,
+            7,
+        )
+        .unwrap();
+        dbg!(res);
+        assert!(res.0);
+        assert_eq!(res.1, (3204876, 6));
+
+        let a32 =
+            hex_literal::hex!("12735d5f5ddf9a3153d744fdd98ab77f7f181aa30101b09cc694cbf18470956c");
+        let a20 = hex_literal::hex!("0dc509699299352c57080cf27128765a5cab8800");
+        dbg!(hex::encode(&a20));
+        dbg!(hex::encode(&a32));
+
+        // the aim is the catch the first event
+        let res = is_bridge_tx_ok(
+            &a20,
+            &a32,
+            "https://squid.subsquid.io/graph-moonbeam/v/v1/graphql",
+            10,
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
+            0,
+            10000000,
             0,
             0,
         )
         .unwrap();
         dbg!(res);
-        assert!(res.0);
-        assert_eq!(res.1, (2705255, 7));
     }
 }

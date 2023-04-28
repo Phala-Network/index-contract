@@ -3,7 +3,7 @@
     "node_rpc_endpoint": "https://poc5.phala.network/rpc",
     "pruntine_endpoint": "https://poc5.phala.network/tee-api-1",
 
-    "executor_contract_id": "0xc62804e824c0add247f5f90b1ce1536e61ea3748866040ea8b93d1aeb2de4bff",
+    "executor_contract_id": "0x563f2d7f2940fbcc2f339ef47d7328078e137114e2d1eded036487fcb90a81f3",
     "key_store_contract_id": "0xccb96fbcbea761409c60a8002dc81c203533cf951db8e758005139f2b2f2e199",
 
     "handlers": [

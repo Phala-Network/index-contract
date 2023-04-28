@@ -2,6 +2,7 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::traits::Runner;
 use alloc::{string::String, vec::Vec};
+use index::tx;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -33,16 +34,20 @@ impl Runner for TransferStep {
         _client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
-
-        // 1. Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce > nonce {
-            return Ok(false);
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        // if ok then not runnable
+        if tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))? {
+            Ok(false)
+        } else {
+            Ok(true)
         }
-        // 2. Check balance
-        let onchain_balance =
-            worker_account.get_balance(self.chain.clone(), self.asset.clone(), context)?;
-        Ok(onchain_balance >= self.amount)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -83,13 +88,19 @@ impl Runner for TransferStep {
     /// nonce: from the current state, haven't synced with the onchain state,
     ///     must be smaller than that of the current state if the last step succeeded
     fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
-        let worker = AccountInfo::from(context.signer);
-        // Check nonce
-        let onchain_nonce = worker.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok((false, ExtraResult::None));
-        }
-        Ok((true, ExtraResult::None))
+        let worker_account = AccountInfo::from(context.signer);
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        Ok((
+            tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?,
+            ExtraResult::None,
+        ))
     }
 
     fn sync_check(

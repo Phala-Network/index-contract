@@ -3,13 +3,15 @@
 Suppose we are playing on poc5, after deployed executor and keystore contract, add the owner account mnemonic to the .env file
 
 ```sh
-URI="<your mnemonic"
+URI="<your mnemonic>"
 ```
 then update `executor_contract_id` and `key_store_contract_id` in `scripts/src/config.poc5.json` with the proper contract id
 
 Now we are ready to start config executor and keystore contract
 
 ## Whitelist executor id on keystore contract
+
+Add contract id to keystore contract's whitelist.
 
 Only whitelisted executor id can get private keys of worker account from keystore contract, `cd scripts` and execute
 
@@ -60,8 +62,10 @@ rm db.sqlite && ./bin/dev parse -c dotflow.yaml
 
 ### Approve handlers to use your assets
 
+eg.: approve handler to spend 0.1 xcdot
+
 ```sh
-node src/console.js --uri <your uri> erc20 approve --rpc https://1rpc.io/glmr --token 0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080 --spender 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB --amount 10000000000000000
+node src/console.js --uri <your uri> erc20 approve --rpc https://1rpc.io/glmr --token 0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080 --spender 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB --amount 1000000000
 ```
 
 ## Run scheduler
@@ -114,4 +118,4 @@ node src/console.js --config src/config.poc5.json handler deposit --chain Moonbe
 --data  $SOLUTION_DATA \
 --key <sender private key>
 ```
-Note `--id` specifies the task id, you can generate it on your way
+Note `--id` specifies the task id, you can generate it in your way

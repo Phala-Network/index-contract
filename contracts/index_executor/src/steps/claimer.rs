@@ -1,5 +1,6 @@
 use alloc::{string::String, vec::Vec};
 use index::graph::{Chain, ChainType, NonceFetcher};
+use index::tx;
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -49,8 +50,6 @@ pub struct ClaimStep {
     pub id: TaskId,
     /// Asset that will transfer to worker account during claim
     pub asset: Vec<u8>,
-    /// Original worker account balance of received asset
-    pub b0: Option<u128>,
 }
 
 impl Runner for ClaimStep {
@@ -61,15 +60,21 @@ impl Runner for ClaimStep {
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
-
-        // TODO. query off-chain indexer directly get the execution result
-
-        // 1. Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce > nonce {
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        // if ok then not runnable
+        if tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))? {
             Ok(false)
         } else {
-            // If task already exist in rollup storage, it is ready to be claimed
+            // check if task exists in rollup storage
+            // if so, claim it, and regard it as runnable: Ok(true)
+            // if no task exists in rollup storage, then this is step is not runnable
             Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
         }
     }
@@ -89,21 +94,20 @@ impl Runner for ClaimStep {
     }
 
     fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
-        let worker = KeyPair::from(context.signer);
-
-        // TODO. query off-chain indexer directly get the execution result
-
-        // Check if the transaction has been executed
+        let worker_account = AccountInfo::from(context.signer);
         let chain = context
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        let onchain_nonce = chain
-            .get_nonce(worker.address().as_bytes().into())
-            .map_err(|_| "FetchNonceFailed")?;
-        Ok(((onchain_nonce - nonce) == 1, ExtraResult::None))
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
 
-        // TODO: Check if the transaction is successed or not
+        Ok((
+            tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?,
+            ExtraResult::None,
+        ))
     }
 
     fn sync_check(
@@ -111,6 +115,7 @@ impl Runner for ClaimStep {
         nonce: u64,
         context: &Context,
     ) -> Result<(bool, ExtraResult), &'static str> {
+        pink_extension::debug!("Claim step sync checking: {:?}", self);
         self.check(nonce, context)
     }
 }
@@ -227,14 +232,11 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
-        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
+        let handler: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
-        let handler = Contract::from_json(
-            transport,
-            handler_on_goerli,
-            include_bytes!("../abi/handler.json"),
-        )
-        .map_err(|_| "ConstructContractFailed")?;
+        let handler =
+            Contract::from_json(transport, handler, include_bytes!("../abi/handler.json"))
+                .map_err(|_| "ConstructContractFailed")?;
 
         let worker_address: Address = worker.account20.into();
         pink_extension::debug!(
@@ -269,6 +271,11 @@ impl ActivedTaskFetcher {
         );
         let deposit_data: DepositData = evm_deposit_data.into();
         let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
+
+        pink_extension::debug!(
+            "ActivedTaskFetcher::query_evm_actived_task safely exits with {:?}",
+            task
+        );
         Ok(Some(task))
     }
 
@@ -457,7 +464,6 @@ impl DepositData {
                 chain: source_chain.into(),
                 id,
                 asset: self.decode_address(&task_data_json[0].spend_asset)?,
-                b0: None,
             }),
             chain: source_chain.into(),
             nonce: None,
@@ -675,7 +681,6 @@ mod tests {
                 .unwrap()
                 .to_array(),
             asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
-            b0: None,
         };
         let context = Context {
             signer: mock_worker_key,
@@ -786,7 +791,6 @@ mod tests {
                 .unwrap()
                 .to_array(),
             asset: pha.clone(),
-            b0: None,
         };
         let context = Context {
             signer: mock_worker_prv_key,

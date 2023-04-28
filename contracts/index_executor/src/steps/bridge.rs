@@ -68,13 +68,22 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
 
-        let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-        };
+        let src_account = worker_account.account20.to_vec();
+        let dest_account = worker_account.account32.to_vec();
+
+        pink_extension::debug!(
+            "runnable: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
+            hex::encode(&src_account),
+            hex::encode(&dest_account),
+            src_indexer,
+            dest_indexer,
+            nonce,
+            self
+        );
 
         let tx_result = tx::is_bridge_tx_ok(
-            &account,
+            &src_account,
+            &dest_account,
             src_indexer,
             nonce,
             dest_indexer,
@@ -114,7 +123,7 @@ impl Runner for BridgeStep {
                 },
             )
             .map_err(|_| "BridgeFailed")?;
-        pink_extension::info!(
+        pink_extension::debug!(
             "Submit transaction to bridge asset {:?} from {:?} to {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
             &hex::encode(&self.from),
             &self.source_chain,
@@ -151,9 +160,22 @@ impl Runner for BridgeStep {
             index::graph::ChainType::Evm => worker_account.account20.to_vec(),
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
+        let src_account = worker_account.account20.to_vec();
+        let dest_account = worker_account.account32.to_vec();
+
+        pink_extension::debug!(
+            "runnable: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
+            hex::encode(&src_account),
+            hex::encode(&dest_account),
+            src_indexer,
+            dest_indexer,
+            nonce,
+            self
+        );
 
         let tx_result = tx::is_bridge_tx_ok(
-            &account,
+            &src_account,
+            &dest_account,
             src_indexer,
             nonce,
             dest_indexer,
@@ -169,9 +191,10 @@ impl Runner for BridgeStep {
 
     fn sync_check(
         &self,
-        _nonce: u64,
-        _context: &Context,
+        nonce: u64,
+        context: &Context,
     ) -> Result<(bool, ExtraResult), &'static str> {
-        Ok((true, ExtraResult::None))
+        pink_extension::debug!("Bridge step sync checking: {:?}", self);
+        self.check(nonce, context)
     }
 }

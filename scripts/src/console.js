@@ -181,6 +181,9 @@ executor
       let { uri } = program.opts();
       let config = useConfig();
       let api = await useApi(config.node_wss_endpoint);
+      console.log(
+        `config.executor_contract_id: ${config.executor_contract_id}`
+      );
       let executor = await useExecutor(
         api,
         config.pruntine_endpoint,
