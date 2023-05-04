@@ -724,7 +724,7 @@ mod index_executor {
             ));
             // Ethereum -> Khala
             bridge_executors.push((
-                (String::from("Ethereum"), String::from("Phala")),
+                (String::from("Ethereum"), String::from("Khala")),
                 Box::new(ChainBridgeEthereum2Phala::new(
                     &ethereum.endpoint,
                     CHAINBRIDGE_ID_KHALA,
