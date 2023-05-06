@@ -147,17 +147,10 @@ mod index_executor {
         #[ink(message)]
         pub fn config(
             &mut self,
-            //rollup_pallet_id: u8,
-            //rollup_endpoint: String,
-            //keystore_account: AccountId,
+            rollup_pallet_id: u8,
+            rollup_endpoint: String,
+            keystore_account: AccountId,
         ) -> Result<()> {
-
-            // TODO: remove
-            let rollup_pallet_id = 100;
-            let rollup_endpoint = "https://poc5.phala.network/rpc".into();
-            let keystore_account = hex::decode("ccb96fbcbea761409c60a8002dc81c203533cf951db8e758005139f2b2f2e199").unwrap().to_array().into();
-
-            pink_extension::debug!("keystore: {:?}", keystore_account);
             self.ensure_owner()?;
             pink_extension::debug!("config begins");
             // Insert empty record in advance
@@ -264,17 +257,17 @@ mod index_executor {
             .or(Err(Error::FailedToCreateClient))?;
 
             if let Some(mut task) = OnchainTasks::lookup_task(&mut client, &id) {
-                task.destroy(&mut client).map_err(|_| Error::RollupNotConfigured)?;
+                task.destroy(&mut client)
+                    .map_err(|_| Error::RollupNotConfigured)?;
                 pink_extension::debug!("destroy_task: task found: {}", hex::encode(&id));
-            }
-            else {
+            } else {
                 pink_extension::debug!("destroy_task: task not found: {}", hex::encode(&id));
             }
 
             let maybe_submittable = client
-                    .commit()
-                    .log_err("failed to commit")
-                    .or(Err(Error::FailedToCommitTx))?;
+                .commit()
+                .log_err("failed to commit")
+                .or(Err(Error::FailedToCommitTx))?;
 
             // Submit to blockchain
             if let Some(submittable) = maybe_submittable {
@@ -282,10 +275,7 @@ mod index_executor {
                     .submit(&self.executor_account, 0)
                     .log_err("failed to submit rollup tx")
                     .or(Err(Error::FailedToSendTransaction))?;
-                pink_extension::debug!(
-                    "destroyed_task: done: {:?}",
-                    hex::encode(tx_id)
-                );
+                pink_extension::debug!("destroyed_task: done: {:?}", hex::encode(tx_id));
             }
 
             Ok(())
@@ -624,7 +614,7 @@ mod index_executor {
                                     pink_extension::debug!("failed to add task! {:?}, reason: {}", &onchain_task, e);
                                     return None;
                                 }
-                            } 
+                            }
                             let task = TaskCache::get_task(id);
                             if task.is_some() {
                                 pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
@@ -924,12 +914,11 @@ mod index_executor {
             pink_extension_runtime::mock_ext::mock_all_ext();
             let mut executor = deploy_executor();
             // Initial rollup
-            // TODO(br)
-            //assert_eq!(
-            //    executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
-            //    Ok(())
-            //);
-            //assert_eq!(executor.setup_rollup(), Ok(()));
+            assert_eq!(
+                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
+                Ok(())
+            );
+            assert_eq!(executor.setup_rollup(), Ok(()));
         }
 
         #[ignore]
@@ -966,20 +955,19 @@ mod index_executor {
                 })
                 .unwrap();
             // Initial rollup
-            // TODO(br)
-            // assert_eq!(
-            //     executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
-            //     Ok(())
-            // );
-            // assert_eq!(executor.setup_rollup(), Ok(()));
-            // assert_eq!(executor.setup_worker_on_rollup(), Ok(()));
-            // let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
-            // let local_worker_accounts: Vec<[u8; 32]> = executor
-            //     .worker_accounts
-            //     .into_iter()
-            //     .map(|account| account.account32.clone())
-            //     .collect();
-            // assert_eq!(onchain_free_accounts, local_worker_accounts);
+            assert_eq!(
+                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
+                Ok(())
+            );
+            assert_eq!(executor.setup_rollup(), Ok(()));
+            assert_eq!(executor.setup_worker_on_rollup(), Ok(()));
+            let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
+            let local_worker_accounts: Vec<[u8; 32]> = executor
+                .worker_accounts
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect();
+            assert_eq!(onchain_free_accounts, local_worker_accounts);
         }
 
         #[ink::test]

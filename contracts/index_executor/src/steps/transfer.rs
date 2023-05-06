@@ -107,6 +107,7 @@ impl Runner for TransferStep {
         nonce: u64,
         context: &Context,
     ) -> Result<(bool, ExtraResult), &'static str> {
+        pink_extension::debug!("Transfer step sync checking: {:?}", self);
         self.check(nonce, context)
     }
 }

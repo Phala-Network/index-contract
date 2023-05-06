@@ -35,14 +35,8 @@ pub struct BridgeStep {
 }
 
 impl Runner for BridgeStep {
-    // The way we check if a bridge task is available to run is by:
-    //
-    // first by checking the nonce of the worker account, if the account nonce on source chain is great than
-    // the nonce we apply to the step, that means the transaction revalant to the step already been executed.
-    // In this situation we return false.
-    //
-    // second by checking the `spend_asset` balance of the worker account on the source chain, if the balance is
-    // great than or equal to the `spend`, we think we can safely execute swap transaction
+    // The way we check if a bridge task is available to run is by first checking if the tx on the source chain is ok,
+    // then check if the dest chain has a reception event
     fn runnable(
         &self,
         nonce: u64,
@@ -68,13 +62,15 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
 
-        let src_account = worker_account.account20.to_vec();
-        let dest_account = worker_account.account32.to_vec();
+        let src_account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
 
         pink_extension::debug!(
-            "runnable: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
+            "runnable: trying: worker: {}, recipient: {} src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
             hex::encode(&src_account),
-            hex::encode(&dest_account),
+            hex::encode(&self.recipient),
             src_indexer,
             dest_indexer,
             nonce,
@@ -155,17 +151,15 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
 
-        let account = match chain.chain_type {
+        let src_account = match chain.chain_type {
             index::graph::ChainType::Evm => worker_account.account20.to_vec(),
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
-        let src_account = worker_account.account20.to_vec();
-        let dest_account = worker_account.account32.to_vec();
 
         pink_extension::debug!(
-            "check: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
+            "check: trying: worker: {}, recipient: {} src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
             hex::encode(&src_account),
-            hex::encode(&dest_account),
+            hex::encode(&self.recipient),
             src_indexer,
             dest_indexer,
             nonce,

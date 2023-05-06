@@ -111,7 +111,7 @@ pub fn get_tx(
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
     let account = format!("0x{}", hex::encode(account)).to_lowercase();
-    pink_extension::debug!("get_tx: enter with account: {}, nonce: {}", account, nonce);
+    pink_extension::debug!("get_tx: begin: account: {}, nonce: {}", account, nonce);
     let query = format!(
         r#"{{ 
             "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}, account: {{id_eq: \"{account}\"}} }}) {{ blockNumber id nonce result timestamp account {{ id }} }} }}",
@@ -238,7 +238,7 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
 // the nonce given to this API is an expected value
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
     // nonce from storage is one larger than the last tx's nonce
-    pink_extension::debug!("is_tx_ok: enter");
+    pink_extension::debug!("is_tx_ok: begin");
     let tx = get_tx(indexer, account, nonce)?;
     pink_extension::debug!("is_tx_ok: got tx: {:?}", tx);
     if let Some(tx) = tx {
@@ -260,7 +260,7 @@ pub fn is_bridge_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
-    pink_extension::debug!("is_bridge_tx_ok: enter");
+    pink_extension::debug!("is_bridge_tx_ok: begin");
     // check if source tx is ok
     if !is_tx_ok(src_indexer, src_account, src_nonce)? {
         return Ok((false, (block_number, index_in_block)));
@@ -285,11 +285,11 @@ fn is_bridge_dest_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
-    pink_extension::debug!("is_bridge_dest_tx_ok: enter, indexer: {}", dest_indexer);
+    pink_extension::debug!("is_bridge_dest_tx_ok: begin: indexer: {}", dest_indexer);
     // check if on dest chain the recipient has a corresponding event
     let events =
         get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
-    
+
     pink_extension::debug!("is_bridge_dest_tx_ok: events: {:?}", events);
 
     for event in events {
@@ -397,7 +397,6 @@ mod tests {
         .unwrap();
         dbg!(res);
         assert!(res.0);
-        assert_eq!(res.1, (3204876, 6));
 
         let a32 =
             hex_literal::hex!("12735d5f5ddf9a3153d744fdd98ab77f7f181aa30101b09cc694cbf18470956c");

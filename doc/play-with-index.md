@@ -86,7 +86,7 @@ node src/console.js --config src/config.poc5.json worker list
 
 - You may need to let worker approve the handler contract
 
-For example you want to approve `Moonbeam bridge contract: 0x70085a09D30D6f8C4ecF6eE10120d1847383BB57` sepnd your  asset:
+For example you want to approve `Moonbeam bridge contract: 0x70085a09D30D6f8C4ecF6eE10120d1847383BB57` spend your  asset:
 
 ```sh
 node src/console.js --config src/config.poc5.json worker approve \

@@ -6,7 +6,7 @@ pub struct TaskCache;
 
 impl TaskCache {
     pub fn add_task(task: &Task) -> Result<(), &'static str> {
-        pink_extension::debug!("add_task: enter");
+        pink_extension::debug!("add_task: begin");
         let local_tasks = pink_extension::ext()
             .cache_get(b"running_tasks")
             .ok_or("ReadCacheFailed")?;
@@ -23,12 +23,12 @@ impl TaskCache {
                 .cache_set(&task.id, &task.encode())
                 .map_err(|_| "WriteCacheFailed")?;
         }
-        pink_extension::debug!("add_task: exit");
+        pink_extension::debug!("add_task: end");
         Ok(())
     }
 
     pub fn remove_task(task: &Task) -> Result<(), &'static str> {
-        pink_extension::debug!("remove_task: enter");
+        pink_extension::debug!("remove_task: begin");
         let local_tasks = pink_extension::ext()
             .cache_get(b"running_tasks")
             .ok_or("ReadCacheFailed")?;
@@ -47,24 +47,24 @@ impl TaskCache {
         pink_extension::ext()
             .cache_set(b"running_tasks", &decoded_tasks.encode())
             .map_err(|_| "WriteCacheFailed")?;
-        pink_extension::debug!("remove_task: exit");
+        pink_extension::debug!("remove_task: end");
         Ok(())
     }
 
     pub fn update_task(task: &Task) -> Result<(), &'static str> {
-        pink_extension::debug!("update_task: enter");
+        pink_extension::debug!("update_task: begin");
         if pink_extension::ext().cache_get(&task.id).is_some() {
             // Update task record
             pink_extension::ext()
                 .cache_set(&task.id, &task.encode())
                 .map_err(|_| "WriteCacheFailed")?;
         }
-        pink_extension::debug!("update_task: exit");
+        pink_extension::debug!("update_task: end");
         Ok(())
     }
 
     pub fn get_task(id: &TaskId) -> Option<Task> {
-        pink_extension::debug!("get_task: enter");
+        pink_extension::debug!("get_task: begin");
         pink_extension::ext()
             .cache_get(id)
             .and_then(
