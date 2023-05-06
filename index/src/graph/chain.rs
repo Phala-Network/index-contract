@@ -253,6 +253,26 @@ mod tests {
     }
 
     #[test]
+    fn test_get_moonbeam_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let moonbeam = Chain {
+            id: 1,
+            name: String::from("Moonbeam"),
+            endpoint: String::from("https://moonbeam.api.onfinality.io/public"),
+            chain_type: ChainType::Evm,
+            native_asset: vec![0],
+            foreign_asset: None,
+            handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
+        };
+        dbg!(moonbeam
+            .get_nonce(hex!("0dc509699299352c57080cf27128765a5cab8800").into())
+            .unwrap());
+    }
+
+    #[test]
     fn test_get_sub_account_nonce() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();

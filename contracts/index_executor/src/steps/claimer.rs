@@ -159,7 +159,7 @@ impl ClaimStep {
         ))
         .map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
-            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone().as_bytes())
@@ -196,7 +196,7 @@ impl ClaimStep {
         let tx_id =
             send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
-            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone())
@@ -481,7 +481,7 @@ impl DepositData {
                         spend: self.u128_from_string(&op.spend)?,
                         receive_max: self.u128_from_string(&op.receive_max)?,
                         receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: None,
+                        recipient: Default::default(),
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -497,7 +497,7 @@ impl DepositData {
                         spend: self.u128_from_string(&op.spend)?,
                         receive_max: self.u128_from_string(&op.receive_max)?,
                         receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: None,
+                        recipient: Default::default(),
                         block_number: 0,
                         index_in_block: 0,
                     }),
@@ -513,7 +513,7 @@ impl DepositData {
                         spend: self.u128_from_string(&op.spend)?,
                         receive_max: self.u128_from_string(&op.receive_max)?,
                         receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: None,
+                        recipient: Default::default(),
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,

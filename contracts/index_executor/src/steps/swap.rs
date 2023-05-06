@@ -27,7 +27,7 @@ pub struct SwapStep {
     pub receive_min: u128,
     pub receive_max: u128,
     /// Recipient account on current chain
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
 }
 
 impl Runner for SwapStep {
@@ -57,7 +57,6 @@ impl Runner for SwapStep {
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
-        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to run swap with nonce: {}", nonce);
         // Get executor according to `chain` from registry
@@ -73,7 +72,7 @@ impl Runner for SwapStep {
                 self.spend_asset.clone(),
                 self.receive_asset.clone(),
                 self.spend,
-                recipient.clone(),
+                self.recipient.clone(),
                 ExtraParam {
                     tip: 0,
                     nonce: Some(nonce),
@@ -82,11 +81,11 @@ impl Runner for SwapStep {
             )
             .map_err(|_| "SwapFailed")?;
         pink_extension::info!(
-            "Submit transaction to swap asset {:?} to {:?} on ${:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
+            "Submit transaction to swap asset {:?} to {:?} on {:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
             &hex::encode(&self.spend_asset),
             &hex::encode(&self.receive_asset),
             &self.chain,
-            &hex::encode(&recipient),
+            &hex::encode(&self.recipient),
             self.spend,
             hex::encode(&tx_id)
         );

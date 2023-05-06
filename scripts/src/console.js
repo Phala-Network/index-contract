@@ -13,6 +13,7 @@ const PhalaSdk = require('@phala/sdk');
 const PhalaSDKTypes = PhalaSdk.types;
 const KhalaTypes = require('@phala/typedefs').khalaDev;
 const { loadContractFile, createContract, delay } = require('./utils');
+const { encodeAddress } = require('@polkadot/util-crypto');
 
 const ERC20ABI = require('./ERC20ABI.json');
 const HandlerABI = require('./HandlerABI.json');
@@ -139,6 +140,7 @@ const keystore = program.command('keystore').description('inDEX keystore');
 keystore
   .command('set-executor')
   .description('set executor contract id to keystore')
+  .option('--contract <contract>', 'contract id', undefined)
   .action(
     run(async (opt) => {
       let { uri } = program.opts();
@@ -146,6 +148,10 @@ keystore
       let api = await useApi(config.node_wss_endpoint);
       let cert = await useCert(uri, api);
       let pair = await usePair(uri);
+      let contract_id = opt.contract
+        ? opt.contract
+        : config.key_store_contract_id;
+      console.log(`contract id: ${contract_id}`);
       let keystore = await useKeystore(
         api,
         config.pruntine_endpoint,
@@ -155,7 +161,7 @@ keystore
       let { gasRequired, storageDeposit } = await keystore.query.setExecutor(
         cert,
         {},
-        config.executor_contract_id
+        contract_id
       );
       // transaction / extrinct
       let options = {
@@ -165,7 +171,7 @@ keystore
           : null,
       };
       await keystore.tx
-        .setExecutor(options, config.executor_contract_id)
+        .setExecutor(options, contract_id)
         .signAndSend(pair, { nonce: -1 });
     })
   );
@@ -192,6 +198,52 @@ executor
       let cert = await useCert(uri, api);
       let { output } = await executor.query.getExecutorAccount(cert, {});
       let executor_account = output.toJSON().ok;
+      if (opt.balance !== false) {
+        console.log(
+          `account: ${JSON.stringify(executor_account, null, 2)}, balance: ${
+            (await api.query.system.account(executor_account.account32)).data
+              .free
+          }`
+        );
+      } else {
+        console.log(`account: ${JSON.stringify(executor_account, null, 2)}`);
+      }
+    })
+  );
+
+executor
+  .command('init')
+  .description('show executor account information')
+  .requiredOption('--contract <contract>', 'contract id', null)
+  .action(
+    run(async (opt) => {
+      let { uri } = program.opts();
+      let config = useConfig();
+      let api = await useApi(config.node_wss_endpoint);
+
+      console.log(`contract id: ${opt.contract}`);
+
+      let executor = await useExecutor(
+        api,
+        config.pruntine_endpoint,
+        opt.contract
+      );
+      let cert = await useCert(uri, api);
+      let { output } = await executor.query.getExecutorAccount(cert, {});
+      let executor_account = output.toJSON().ok;
+
+      const keyring = new Keyring({ type: 'sr25519' });
+      const alice = keyring.addFromUri('//Alice');
+      const prefix = 30; // phala network prefix
+      const address = encodeAddress(executor_account.account32, prefix);
+      console.log(`Phala ss58 address: ${address}`);
+      // 100 PHA
+      const transfer = api.tx.balances.transfer(address, 100000000000000);
+      const txHash = await transfer.signAndSend(alice);
+      console.log(`Transaction hash: ${txHash}`);
+
+      setTimeout(() => {}, 10000);
+
       if (opt.balance !== false) {
         console.log(
           `account: ${JSON.stringify(executor_account, null, 2)}, balance: ${

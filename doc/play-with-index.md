@@ -35,6 +35,7 @@ with `--balance` will get balance returned
 ### 2. Setup executor
 
 We need to config executor contract after deployed, stuff contains:
+
 1) import worker key from KeyStore contract (call executor.config), with
     - rollup_pallet_id: 100
     - rollup_endpoint: https://poc5.phala.network/rpc

@@ -110,8 +110,8 @@ pub fn get_tx(
     account: &[u8],
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
-    let account = format!("0x{}", hex::encode(account));
-    pink_extension::debug!("get_tx: enter with account: {}", account);
+    let account = format!("0x{}", hex::encode(account)).to_lowercase();
+    pink_extension::debug!("get_tx: enter with account: {}, nonce: {}", account, nonce);
     let query = format!(
         r#"{{ 
             "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}, account: {{id_eq: \"{account}\"}} }}) {{ blockNumber id nonce result timestamp account {{ id }} }} }}",
@@ -126,7 +126,7 @@ pub fn get_tx(
     pink_extension::debug!("get_tx: got transaction: {:?}", transactions);
 
     if transactions.len() != 1 {
-        return Err(Error::TransactionNotFound);
+        return Ok(None);
     }
 
     let tx = &response.data.transactions[0];
@@ -147,7 +147,7 @@ pub fn get_deposit_events_by_block_info(
     block_number: u64,
     index_in_block: u64,
 ) -> core::result::Result<Vec<DepositEvent>, Error> {
-    let account = format!("0x{}", hex::encode(account));
+    let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
         r#"{{ 
             "query": "query Query {{ depositEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }} orderBy: [blockNumber_ASC, indexInBlock_ASC]) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
@@ -155,6 +155,8 @@ pub fn get_deposit_events_by_block_info(
             "operationName": "Query"
         }}"#
     );
+
+    pink_extension::debug!("is_bridge_dest_tx_ok: query: {}", query);
     let body = indexer_rpc(indexer, &query)?;
     let response: DepositEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
@@ -177,7 +179,7 @@ pub fn get_deposit_events_by_block_info(
 }
 
 pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Error> {
-    let account = format!("0x{}", hex::encode(account));
+    let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
         r#"{{ 
             "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
@@ -199,7 +201,7 @@ pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Er
 }
 
 pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<BlockInfo, Error> {
-    let account = format!("0x{}", hex::encode(account));
+    let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
         r#"{{ 
             "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: [blockNumber_DESC, indexInBlock_DESC], limit: 1) {{ id name account {{ id }} amount result indexInBlock blockNumber timestamp }} }}",
@@ -207,6 +209,7 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
             "operationName": "Query"
         }}"#
     );
+    pink_extension::debug!("get_latest_event_block_info: query: {}", query);
     let body = indexer_rpc(indexer, &query)?;
     let response: DepositEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
@@ -236,7 +239,7 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
     // nonce from storage is one larger than the last tx's nonce
     pink_extension::debug!("is_tx_ok: enter");
-    let tx = get_tx(indexer, account, nonce - 1)?;
+    let tx = get_tx(indexer, account, nonce)?;
     pink_extension::debug!("is_tx_ok: got tx: {:?}", tx);
     if let Some(tx) = tx {
         return Ok(tx.result);
@@ -282,10 +285,12 @@ fn is_bridge_dest_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
-    pink_extension::debug!("is_bridge_dest_tx_ok: enter");
+    pink_extension::debug!("is_bridge_dest_tx_ok: enter, indexer: {}", dest_indexer);
     // check if on dest chain the recipient has a corresponding event
     let events =
         get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
+    
+    pink_extension::debug!("is_bridge_dest_tx_ok: events: {:?}", events);
 
     for event in events {
         if receive_min < event.amount && receive_max > event.amount {
@@ -307,7 +312,7 @@ mod tests {
         let account =
             hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
         let tx = get_tx(
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
             &account,
             16,
         )
@@ -334,7 +339,7 @@ mod tests {
         let account =
             hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
         let timestamp = get_lastest_timestamp(
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
             &account,
         )
         .unwrap();
@@ -346,9 +351,9 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+            hex_literal::hex!("8119850bdfdf9792ec2f26a940b58fe43bfb083298ac8035d33a30ea4e5695fe");
         let block_info = get_latest_event_block_info(
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
             &account,
         )
         .unwrap();
@@ -360,9 +365,9 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+            hex_literal::hex!("8119850bdfdf9792ec2f26a940b58fe43bfb083298ac8035d33a30ea4e5695fe");
         let events = get_deposit_events_by_block_info(
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
             &account,
             0,
             0,
@@ -383,7 +388,7 @@ mod tests {
         // the aim is the catch the first event
         let res = is_bridge_dest_tx_ok(
             &account,
-            "https://squid.subsquid.io/squid-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
             500_352_559,
             600_352_559,
             3204833,

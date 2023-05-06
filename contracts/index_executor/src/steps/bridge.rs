@@ -23,7 +23,7 @@ pub struct BridgeStep {
     /// Name of dest chain
     pub dest_chain: String,
     /// Recipient account on dest chain
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
     /// Actual amount of token0
     pub spend: u128,
     /// Reception in the form of range
@@ -83,7 +83,7 @@ impl Runner for BridgeStep {
 
         let tx_result = tx::is_bridge_tx_ok(
             &src_account,
-            &dest_account,
+            &self.recipient,
             src_indexer,
             nonce,
             dest_indexer,
@@ -100,7 +100,6 @@ impl Runner for BridgeStep {
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
-        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to run bridge with nonce: {}", nonce);
         // Get executor according to `src_chain` and `des_chain`
@@ -114,7 +113,7 @@ impl Runner for BridgeStep {
             .transfer(
                 signer,
                 self.from.clone(),
-                recipient.clone(),
+                self.recipient.clone(),
                 self.spend,
                 ExtraParam {
                     tip: 0,
@@ -128,7 +127,7 @@ impl Runner for BridgeStep {
             &hex::encode(&self.from),
             &self.source_chain,
             &self.dest_chain,
-            &hex::encode(&recipient),
+            &hex::encode(&self.recipient),
             self.spend,
             hex::encode(&tx_id)
         );
@@ -164,7 +163,7 @@ impl Runner for BridgeStep {
         let dest_account = worker_account.account32.to_vec();
 
         pink_extension::debug!(
-            "runnable: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
+            "check: trying: account: {}/{}, src_indexer: {}, dest_indexer: {}, src_nonce: {}, step: {:?}",
             hex::encode(&src_account),
             hex::encode(&dest_account),
             src_indexer,
@@ -175,7 +174,7 @@ impl Runner for BridgeStep {
 
         let tx_result = tx::is_bridge_tx_ok(
             &src_account,
-            &dest_account,
+            &self.recipient,
             src_indexer,
             nonce,
             dest_indexer,

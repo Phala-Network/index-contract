@@ -23,7 +23,7 @@ pub struct TransferStep {
     pub receive_min: u128,
     pub receive_max: u128,
     // Recipient account on current chain
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
 }
 
 impl Runner for TransferStep {
@@ -52,7 +52,6 @@ impl Runner for TransferStep {
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
-        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to tranfer with nonce: {}", nonce);
         // Get executor according to `chain` from registry
@@ -65,7 +64,7 @@ impl Runner for TransferStep {
             .transfer(
                 signer,
                 self.asset.clone(),
-                recipient.clone(),
+                self.recipient.clone(),
                 self.amount,
                 ExtraParam {
                     tip: 0,
@@ -75,10 +74,10 @@ impl Runner for TransferStep {
             )
             .map_err(|_| "SwapFailed")?;
         pink_extension::info!(
-            "Submit transaction to transfer asset {:?} on ${:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
+            "Submit transaction to transfer asset {:?} on {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
             &hex::encode(&self.asset),
             &self.chain,
-            &hex::encode(&recipient),
+            &hex::encode(&self.recipient),
             self.amount,
             hex::encode(&tx_id)
         );

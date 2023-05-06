@@ -5,7 +5,9 @@ use crate::steps::{ExtraResult, Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use index::tx::get_latest_event_block_info;
+use index::utils::ToArray;
 use ink::storage::Mapping;
+use ink_env::block_number;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
@@ -82,9 +84,6 @@ impl Task {
             return Ok(());
         }
 
-        // scan for bridges
-        _ = self.setup_bridge_steps(context);
-
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
             free_accounts.remove(index);
@@ -112,6 +111,13 @@ impl Task {
             pink_extension::debug!("Task::init_and_submit: applying recipient failed: {}", e);
         }
         pink_extension::debug!("Task::init_and_submit: done applying recipient");
+
+        // scan for bridges
+        // this procedure is below apply_recipient for one reason: the last step's recipient is not worker
+        if let Err(e) = self.setup_bridge_steps(context) {
+            pink_extension::debug!("Task::init_and_submit: failed to setup bridge steps: {}", e);
+        }
+
         // TODO: query initial balance of worker account and setup to specific step
         self.status = TaskStatus::Initialized;
         self.execute_index = 0;
@@ -143,13 +149,14 @@ impl Task {
                         .graph
                         .get_chain(bridge_step.dest_chain.clone())
                         .ok_or("MissingChain")?;
-                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                    let account = match chain.chain_type {
-                        ChainType::Evm => account_info.account20.to_vec(),
-                        ChainType::Sub => account_info.account32.to_vec(),
-                    };
-                    let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &account)
+                    let blockinfo = get_latest_event_block_info(&chain.tx_indexer, &self.recipient)
                         .or(Err("Can't find timestamp"))?;
+                    pink_extension::debug!(
+                        "setup_bridge_steps: blockinfo {:?} from {}, {}",
+                        blockinfo,
+                        &chain.tx_indexer,
+                        hex::encode(&self.recipient)
+                    );
                     // we know the Task will be saved on pallet!
                     self.bridges_last_blockinfo.push((
                         bridge_step.dest_chain.clone(),
@@ -333,12 +340,14 @@ impl Task {
             OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
+        pink_extension::debug!("destroy: destroying {}", hex::encode(&self.id));
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
             if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
                 // Remove from pending tasks queue
                 pending_tasks.remove(idx);
                 // Recycle worker account
                 free_accounts.push(self.worker);
+                pink_extension::debug!("destroy: free worker: {}", hex::encode(&self.worker));
                 // Delete task data
                 client.session().delete(self.id.as_ref());
             }
@@ -392,7 +401,7 @@ impl Task {
             match &mut step.meta {
                 StepMeta::Swap(swap_step) => {
                     swap_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
+                        self.recipient.clone()
                     } else {
                         let chain = context
                             .graph
@@ -400,16 +409,16 @@ impl Task {
                             .ok_or("MissingChain")?;
                         let account_info =
                             context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
+                        match chain.chain_type {
                             ChainType::Evm => account_info.account20.to_vec(),
                             ChainType::Sub => account_info.account32.to_vec(),
                             // ChainType::Unknown => panic!("chain not supported!"),
-                        })
+                        }
                     };
                 }
                 StepMeta::Bridge(bridge_step) => {
                     bridge_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
+                        self.recipient.clone()
                     } else {
                         let chain = context
                             .graph
@@ -417,16 +426,16 @@ impl Task {
                             .ok_or("MissingChain")?;
                         let account_info =
                             context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
+                        match chain.chain_type {
                             ChainType::Evm => account_info.account20.to_vec(),
                             ChainType::Sub => account_info.account32.to_vec(),
                             // ChainType::Unknown => panic!("chain not supported!"),
-                        })
+                        }
                     };
                 }
                 StepMeta::Transfer(transfer_step) => {
                     transfer_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
+                        self.recipient.clone()
                     } else {
                         let chain = context
                             .graph
@@ -434,11 +443,11 @@ impl Task {
                             .ok_or("MissingChain")?;
                         let account_info =
                             context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
+                        match chain.chain_type {
                             ChainType::Evm => account_info.account20.to_vec(),
                             ChainType::Sub => account_info.account32.to_vec(),
                             // ChainType::Unknown => panic!("chain not supported!"),
-                        })
+                        }
                     };
                 }
                 _ => {}
