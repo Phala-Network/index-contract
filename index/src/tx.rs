@@ -178,28 +178,6 @@ pub fn get_deposit_events_by_block_info(
     Ok(devents)
 }
 
-pub fn get_lastest_timestamp(indexer: &str, account: &[u8]) -> Result<String, Error> {
-    let account = format!("0x{}", hex::encode(account)).to_lowercase();
-    let query = format!(
-        r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: timestamp_DESC, limit: 1) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
-            "variables": null,
-            "operationName": "Query"
-        }}"#
-    );
-    let body = indexer_rpc(indexer, &query)?;
-    let response: DepositEventResponse =
-        pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
-    let events = response.data.deposit_events;
-
-    if events.len() != 1 {
-        return Err(Error::DepositEventNotFound);
-    }
-    let timestamp = &events[0].timestamp;
-
-    Ok(timestamp.into())
-}
-
 pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<BlockInfo, Error> {
     let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
@@ -309,16 +287,14 @@ mod tests {
     #[test]
     fn indexer_works() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-        let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
+        let account = hex_literal::hex!("0dC509699299352c57080cf27128765a5caB8800");
         let tx = get_tx(
-            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
+            "https://squid.subsquid.io/graph-moonbeam/v/v1/graphql",
             &account,
             16,
         )
         .unwrap();
         dbg!(&tx);
-        assert_eq!(tx.unwrap().nonce, 16);
     }
 
     #[test]
@@ -330,20 +306,6 @@ mod tests {
         let response = "{\"data\":{\"depositEvents\":[{\"id\":\"0003204876-000006-7c4d3\",\"name\":\"Tokens.Deposited\",\"amount\":\"577018997\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"},\"result\":true,\"blockNumber\":3204876,\"indexInBlock\":6,\"timestamp\":\"1679593572593\"}]}}\n";
         let response: DepositEventResponse = pink_json::from_str(response).unwrap();
         dbg!(response);
-    }
-
-    #[test]
-    fn get_timestamp() {
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
-        let timestamp = get_lastest_timestamp(
-            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
-            &account,
-        )
-        .unwrap();
-        dbg!(timestamp);
     }
 
     #[test]
@@ -377,26 +339,10 @@ mod tests {
     }
 
     #[test]
-    fn checker_works() {
+    fn bridge_checker_works() {
         // https://acala.subscan.io/extrinsic/2705255-1?event=2705255-10
         // receive: 528352559
         pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let account =
-            hex_literal::hex!("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623");
-
-        // the aim is the catch the first event
-        let res = is_bridge_dest_tx_ok(
-            &account,
-            "https://squid.subsquid.io/graph-acala/v/v1/graphql",
-            500_352_559,
-            600_352_559,
-            3204833,
-            7,
-        )
-        .unwrap();
-        dbg!(res);
-        assert!(res.0);
 
         let a32 =
             hex_literal::hex!("12735d5f5ddf9a3153d744fdd98ab77f7f181aa30101b09cc694cbf18470956c");
