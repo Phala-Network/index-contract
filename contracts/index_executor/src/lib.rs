@@ -259,9 +259,9 @@ mod index_executor {
             if let Some(mut task) = OnchainTasks::lookup_task(&mut client, &id) {
                 task.destroy(&mut client)
                     .map_err(|_| Error::RollupNotConfigured)?;
-                pink_extension::debug!("destroy_task: task found: {}", hex::encode(&id));
+                pink_extension::debug!("destroy_task: task found: {}", hex::encode(id));
             } else {
-                pink_extension::debug!("destroy_task: task not found: {}", hex::encode(&id));
+                pink_extension::debug!("destroy_task: task not found: {}", hex::encode(id));
             }
 
             let maybe_submittable = client
@@ -406,7 +406,7 @@ mod index_executor {
         #[ink(message)]
         pub fn worker_key(&self, worker: [u8; 32]) -> Result<String> {
             self.ensure_owner()?;
-            Ok(hex::encode(self.pub_to_prv(worker).unwrap().to_vec()))
+            Ok(hex::encode(self.pub_to_prv(worker).unwrap()))
         }
 
         #[ink(message)]

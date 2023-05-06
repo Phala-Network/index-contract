@@ -347,8 +347,8 @@ mod tests {
         let a32 =
             hex_literal::hex!("12735d5f5ddf9a3153d744fdd98ab77f7f181aa30101b09cc694cbf18470956c");
         let a20 = hex_literal::hex!("0dc509699299352c57080cf27128765a5cab8800");
-        dbg!(hex::encode(&a20));
-        dbg!(hex::encode(&a32));
+        dbg!(hex::encode(a20));
+        dbg!(hex::encode(a32));
 
         // the aim is the catch the first event
         let res = is_bridge_tx_ok(

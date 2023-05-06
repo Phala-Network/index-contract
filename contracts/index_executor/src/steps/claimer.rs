@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType, NonceFetcher};
+use index::graph::{Chain, ChainType};
 use index::tx;
 use scale::{Decode, Encode};
 

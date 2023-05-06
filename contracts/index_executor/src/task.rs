@@ -1,13 +1,10 @@
-use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use crate::steps::{ExtraResult, Step, StepMeta};
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use index::tx::get_latest_event_block_info;
-use index::utils::ToArray;
 use ink::storage::Mapping;
-use ink_env::block_number;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
@@ -340,14 +337,14 @@ impl Task {
             OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
         let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
 
-        pink_extension::debug!("destroy: destroying {}", hex::encode(&self.id));
+        pink_extension::debug!("destroy: destroying {}", hex::encode(self.id));
         if OnchainTasks::lookup_task(client, &self.id).is_some() {
             if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
                 // Remove from pending tasks queue
                 pending_tasks.remove(idx);
                 // Recycle worker account
                 free_accounts.push(self.worker);
-                pink_extension::debug!("destroy: free worker: {}", hex::encode(&self.worker));
+                pink_extension::debug!("destroy: free worker: {}", hex::encode(self.worker));
                 // Delete task data
                 client.session().delete(self.id.as_ref());
             }
