@@ -391,9 +391,8 @@ mod index_executor {
             Ok(!self.is_paused)
         }
 
-        /// For cross-contract call test
         #[ink(message)]
-        pub fn get_local_tasks(&self) -> Result<Vec<Task>> {
+        pub fn get_all_running_tasks(&self) -> Result<Vec<Task>> {
             let mut task_list: Vec<Task> = vec![];
             let local_tasks = pink_extension::ext()
                 .cache_get(b"running_tasks")
@@ -404,6 +403,11 @@ mod index_executor {
                 task_list.push(TaskCache::get_task(&task_id).ok_or(Error::TaskNotFoundInCache)?);
             }
             Ok(task_list)
+        }
+
+        #[ink(message)]
+        pub fn get_running_task(&self, task_id: TaskId) -> Result<Option<Task>> {
+            Ok(TaskCache::get_task(&task_id))
         }
 
         /// Returs the interior graph, callable to all
@@ -724,7 +728,7 @@ mod index_executor {
             ));
             // Ethereum -> Khala
             bridge_executors.push((
-                (String::from("Ethereum"), String::from("Phala")),
+                (String::from("Ethereum"), String::from("Khala")),
                 Box::new(ChainBridgeEthereum2Phala::new(
                     &ethereum.endpoint,
                     CHAINBRIDGE_ID_KHALA,
