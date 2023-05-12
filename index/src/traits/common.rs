@@ -7,6 +7,7 @@ pub enum Error {
     BadAbi,
     BadAsset,
     BadOrigin,
+    CallIndexerFailed,
     ExtractLocationFailed,
     InvalidAddress,
     ConstructContractFailed,
@@ -24,6 +25,8 @@ pub enum Error {
     FailedToScaleDecode,
     DecodeStorageFailed,
     AssetNotRecognized,
+    TransactionNotFound,
+    DepositEventNotFound,
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]

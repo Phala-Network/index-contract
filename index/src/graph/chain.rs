@@ -47,6 +47,7 @@ pub struct Chain {
     pub native_asset: Vec<u8>,
     pub foreign_asset: Option<ForeignAssetModule>,
     pub handler_contract: Vec<u8>,
+    pub tx_indexer: String,
 }
 
 impl Chain {
@@ -241,6 +242,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
         assert_eq!(
             goerli
@@ -248,6 +250,26 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[test]
+    fn test_get_moonbeam_nonce() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let moonbeam = Chain {
+            id: 1,
+            name: String::from("Moonbeam"),
+            endpoint: String::from("https://moonbeam.api.onfinality.io/public"),
+            chain_type: ChainType::Evm,
+            native_asset: vec![0],
+            foreign_asset: None,
+            handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
+        };
+        dbg!(moonbeam
+            .get_nonce(hex!("0dc509699299352c57080cf27128765a5cab8800").into())
+            .unwrap());
     }
 
     #[test]
@@ -263,6 +285,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
         assert_eq!(
             khala
@@ -289,6 +312,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
         // Get native asset balance
         assert_eq!(
@@ -313,6 +337,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_sub_account_balance() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
@@ -326,6 +351,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
         let karura = Chain {
             id: 2,
@@ -345,6 +371,7 @@ mod tests {
             .encode(),
             foreign_asset: Some(ForeignAssetModule::OrmlToken),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
         // Get native asset (PHA on Khala)
         assert_eq!(

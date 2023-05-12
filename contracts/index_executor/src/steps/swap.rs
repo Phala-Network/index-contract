@@ -2,9 +2,12 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::traits::Runner;
 use alloc::{string::String, vec::Vec};
+use index::tx;
 use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
+
+use super::ExtraResult;
 
 /// Definition of swap operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -17,34 +20,21 @@ pub struct SwapStep {
     /// Chain name
     pub chain: String,
     /// Dex name
-    pub dex: String,
-    /// Capacity of the step
-    pub cap: u128,
-    /// Flow of the step
-    pub flow: u128,
-    /// Price impact after executing the step
-    pub impact: u128,
-    /// Original relayer account balance of spend asset
-    /// Should be set when initializing task
-    pub b0: Option<u128>,
-    /// Original relayer account balance of received asset
-    /// Should be set when initializing task
-    pub b1: Option<u128>,
-    /// Amount to be spend
+    pub name: String,
+    /// Actual amount of token0
     pub spend: u128,
+    /// Reception in the form of range
+    pub receive_min: u128,
+    pub receive_max: u128,
     /// Recipient account on current chain
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
 }
 
 impl Runner for SwapStep {
-    // The way we check if a bridge task is available to run is by:
-    //
-    // first by checking the nonce of the worker account, if the account nonce on source chain is great than
+    // The way we check if a bridge task is available to run is by checking the nonce
+    //      of the worker account, if the account nonce on source chain is great than
     // the nonce we apply to the step, that means the transaction revalant to the step already been executed.
     // In this situation we return false.
-    //
-    // second by checking the `from` asset balance of the worker account on the source chain, if the balance is
-    // great than or equal to the `amount` to bridge, we think we can safely execute bridge transaction
     fn runnable(
         &self,
         nonce: u64,
@@ -53,22 +43,20 @@ impl Runner for SwapStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
-
-        // 1. Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce > nonce {
-            return Ok(false);
-        }
-        // 2. Check balance
-        let onchain_balance =
-            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
-        Ok(onchain_balance >= self.spend)
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        // if ok then not runnable
+        Ok(!tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?)
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
-        let recipient = self.recipient.clone().ok_or("MissingRecipient")?;
 
         pink_extension::debug!("Start to run swap with nonce: {}", nonce);
         // Get executor according to `chain` from registry
@@ -84,7 +72,7 @@ impl Runner for SwapStep {
                 self.spend_asset.clone(),
                 self.receive_asset.clone(),
                 self.spend,
-                recipient.clone(),
+                self.recipient.clone(),
                 ExtraParam {
                     tip: 0,
                     nonce: Some(nonce),
@@ -93,11 +81,11 @@ impl Runner for SwapStep {
             )
             .map_err(|_| "SwapFailed")?;
         pink_extension::info!(
-            "Submit transaction to swap asset {:?} to {:?} on ${:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
+            "Submit transaction to swap asset {:?} to {:?} on {:?}, recipient: {:?}, spend: {:?}, tx id: {:?}",
             &hex::encode(&self.spend_asset),
             &hex::encode(&self.receive_asset),
             &self.chain,
-            &hex::encode(&recipient),
+            &hex::encode(&self.recipient),
             self.spend,
             hex::encode(&tx_id)
         );
@@ -106,24 +94,29 @@ impl Runner for SwapStep {
 
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
-        // Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok(false);
-        }
-
-        // Check balance change on source chain
-        let onchain_balance =
-            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
-        let b0 = self.b0.ok_or("MissingB0")?;
-        Ok((b0 - onchain_balance) == self.spend)
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        Ok((
+            tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?,
+            ExtraResult::None,
+        ))
     }
 
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn sync_check(
+        &self,
+        nonce: u64,
+        context: &Context,
+    ) -> Result<(bool, ExtraResult), &'static str> {
+        pink_extension::debug!("Swap step sync checking: {:?}", self);
         self.check(nonce, context)
     }
 }
