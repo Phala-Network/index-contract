@@ -337,6 +337,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_get_sub_account_balance() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();

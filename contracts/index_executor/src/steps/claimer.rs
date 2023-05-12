@@ -272,10 +272,6 @@ impl ActivedTaskFetcher {
         let deposit_data: DepositData = evm_deposit_data.into();
         let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
 
-        pink_extension::debug!(
-            "ActivedTaskFetcher::query_evm_actived_task safely exits with {:?}",
-            task
-        );
         Ok(Some(task))
     }
 

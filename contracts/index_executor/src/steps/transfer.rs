@@ -9,7 +9,7 @@ use scale::{Decode, Encode};
 
 use super::ExtraResult;
 
-/// Definition of swap operation step
+/// Definition of transfer operation step
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct TransferStep {
@@ -22,7 +22,7 @@ pub struct TransferStep {
     /// Reception in the form of range
     pub receive_min: u128,
     pub receive_max: u128,
-    // Recipient account on current chain
+    /// Recipient account on current chain
     pub recipient: Vec<u8>,
 }
 

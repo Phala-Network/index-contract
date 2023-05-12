@@ -129,7 +129,6 @@ impl Task {
         client
             .session()
             .put(b"pending_tasks".as_ref(), pending_tasks.encode());
-        pink_extension::debug!("Task::init_and_submit: exits");
         Ok(())
     }
 
@@ -162,10 +161,6 @@ impl Task {
                 }
             }
         }
-        pink_extension::debug!(
-            "setup_bridge_steps: successfully exits with {:?}",
-            self.bridges_last_blockinfo
-        );
         Ok(())
     }
 

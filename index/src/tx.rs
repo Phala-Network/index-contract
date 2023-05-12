@@ -19,7 +19,7 @@ pub struct Transaction {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct DepositEvent {
+pub struct BridgeReceiveEvent {
     pub block_number: u64,
     pub index_in_block: u64,
     pub id: String,
@@ -74,14 +74,14 @@ struct Data {
 }
 
 #[derive(Debug, Deserialize)]
-struct DepositEventResponse {
-    data: DepositEventData,
+struct BridgeReceiveEventResponse {
+    data: BridgeReceiveEventData,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct DepositEventData {
-    deposit_events: Vec<Event>,
+struct BridgeReceiveEventData {
+    bridge_receive_events: Vec<Event>,
 }
 
 #[derive(Debug)]
@@ -111,7 +111,7 @@ pub fn get_tx(
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, Error> {
     let account = format!("0x{}", hex::encode(account)).to_lowercase();
-    pink_extension::debug!("get_tx: begin: account: {}, nonce: {}", account, nonce);
+    pink_extension::debug!("get_tx: account: {}, nonce: {}", account, nonce);
     let query = format!(
         r#"{{ 
             "query": "query Query {{ transactions(where: {{nonce_eq: {nonce}, account: {{id_eq: \"{account}\"}} }}) {{ blockNumber id nonce result timestamp account {{ id }} }} }}",
@@ -146,11 +146,11 @@ pub fn get_deposit_events_by_block_info(
     account: &[u8],
     block_number: u64,
     index_in_block: u64,
-) -> core::result::Result<Vec<DepositEvent>, Error> {
+) -> core::result::Result<Vec<BridgeReceiveEvent>, Error> {
     let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }} orderBy: [blockNumber_ASC, indexInBlock_ASC]) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
+            "query": "query Query {{ bridgeReceiveEvents(where: {{ AND: [ {{ account: {{ id_eq: \"{account}\" }} }} {{ OR: [ {{ AND: [ {{ blockNumber_eq: {block_number} }}, {{ indexInBlock_gt: {index_in_block} }} ] }} {{ blockNumber_gt: {block_number} }} ]}} ] }} orderBy: [blockNumber_ASC, indexInBlock_ASC]) {{ id name amount account {{ id }} result blockNumber indexInBlock timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
@@ -158,12 +158,12 @@ pub fn get_deposit_events_by_block_info(
 
     pink_extension::debug!("is_bridge_dest_tx_ok: query: {}", query);
     let body = indexer_rpc(indexer, &query)?;
-    let response: DepositEventResponse =
+    let response: BridgeReceiveEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
 
     let mut devents = vec![];
-    for ev in response.data.deposit_events {
-        let dev = DepositEvent {
+    for ev in response.data.bridge_receive_events {
+        let dev = BridgeReceiveEvent {
             block_number: ev.block_number,
             index_in_block: ev.index_in_block,
             id: ev.id,
@@ -182,16 +182,16 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
     let account = format!("0x{}", hex::encode(account)).to_lowercase();
     let query = format!(
         r#"{{ 
-            "query": "query Query {{ depositEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: [blockNumber_DESC, indexInBlock_DESC], limit: 1) {{ id name account {{ id }} amount result indexInBlock blockNumber timestamp }} }}",
+            "query": "query Query {{ bridgeReceiveEvents(where: {{account: {{id_eq: \"{account}\"}} }}, orderBy: [blockNumber_DESC, indexInBlock_DESC], limit: 1) {{ id name account {{ id }} amount result indexInBlock blockNumber timestamp }} }}",
             "variables": null,
             "operationName": "Query"
         }}"#
     );
     pink_extension::debug!("get_latest_event_block_info: query: {}", query);
     let body = indexer_rpc(indexer, &query)?;
-    let response: DepositEventResponse =
+    let response: BridgeReceiveEventResponse =
         pink_json::from_slice(&body).or(Err(Error::InvalidBody))?;
-    let events = response.data.deposit_events;
+    let events = response.data.bridge_receive_events;
 
     if events.is_empty() {
         return Ok(BlockInfo {
@@ -216,7 +216,6 @@ pub fn get_latest_event_block_info(indexer: &str, account: &[u8]) -> Result<Bloc
 // the nonce given to this API is an expected value
 pub fn is_tx_ok(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, Error> {
     // nonce from storage is one larger than the last tx's nonce
-    pink_extension::debug!("is_tx_ok: begin");
     let tx = get_tx(indexer, account, nonce)?;
     pink_extension::debug!("is_tx_ok: got tx: {:?}", tx);
     if let Some(tx) = tx {
@@ -238,7 +237,6 @@ pub fn is_bridge_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
-    pink_extension::debug!("is_bridge_tx_ok: begin");
     // check if source tx is ok
     if !is_tx_ok(src_indexer, src_account, src_nonce)? {
         return Ok((false, (block_number, index_in_block)));
@@ -263,7 +261,7 @@ fn is_bridge_dest_tx_ok(
     block_number: u64,
     index_in_block: u64,
 ) -> Result<(bool, (u64, u64)), Error> {
-    pink_extension::debug!("is_bridge_dest_tx_ok: begin: indexer: {}", dest_indexer);
+    pink_extension::debug!("is_bridge_dest_tx_ok: indexer: {}", dest_indexer);
     // check if on dest chain the recipient has a corresponding event
     let events =
         get_deposit_events_by_block_info(dest_indexer, account, block_number, index_in_block)?;
@@ -277,7 +275,6 @@ fn is_bridge_dest_tx_ok(
         }
     }
 
-    pink_extension::debug!("is_bridge_dest_tx_ok: exit");
     Ok((false, (block_number, index_in_block)))
 }
 
@@ -303,8 +300,8 @@ mod tests {
         let response: Response = pink_json::from_str(response).unwrap();
         dbg!(response);
 
-        let response = "{\"data\":{\"depositEvents\":[{\"id\":\"0003204876-000006-7c4d3\",\"name\":\"Tokens.Deposited\",\"amount\":\"577018997\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"},\"result\":true,\"blockNumber\":3204876,\"indexInBlock\":6,\"timestamp\":\"1679593572593\"}]}}\n";
-        let response: DepositEventResponse = pink_json::from_str(response).unwrap();
+        let response = "{\"data\":{\"bridgeReceiveEvents\":[{\"id\":\"0003204876-000006-7c4d3\",\"name\":\"Tokens.Deposited\",\"amount\":\"577018997\",\"account\":{\"id\":\"0xcee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623\"},\"result\":true,\"blockNumber\":3204876,\"indexInBlock\":6,\"timestamp\":\"1679593572593\"}]}}\n";
+        let response: BridgeReceiveEventResponse = pink_json::from_str(response).unwrap();
         dbg!(response);
     }
 

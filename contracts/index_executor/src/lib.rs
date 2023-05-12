@@ -152,7 +152,6 @@ mod index_executor {
             keystore_account: AccountId,
         ) -> Result<()> {
             self.ensure_owner()?;
-            pink_extension::debug!("config begins");
             // Insert empty record in advance
             let empty_tasks: Vec<TaskId> = vec![];
             pink_extension::ext()
@@ -238,68 +237,6 @@ mod index_executor {
             }
 
             Ok(())
-        }
-
-        /// clear rollup storage.
-        #[ink(message)]
-        pub fn destroy_task(&self, id: [u8; 32]) -> Result<()> {
-            self.ensure_owner()?;
-
-            let config = self.ensure_configured()?;
-            let contract_id = self.env().account_id();
-            let mut client = SubstrateRollupClient::new(
-                &config.rollup_endpoint,
-                config.rollup_pallet_id,
-                &contract_id,
-                SUB_ROLLUP_PREFIX,
-            )
-            .log_err("failed to create rollup client")
-            .or(Err(Error::FailedToCreateClient))?;
-
-            if let Some(mut task) = OnchainTasks::lookup_task(&mut client, &id) {
-                task.destroy(&mut client)
-                    .map_err(|_| Error::RollupNotConfigured)?;
-                pink_extension::debug!("destroy_task: task found: {}", hex::encode(id));
-            } else {
-                pink_extension::debug!("destroy_task: task not found: {}", hex::encode(id));
-            }
-
-            let maybe_submittable = client
-                .commit()
-                .log_err("failed to commit")
-                .or(Err(Error::FailedToCommitTx))?;
-
-            // Submit to blockchain
-            if let Some(submittable) = maybe_submittable {
-                let tx_id = submittable
-                    .submit(&self.executor_account, 0)
-                    .log_err("failed to submit rollup tx")
-                    .or(Err(Error::FailedToSendTransaction))?;
-                pink_extension::debug!("destroyed_task: done: {:?}", hex::encode(tx_id));
-            }
-
-            Ok(())
-        }
-
-        #[ink(message)]
-        pub fn tasks(&self) -> Result<Vec<String>> {
-            self.ensure_owner()?;
-
-            let config = self.ensure_configured()?;
-            let contract_id = self.env().account_id();
-            let mut client = SubstrateRollupClient::new(
-                &config.rollup_endpoint,
-                config.rollup_pallet_id,
-                &contract_id,
-                SUB_ROLLUP_PREFIX,
-            )
-            .log_err("failed to create rollup client")
-            .or(Err(Error::FailedToCreateClient))?;
-            let mut results = vec![];
-            for id in OnchainTasks::lookup_pending_tasks(&mut client).iter() {
-                results.push(hex::encode(id));
-            }
-            Ok(results)
         }
 
         /// Save worker account information to rollup storage.
@@ -401,12 +338,6 @@ mod index_executor {
             .log_err("failed to submit worker approve tx")
             .or(Err(Error::FailedToSendTransaction))?;
             Ok(())
-        }
-
-        #[ink(message)]
-        pub fn worker_key(&self, worker: [u8; 32]) -> Result<String> {
-            self.ensure_owner()?;
-            Ok(hex::encode(self.pub_to_prv(worker).unwrap()))
         }
 
         #[ink(message)]
@@ -614,10 +545,6 @@ mod index_executor {
                                     pink_extension::debug!("failed to add task! {:?}, reason: {}", &onchain_task, e);
                                     return None;
                                 }
-                            }
-                            let task = TaskCache::get_task(id);
-                            if task.is_some() {
-                                pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
                             }
                             Some(onchain_task)
                         } else {
