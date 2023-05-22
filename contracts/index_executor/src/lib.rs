@@ -295,7 +295,6 @@ mod index_executor {
             self.ensure_owner()?;
             self.ensure_running()?;
             self.is_paused = true;
-            pink_extension::debug!("pausing executor...");
             Ok(())
         }
 
@@ -304,7 +303,97 @@ mod index_executor {
             self.ensure_owner()?;
             self.ensure_paused()?;
             self.is_paused = false;
-            pink_extension::debug!("resuming executor...");
+            Ok(())
+        }
+
+        /// Remove task data from rollup storage if existing, this method is used to clean execution context
+        /// when task is failed to execute
+        #[ink(message)]
+        pub fn remove_task_from_rollup(&self, id: TaskId) -> Result<()> {
+            self.ensure_owner()?;
+            self.ensure_paused()?;
+
+            let config = self.ensure_configured()?;
+            let contract_id = self.env().account_id();
+            let mut client = SubstrateRollupClient::new(
+                &config.rollup_endpoint,
+                config.rollup_pallet_id,
+                &contract_id,
+                SUB_ROLLUP_PREFIX,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
+
+            if let Some(mut task) = TaskCache::get_task(&id) {
+                pink_extension::warn!(
+                    "Trying to remove task data from rollup storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                // Remove task from blockchain and recycle worker account
+                task.destroy(&mut client)
+                    .map_err(|_| Error::RollupNotConfigured)?;
+            }
+
+            Ok(())
+        }
+
+        /// Remove task data from local cache if existing, this method is used to clean execution context
+        /// when task is failed to execute.
+        /// Note this method should only be called after task already removed from rollup storage
+        #[ink(message)]
+        pub fn remove_task_from_cache(&self, id: TaskId) -> Result<()> {
+            self.ensure_owner()?;
+            self.ensure_paused()?;
+
+            let config = self.ensure_configured()?;
+            let contract_id = self.env().account_id();
+            let mut client = SubstrateRollupClient::new(
+                &config.rollup_endpoint,
+                config.rollup_pallet_id,
+                &contract_id,
+                SUB_ROLLUP_PREFIX,
+            )
+            .log_err("failed to create rollup client")
+            .or(Err(Error::FailedToCreateClient))?;
+
+            if let Some(task) = TaskCache::get_task(&id) {
+                if OnchainTasks::lookup_task(&mut client, &id).is_none() {
+                    pink_extension::info!(
+                        "Task delete from rollup storage, remove it from local cache: {:?}",
+                        hex::encode(task.id)
+                    );
+                    TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
+                }
+            }
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn worker_drop_task(
+            &self,
+            worker: [u8; 32],
+            chain: String,
+            id: TaskId,
+        ) -> Result<()> {
+            self.ensure_owner()?;
+            let _ = self.ensure_configured()?;
+            self.ensure_graph_set()?;
+            // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
+            self.ensure_paused()?;
+
+            let chain = self.get_chain(chain).ok_or(Error::ChainNotFound)?;
+            if chain.chain_type != ChainType::Evm {
+                return Err(Error::UnexpectedChainType);
+            }
+            WorkerGov::drop_task(
+                self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?,
+                chain.endpoint,
+                chain.handler_contract.to_array().into(),
+                id,
+            )
+            .log_err("failed to submit worker drop task tx")
+            .or(Err(Error::FailedToSendTransaction))?;
+
             Ok(())
         }
 
@@ -656,11 +745,6 @@ mod index_executor {
                 return Err(Error::ExecutorPaused);
             }
             Ok(())
-        }
-
-        #[ink(message)]
-        pub fn echo(&self, words: String) {
-            pink_extension::debug!("You were saying: {}", words);
         }
 
         fn pub_to_prv(&self, pub_key: [u8; 32]) -> Option<[u8; 32]> {
