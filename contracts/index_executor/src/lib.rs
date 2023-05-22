@@ -369,12 +369,7 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn worker_drop_task(
-            &self,
-            worker: [u8; 32],
-            chain: String,
-            id: TaskId,
-        ) -> Result<()> {
+        pub fn worker_drop_task(&self, worker: [u8; 32], chain: String, id: TaskId) -> Result<()> {
             self.ensure_owner()?;
             let _ = self.ensure_configured()?;
             self.ensure_graph_set()?;
