@@ -103,11 +103,31 @@ impl Task {
         // Push to pending tasks queue
         pending_tasks.push(self.id);
         // Save task data
-        client.put(self.id.as_ref(), &self.encode())?;
 
-        client.put(b"free_accounts".as_ref(), &free_accounts.encode())?;
-        client.put(b"pending_tasks".as_ref(), &pending_tasks.encode())?;
+        client.put(self.id.as_ref(), &self.encode());
+
+        client.put(b"free_accounts".as_ref(), &free_accounts.encode());
+        client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
         Ok(())
+    }
+
+    // Recover execution status according to on-chain storage
+    pub fn sync(&mut self, context: &Context, _client: &StorageClient) {
+        for step in self.steps.iter() {
+            // A initialized task must have nonce applied
+            if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
+                self.execute_index += 1;
+                // If all step executed successfully, set task as `Completed`
+                if self.execute_index as usize == self.steps.len() {
+                    self.status = TaskStatus::Completed;
+                    break;
+                }
+            } else {
+                self.status = TaskStatus::Executing(self.execute_index, step.nonce);
+                // Exit with current status
+                break;
+            }
+        }
     }
 
     pub fn execute(
@@ -201,10 +221,10 @@ impl Task {
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.delete(self.id.as_ref())?;
+                client.delete(self.id.as_ref());
             }
-            client.put(b"free_accounts".as_ref(), &free_accounts.encode())?;
-            client.put(b"pending_tasks".as_ref(), &pending_tasks.encode())?;
+            client.put(b"free_accounts".as_ref(), &free_accounts.encode());
+            client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
         }
 
         Ok(())
@@ -486,15 +506,13 @@ mod tests {
         // Create storage client
         let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         // Setup initial worker accounts to storage
-        client
-            .set_worker_accounts(
-                worker_accounts
-                    .clone()
-                    .into_iter()
-                    .map(|account| account.account32.clone())
-                    .collect(),
-            )
-            .unwrap();
+        client.set_worker_accounts(
+            worker_accounts
+                .clone()
+                .into_iter()
+                .map(|account| account.account32.clone())
+                .collect(),
+        );
 
         // Fetch actived task from chain
         let pre_mock_executor_address: H160 =
@@ -565,7 +583,7 @@ mod tests {
         ), Ok(()));
 
         // Now let's query if the task is exist in rollup storage with another rollup client
-        let another_client = StorageClient::new("another url".to_string(), "key".to_string());
+        let mut another_client = StorageClient::new("another url".to_string(), "key".to_string());
         let onchain_task = another_client.lookup_task(&task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(

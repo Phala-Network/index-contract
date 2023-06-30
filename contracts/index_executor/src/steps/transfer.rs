@@ -4,6 +4,8 @@ use crate::storage::StorageClient;
 use crate::traits::Runner;
 use crate::tx;
 use alloc::{string::String, vec::Vec};
+
+use index::graph::BalanceFetcher;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
