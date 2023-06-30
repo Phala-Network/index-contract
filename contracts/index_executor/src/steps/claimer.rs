@@ -8,7 +8,8 @@ use crate::steps::bridge::BridgeStep;
 use crate::steps::swap::SwapStep;
 use crate::steps::transfer::TransferStep;
 use crate::steps::{Step, StepMeta};
-use crate::task::{OnchainTasks, Task, TaskId};
+use crate::storage::StorageClient;
+use crate::task::{Task, TaskId};
 use crate::traits::Runner;
 use xcm::latest::AssetId as XcmAssetId;
 
@@ -29,7 +30,6 @@ use pink_web3::{
     types::{Address, H160, U256},
 };
 
-use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_extension::ResultExt;
 use serde::Deserialize;
 
@@ -56,7 +56,7 @@ impl Runner for ClaimStep {
         &self,
         nonce: u64,
         context: &Context,
-        client: Option<&mut SubstrateRollupClient>,
+        client: Option<&StorageClient>,
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
@@ -67,8 +67,9 @@ impl Runner for ClaimStep {
         if onchain_nonce > nonce {
             Ok(false)
         } else {
-            // If task already exist in rollup storage, it is ready to be claimed
-            Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
+            // If task already exist in storage, it is ready to be claimed
+            let client = client.ok_or("MissingClient")?;
+            Ok(client.lookup_task(&self.id).is_some())
         }
     }
 

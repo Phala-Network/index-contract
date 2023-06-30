@@ -2,11 +2,10 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use crate::steps::{Step, StepMeta};
+use crate::storage::StorageClient;
 use alloc::{string::String, vec, vec::Vec};
 use index::graph::{ChainType, NonceFetcher};
 use ink::storage::Mapping;
-use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
-use pink_kv_session::traits::KvSession;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -67,13 +66,12 @@ impl Task {
     pub fn init_and_submit(
         &mut self,
         context: &Context,
-        client: &mut SubstrateRollupClient,
+        client: &StorageClient,
     ) -> Result<(), &'static str> {
-        let mut free_accounts =
-            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
-        let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
+        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut pending_tasks = client.lookup_pending_tasks();
 
-        if OnchainTasks::lookup_task(client, &self.id).is_some() {
+        if client.lookup_task(&self.id).is_some() {
             // Task already saved, return
             return Ok(());
         }
@@ -105,19 +103,15 @@ impl Task {
         // Push to pending tasks queue
         pending_tasks.push(self.id);
         // Save task data
-        client.session().put(self.id.as_ref(), self.encode());
+        client.put(self.id.as_ref(), &self.encode());
 
-        client
-            .session()
-            .put(b"free_accounts".as_ref(), free_accounts.encode());
-        client
-            .session()
-            .put(b"pending_tasks".as_ref(), pending_tasks.encode());
+        client.put(b"free_accounts".as_ref(), &free_accounts.encode());
+        client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
         Ok(())
     }
 
     // Recover execution status according to on-chain storage
-    pub fn sync(&mut self, context: &Context, _client: &SubstrateRollupClient) {
+    pub fn sync(&mut self, context: &Context, _client: &StorageClient) {
         for step in self.steps.iter() {
             // A initialized task must have nonce applied
             if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
@@ -138,7 +132,7 @@ impl Task {
     pub fn execute(
         &mut self,
         context: &Context,
-        client: &mut SubstrateRollupClient,
+        client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
         // To avoid unnecessary remote check, we check index in advance
         if self.execute_index as usize == self.steps.len() {
@@ -215,26 +209,21 @@ impl Task {
     }
 
     /// Delete task record from on-chain storage
-    pub fn destroy(&mut self, client: &mut SubstrateRollupClient) -> Result<(), &'static str> {
-        let mut free_accounts =
-            OnchainAccounts::lookup_free_accounts(client).ok_or("WorkerAccountNotSet")?;
-        let mut pending_tasks = OnchainTasks::lookup_pending_tasks(client);
+    pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
+        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut pending_tasks = client.lookup_pending_tasks();
 
-        if OnchainTasks::lookup_task(client, &self.id).is_some() {
+        if client.lookup_task(&self.id).is_some() {
             if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
                 // Remove from pending tasks queue
                 pending_tasks.remove(idx);
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.session().delete(self.id.as_ref());
+                client.delete(self.id.as_ref());
             }
-            client
-                .session()
-                .put(b"free_accounts".as_ref(), free_accounts.encode());
-            client
-                .session()
-                .put(b"pending_tasks".as_ref(), pending_tasks.encode());
+            client.put(b"free_accounts".as_ref(), &free_accounts.encode());
+            client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
         }
 
         Ok(())
@@ -243,7 +232,7 @@ impl Task {
     fn apply_nonce(
         &mut self,
         context: &Context,
-        _client: &SubstrateRollupClient,
+        _client: &StorageClient,
     ) -> Result<(), &'static str> {
         // Only in last step the recipient with be set as real recipient on destchain,
         // or else it will be the worker account under the hood
@@ -447,48 +436,6 @@ impl Task {
     }
 }
 
-pub struct OnchainTasks;
-impl OnchainTasks {
-    pub fn lookup_task(client: &mut SubstrateRollupClient, id: &TaskId) -> Option<Task> {
-        if let Ok(Some(raw_task)) = client.session().get(id.as_ref()) {
-            return match Decode::decode(&mut raw_task.as_slice()) {
-                Ok(task) => Some(task),
-                Err(_) => None,
-            };
-        }
-        None
-    }
-
-    pub fn lookup_pending_tasks(client: &mut SubstrateRollupClient) -> Vec<TaskId> {
-        if let Ok(Some(raw_tasks)) = client.session().get(b"pending_tasks".as_ref()) {
-            return match Decode::decode(&mut raw_tasks.as_slice()) {
-                Ok(tasks) => tasks,
-                Err(_) => vec![],
-            };
-        }
-        vec![]
-    }
-}
-
-pub struct OnchainAccounts;
-impl OnchainAccounts {
-    /// Return worker account that hasn't been allocated yet. Return `Nonce` if not set in rollup storage.
-    pub fn lookup_free_accounts(client: &mut SubstrateRollupClient) -> Option<Vec<[u8; 32]>> {
-        if let Ok(Some(raw_accounts)) = client.session().get(b"free_accounts".as_ref()) {
-            let free_accounts: Option<Vec<[u8; 32]>> =
-                Decode::decode(&mut raw_accounts.as_slice()).ok();
-            return free_accounts;
-        }
-        None
-    }
-
-    pub fn set_worker_accounts(client: &mut SubstrateRollupClient, accounts: Vec<[u8; 32]>) {
-        client
-            .session()
-            .put(b"free_accounts".as_ref(), accounts.encode());
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,33 +444,8 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use index::graph::{Chain, ChainType, Graph};
-    use phat_offchain_rollup::clients::substrate::{
-        claim_name, get_name_owner, SubstrateRollupClient,
-    };
     use pink_extension::chain_extension::AccountId;
     use primitive_types::H160;
-
-    fn config_rollup(
-        rollup_endpoint: String,
-        contract_id: &AccountId,
-        submit_key: [u8; 32],
-    ) -> Result<(), &'static str> {
-        // Check if the rollup is initialized properly
-        let actual_owner = get_name_owner(&rollup_endpoint, contract_id).unwrap();
-        if let Some(owner) = actual_owner {
-            let pubkey = pink_extension::ext().get_public_key(
-                pink_extension::chain_extension::SigType::Sr25519,
-                &submit_key,
-            );
-            if owner.encode() != pubkey {
-                return Err("Slot owner dismatch");
-            }
-        } else {
-            // Not initialized. Let's claim the name.
-            claim_name(&rollup_endpoint, 100, &contract_id, &submit_key).unwrap();
-        }
-        Ok(())
-    }
 
     #[ink::test]
     fn test_get_evm_account_nonce() {
@@ -579,23 +501,10 @@ mod tests {
             worker_accounts.push(AccountInfo::from(private_key));
         }
 
-        // Config rollup, alice sent first transaction, nonce = 0
-        assert_eq!(
-            config_rollup(
-                String::from("http://127.0.0.1:39933"),
-                &contract_id,
-                sk_alice
-            ),
-            Ok(())
-        );
-
-        // Create rollup client
-        let mut client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
-                .unwrap();
-        // Setup initial worker accounts to rollup storage
-        OnchainAccounts::set_worker_accounts(
-            &mut client,
+        // Create storage client
+        let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
+        // Setup initial worker accounts to storage
+        client.set_worker_accounts(
             worker_accounts
                 .clone()
                 .into_iter()
@@ -665,22 +574,15 @@ mod tests {
                 dex_executors: vec![],
                 transfer_executors: vec![],
             },
-            &mut client,
+            &client,
         ), Ok(()));
-
-        let maybe_submittable = client.commit().unwrap();
-        if let Some(submittable) = maybe_submittable {
-            let _tx_id = submittable.submit(&sk_alice, 1).unwrap();
-        }
 
         // Wait 3 seconds
         std::thread::sleep(std::time::Duration::from_millis(3000));
 
         // Now let's query if the task is exist in rollup storage with another rollup client
-        let mut another_client =
-            SubstrateRollupClient::new("http://127.0.0.1:39933", 100, &contract_id, b"prefix")
-                .unwrap();
-        let onchain_task = OnchainTasks::lookup_task(&mut another_client, &task.id).unwrap();
+        let mut another_client = StorageClient::new("another url".to_string(), "key".to_string());
+        let onchain_task = another_client.lookup_task(&task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(
             onchain_task.worker,

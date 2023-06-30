@@ -1,8 +1,8 @@
 use crate::account::AccountInfo;
 use crate::context::Context;
+use crate::storage::StorageClient;
 use crate::traits::Runner;
 use alloc::{string::String, vec::Vec};
-use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
@@ -49,7 +49,7 @@ impl Runner for BridgeStep {
         &self,
         nonce: u64,
         context: &Context,
-        _client: Option<&mut SubstrateRollupClient>,
+        _client: Option<&StorageClient>,
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 

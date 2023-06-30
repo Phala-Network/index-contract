@@ -4,11 +4,11 @@ pub mod swap;
 pub mod transfer;
 
 use super::context::Context;
+use super::storage::StorageClient;
 use super::traits::Runner;
 use alloc::{string::String, vec::Vec};
 use bridge::BridgeStep;
 use claimer::ClaimStep;
-use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use scale::{Decode, Encode};
 use swap::SwapStep;
 use transfer::TransferStep;
@@ -38,7 +38,7 @@ impl Runner for Step {
         &self,
         nonce: u64,
         context: &Context,
-        client: Option<&mut SubstrateRollupClient>,
+        client: Option<&StorageClient>,
     ) -> Result<bool, &'static str> {
         if self.nonce.is_none() {
             return Err("MissingNonce");

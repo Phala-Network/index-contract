@@ -1335,7 +1335,7 @@ dependencies = [
  "pink-extension",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-subrpc",
- "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "pink-web3",
  "primitive-types 0.12.1",
  "scale-info",
  "sp-core-hashing 4.0.0",
@@ -1361,13 +1361,12 @@ dependencies = [
  "key_store",
  "parity-scale-codec",
  "phala-pallet-common",
- "phat_offchain_rollup",
  "pink-extension",
  "pink-extension-runtime",
  "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
  "pink-kv-session",
  "pink-subrpc",
- "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "pink-web3",
  "primitive-types 0.12.1",
  "scale-info",
  "serde",
@@ -1666,7 +1665,7 @@ dependencies = [
  "parity-scale-codec",
  "pink-extension",
  "pink-extension-runtime",
- "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "pink-web3",
  "scale-info",
  "serde",
 ]
@@ -2115,23 +2114,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "phat_offchain_rollup"
-version = "0.1.0"
-source = "git+https://github.com/Phala-Network/phat-offchain-rollup.git?branch=main#25fec0b376b5454c966b14fcf496172f1d1e846e"
-dependencies = [
- "ethabi",
- "hex",
- "ink",
- "parity-scale-codec",
- "pink-extension",
- "pink-kv-session",
- "pink-subrpc",
- "pink-web3 0.20.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "primitive-types 0.12.1",
- "scale-info",
-]
-
-[[package]]
 name = "pin-project"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2261,28 +2243,6 @@ dependencies = [
  "serde",
  "sp-core-hashing 5.0.0",
  "ss58-registry",
-]
-
-[[package]]
-name = "pink-web3"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7f901d2c95d105cff22ed144ca3c8907a9caddff2939f4f5cac66f36a5ea2a"
-dependencies = [
- "arrayvec 0.7.2",
- "derive_more",
- "ethabi",
- "ethereum-types",
- "futures",
- "hex",
- "ink_env",
- "pin-project",
- "pink-erased-serde",
- "pink-extension",
- "pink-json 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rlp",
- "serde",
- "tiny-keccak",
 ]
 
 [[package]]
@@ -2804,7 +2764,7 @@ dependencies = [
  "pink-extension",
  "pink-extension-runtime",
  "pink-subrpc",
- "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "pink-web3",
  "primitive-types 0.12.1",
  "scale-info",
 ]
@@ -3583,7 +3543,7 @@ dependencies = [
  "pink-extension",
  "pink-extension-runtime",
  "pink-subrpc",
- "pink-web3 0.20.1 (git+https://github.com/Phala-Network/pink-web3.git?branch=pink)",
+ "pink-web3",
  "primitive-types 0.12.1",
  "scale-info",
 ]

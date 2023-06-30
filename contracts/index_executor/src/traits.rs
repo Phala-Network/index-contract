@@ -1,6 +1,6 @@
 use super::context::Context;
+use super::storage::StorageClient;
 use alloc::vec::Vec;
-use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 
 pub trait Runner {
     /// Check if a job can be executed.
@@ -12,7 +12,7 @@ pub trait Runner {
         &self,
         nonce: u64,
         context: &Context,
-        client: Option<&mut SubstrateRollupClient>,
+        client: Option<&StorageClient>,
     ) -> Result<bool, &'static str>;
 
     /// Execute a job, basically send a transaction to blockchain, and return tx id.
