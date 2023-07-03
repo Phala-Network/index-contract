@@ -122,8 +122,4 @@ impl Runner for SwapStep {
         let b0 = self.b0.ok_or("MissingB0")?;
         Ok((b0 - onchain_balance) == self.spend)
     }
-
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        self.check(nonce, context)
-    }
 }

@@ -110,25 +110,6 @@ impl Task {
         Ok(())
     }
 
-    // Recover execution status according to on-chain storage
-    pub fn sync(&mut self, context: &Context, _client: &StorageClient) {
-        for step in self.steps.iter() {
-            // A initialized task must have nonce applied
-            if step.sync_check(step.nonce.unwrap(), context) == Ok(true) {
-                self.execute_index += 1;
-                // If all step executed successfully, set task as `Completed`
-                if self.execute_index as usize == self.steps.len() {
-                    self.status = TaskStatus::Completed;
-                    break;
-                }
-            } else {
-                self.status = TaskStatus::Executing(self.execute_index, step.nonce);
-                // Exit with current status
-                break;
-            }
-        }
-    }
-
     pub fn execute(
         &mut self,
         context: &Context,

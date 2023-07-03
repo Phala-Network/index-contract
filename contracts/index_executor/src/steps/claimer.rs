@@ -104,10 +104,6 @@ impl Runner for ClaimStep {
 
         // TODO: Check if the transaction is successed or not
     }
-
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        self.check(nonce, context)
-    }
 }
 
 impl ClaimStep {

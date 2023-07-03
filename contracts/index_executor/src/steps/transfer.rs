@@ -108,8 +108,4 @@ impl Runner for TransferStep {
         // but the sender may pay more if the transfer asset is the native token
         Ok((recipient_balance - b1) == self.amount && b0 - worker_balance >= self.amount)
     }
-
-    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        self.check(nonce, context)
-    }
 }

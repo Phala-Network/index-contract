@@ -126,9 +126,4 @@ impl Runner for BridgeStep {
 
         Ok((b0 - latest_b0) == self.amount && latest_b1 > b1)
     }
-
-    fn sync_check(&self, _nonce: u64, _context: &Context) -> Result<bool, &'static str> {
-        Ok(true)
-        // TODO: implement
-    }
 }
