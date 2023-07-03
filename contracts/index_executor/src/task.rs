@@ -103,10 +103,10 @@ impl Task {
         // Push to pending tasks queue
         pending_tasks.push(self.id);
         // Save task data
-        client.put(self.id.as_ref(), &self.encode());
+        client.put(self.id.as_ref(), &self.encode())?;
 
-        client.put(b"free_accounts".as_ref(), &free_accounts.encode());
-        client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
+        client.put(b"free_accounts".as_ref(), &free_accounts.encode())?;
+        client.put(b"pending_tasks".as_ref(), &pending_tasks.encode())?;
         Ok(())
     }
 
@@ -220,10 +220,10 @@ impl Task {
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.delete(self.id.as_ref());
+                client.delete(self.id.as_ref())?;
             }
-            client.put(b"free_accounts".as_ref(), &free_accounts.encode());
-            client.put(b"pending_tasks".as_ref(), &pending_tasks.encode());
+            client.put(b"free_accounts".as_ref(), &free_accounts.encode())?;
+            client.put(b"pending_tasks".as_ref(), &pending_tasks.encode())?;
         }
 
         Ok(())

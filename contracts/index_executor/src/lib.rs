@@ -3,7 +3,6 @@
 extern crate alloc;
 
 mod account;
-mod chain;
 mod context;
 mod gov;
 mod registry;
@@ -17,7 +16,6 @@ mod tx;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
-    use crate::chain::ChainType;
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
@@ -50,13 +48,10 @@ mod index_executor {
         FailedToFetchTask,
         FailedToInitTask,
         FailedToDestoryTask,
-        ReadCacheFailed,
-        WriteCacheFailed,
-        DecodeCacheFailed,
+        FailedToUploadTask,
         DecodeGraphFailed,
         SetGraphFailed,
-        TaskNotFoundInCache,
-        TaskNotFoundOnChain,
+        TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
         ExecutorNotPaused,
@@ -137,12 +132,6 @@ mod index_executor {
             import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
-
-            // Insert empty record in advance
-            let empty_tasks: Vec<TaskId> = vec![];
-            pink_extension::ext()
-                .cache_set(b"running_tasks", &empty_tasks.encode())
-                .unwrap();
             self.config = Some(Config {
                 db_url,
                 db_token,
@@ -374,40 +363,11 @@ mod index_executor {
                     "Found one pending tasks exist in storge, task id: {:?}",
                     &hex::encode(id)
                 );
-
-                // Get task saved in local cache, if not exist in local, try recover from on-chain storage
-                // FIXME: First time execute the task, it would be treat as broken, then trying to recover
-                let mut task = TaskCache::get_task(id)
-                    .or_else(|| {
-                        pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from storage, task id: {:?}", &hex::encode(id));
-                        if let Some(mut onchain_task) = client.lookup_task(id) {
-                            // The state of task saved in storage is `Initialized`, to understand
-                            // the current state we must sync state according to on-chain history
-                            onchain_task.sync(
-                                &Context {
-                                    signer: self.pub_to_prv(onchain_task.worker).unwrap(),
-                                    graph: {
-                                        let bytes = self.graph.clone();
-                                        let mut bytes = bytes.as_ref();
-                                        Graph::decode(&mut bytes).unwrap()
-                                    },
-                                    worker_accounts: self.worker_accounts.clone(),
-                                    bridge_executors: vec![],
-                                    dex_executors: vec![],
-                                    transfer_executors: vec![],
-                                },
-                                client,
-                            );
-                            // Add task to local cache
-                            let _ = TaskCache::add_task(&onchain_task);
-                            pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
-                            Some(onchain_task)
-                        } else {
-                            None
-                        }
-                    })
-                    .ok_or(Error::TaskNotFoundOnChain)?;
-
+                pink_extension::debug!(
+                    "Trying to read task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let mut task: Task = client.lookup_task(id).ok_or(Error::TaskNotFoundInStorage)?;
                 pink_extension::info!(
                     "Start execute next step of task, execute worker account: {:?}",
                     &hex::encode(task.worker)
@@ -428,15 +388,6 @@ mod index_executor {
                         // Remove task from blockchain and recycle worker account
                         task.destroy(client)
                             .map_err(|_| Error::FailedToDestoryTask)?;
-
-                        // If task already delete from storage, delete it from local cache
-                        if client.lookup_task(id).is_none() {
-                            pink_extension::info!(
-                                "Task delete from storage, remove it from local cache: {:?}",
-                                hex::encode(task.id)
-                            );
-                            TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
-                        }
                     }
                     Err(_) => {
                         pink_extension::error!(

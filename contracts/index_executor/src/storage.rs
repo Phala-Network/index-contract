@@ -23,6 +23,10 @@ impl StorageClient {
         Err("Unimplemented")
     }
 
+    pub fn upload_task(&self, task: &Task) -> Result<(), &'static str> {
+        Err("Unimplemented")
+    }
+
     pub fn lookup_task(&self, id: &TaskId) -> Option<Task> {
         // TODO
         None
