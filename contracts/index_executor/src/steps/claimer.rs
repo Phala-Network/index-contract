@@ -96,11 +96,13 @@ impl Runner for ClaimStep {
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-        };
-        tx::check_tx(&chain.tx_indexer_url, &account, nonce)
+
+        let onchain_nonce = chain
+            .get_nonce(worker.address().as_bytes().into())
+            .map_err(|_| "FetchNonceFailed")?;
+        Ok((onchain_nonce - nonce) == 1)
+
+        // TODO: Check if the transaction is successed or not
     }
 }
 
