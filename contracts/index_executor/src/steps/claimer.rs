@@ -97,11 +97,7 @@ impl Runner for ClaimStep {
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
 
-        let account = match chain.chain_type {
-            ChainType::Evm => worker_account.account20.to_vec(),
-            ChainType::Sub => worker_account.account32.to_vec(),
-        };
-        tx::check_tx(&chain.tx_indexer_url, &account, nonce)
+        // TODO: Check if the transaction is successed or not
     }
 }
 

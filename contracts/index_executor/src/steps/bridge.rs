@@ -134,6 +134,15 @@ impl Runner for BridgeStep {
 
             return Ok((b0 - latest_b0) == self.amount && latest_b1 > b1);
         }
-        Ok(false)
+
+        // Check balance change on source chain and dest chain
+        let latest_b0 =
+            worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
+        let latest_b1 =
+            worker_account.get_balance(self.dest_chain.clone(), self.to.clone(), context)?;
+        let b0 = self.b0.ok_or("MissingB0")?;
+        let b1 = self.b1.ok_or("MissingB1")?;
+
+        Ok((b0 - latest_b0) == self.amount && latest_b1 > b1)
     }
 }
