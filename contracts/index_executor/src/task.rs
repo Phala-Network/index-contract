@@ -485,13 +485,15 @@ mod tests {
         // Create storage client
         let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         // Setup initial worker accounts to storage
-        client.set_worker_accounts(
-            worker_accounts
-                .clone()
-                .into_iter()
-                .map(|account| account.account32.clone())
-                .collect(),
-        );
+        client
+            .set_worker_accounts(
+                worker_accounts
+                    .clone()
+                    .into_iter()
+                    .map(|account| account.account32.clone())
+                    .collect(),
+            )
+            .unwrap();
 
         // Fetch actived task from chain
         let pre_mock_executor_address: H160 =
@@ -562,7 +564,7 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(3000));
 
         // Now let's query if the task is exist in rollup storage with another rollup client
-        let mut another_client = StorageClient::new("another url".to_string(), "key".to_string());
+        let another_client = StorageClient::new("another url".to_string(), "key".to_string());
         let onchain_task = another_client.lookup_task(&task.id).unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(

@@ -44,6 +44,7 @@ mod index_executor {
         ChainNotFound,
         ImportWorkerFailed,
         WorkerNotFound,
+        FailedToSetWorker,
         FailedToSendTransaction,
         FailedToFetchTask,
         FailedToInitTask,
@@ -96,7 +97,6 @@ mod index_executor {
         pub graph: Vec<u8>,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
-        pub executor_account: [u8; 32],
         pub is_paused: bool,
     }
 
@@ -116,8 +116,6 @@ mod index_executor {
                 graph: Vec::default(),
                 worker_prv_keys: vec![],
                 worker_accounts: vec![],
-                executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
-                    .private_key(),
                 // Make sure we configured the executor before running
                 is_paused: true,
             }
@@ -183,13 +181,15 @@ mod index_executor {
             // Setup worker accounts if it hasn't been set yet.
             if client.lookup_free_accounts().is_none() {
                 pink_extension::debug!("No onchain worker account exist, start setting to storage");
-                client.set_worker_accounts(
-                    self.worker_accounts
-                        .clone()
-                        .into_iter()
-                        .map(|account| account.account32)
-                        .collect(),
-                );
+                client
+                    .set_worker_accounts(
+                        self.worker_accounts
+                            .clone()
+                            .into_iter()
+                            .map(|account| account.account32)
+                            .collect(),
+                    )
+                    .map_err(|_| Error::FailedToSetWorker)?;
             }
             Self::env().emit_event(WorkerSetToStorage {});
             Ok(())
@@ -291,12 +291,6 @@ mod index_executor {
             let graph: Graph =
                 Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
             Ok(graph.into())
-        }
-
-        /// Return executor account information
-        #[ink(message)]
-        pub fn get_executor_account(&self) -> AccountInfo {
-            self.executor_account.into()
         }
 
         /// Return whole worker account information
