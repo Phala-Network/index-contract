@@ -50,6 +50,14 @@ struct ResponseData {
     pub read_time: String,
 }
 
+/// The client that interacts with cloud storage services.
+/// - `url`: The base URL of the service REST endpoint
+/// - `key`: The credentials associated with the service, generally the access token
+///
+/// By concacting the `url` with the specific API path, we can get a full REST API endpoint.
+/// The result of every request will returned immediately along with the HTTP response.
+///
+/// **Note** The `key` should be kept secret when passing from other modules
 pub struct StorageClient {
     url: String,
     key: String,
