@@ -44,6 +44,7 @@ mod index_executor {
         ChainNotFound,
         ImportWorkerFailed,
         WorkerNotFound,
+        FailedToSetWorker,
         FailedToSendTransaction,
         FailedToFetchTask,
         FailedToInitTask,
@@ -290,8 +291,10 @@ mod index_executor {
 
         /// Returs the interior registry, callable to all
         #[ink(message)]
-        pub fn get_registry(&self) -> Result<Registry> {
-            Ok(self.registry.clone())
+        pub fn get_graph(&self) -> Result<RegistryGraph> {
+            let graph: Graph =
+                Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
+            Ok(graph.into())
         }
 
         /// Return whole worker account information
