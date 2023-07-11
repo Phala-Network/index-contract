@@ -1,5 +1,9 @@
 use crate::chain::{Chain, ChainType};
 use alloc::{string::String, vec::Vec};
+<<<<<<< HEAD
+=======
+use index::graph::{Chain, ChainType};
+>>>>>>> ef32483 (check tx with off-chin indexer)
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -93,11 +97,22 @@ impl Runner for ClaimStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
+<<<<<<< HEAD
             .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
 
         // TODO: Check if the transaction is successed or not
+=======
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::check_tx(&chain.tx_indexer, &account, nonce)
+>>>>>>> ef32483 (check tx with off-chin indexer)
     }
 }
 

@@ -5,8 +5,6 @@ use crate::storage::StorageClient;
 use crate::traits::Runner;
 use crate::tx;
 use alloc::{string::String, vec::Vec};
-
-use index::graph::BalanceFetcher;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
@@ -89,25 +87,13 @@ impl Runner for TransferStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
-            .registry
+            .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        // Check nonce
-        let onchain_nonce = worker.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok(false);
-        }
-        // Check balance change on source chain
-        let worker_balance = chain
-            .get_balance(self.asset.clone(), worker_account)
-            .map_err(|_| "Fail to get balance")?;
-        let b0 = self.b0.ok_or("Missing worker balance")?;
-        let b1 = self.b1.ok_or("Missing recipient balance")?;
-        let recipient_balance = chain
-            .get_balance(self.asset.clone(), recipient)
-            .map_err(|_| "Fail to get balance")?;
-        // the recipient receives exactly the same amount as required
-        // but the sender may pay more if the transfer asset is the native token
-        Ok((recipient_balance - b1) == self.amount && b0 - worker_balance >= self.amount)
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::check_tx(&chain.tx_indexer, &account, nonce)
     }
 }

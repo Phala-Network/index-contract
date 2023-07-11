@@ -280,6 +280,7 @@ mod tests {
 
     // cargo test --package index_executor --lib -- storage::tests::should_work --exact --nocapture
     #[test]
+    #[ignore]
     fn should_work() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();

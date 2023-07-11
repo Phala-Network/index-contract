@@ -501,6 +501,7 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
+                        tx_indexer: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,
