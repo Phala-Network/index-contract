@@ -1,5 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType, NonceFetcher};
+use index::graph::{Chain, ChainType};
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -11,6 +11,7 @@ use crate::steps::{Step, StepMeta};
 use crate::storage::StorageClient;
 use crate::task::{Task, TaskId};
 use crate::traits::Runner;
+use crate::tx;
 use xcm::latest::AssetId as XcmAssetId;
 
 use pink_subrpc::{
@@ -88,21 +89,18 @@ impl Runner for ClaimStep {
     }
 
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        let worker = KeyPair::from(context.signer);
+        let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
-
-        // Check if the transaction has been executed
-        let chain = context
+        // Query off-chain indexer directly get the execution result
+        let chain = &context
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        let onchain_nonce = chain
-            .get_nonce(worker.address().as_bytes().into())
-            .map_err(|_| "FetchNonceFailed")?;
-        Ok((onchain_nonce - nonce) == 1)
-
-        // TODO: Check if the transaction is successed or not
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::check_tx(&chain.tx_indexer, &account, nonce)
     }
 }
 
@@ -584,6 +582,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -635,6 +634,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {
@@ -694,6 +694,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("00").into(),
+                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: [0; 20],
@@ -745,6 +746,7 @@ mod tests {
             native_asset: pha.clone(),
             foreign_asset: None,
             handler_contract: hex!("79").into(),
+            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {

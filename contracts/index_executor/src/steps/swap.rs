@@ -2,6 +2,7 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
+use crate::tx;
 use alloc::{string::String, vec::Vec};
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -109,17 +110,15 @@ impl Runner for SwapStep {
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
-        // Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok(false);
-        }
-
-        // Check balance change on source chain
-        let onchain_balance =
-            worker_account.get_balance(self.chain.clone(), self.spend_asset.clone(), context)?;
-        let b0 = self.b0.ok_or("MissingB0")?;
-        Ok((b0 - onchain_balance) == self.spend)
+        // Query off-chain indexer directly get the execution result
+        let chain = &context
+            .graph
+            .get_chain(self.chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::check_tx(&chain.tx_indexer, &account, nonce)
     }
 }

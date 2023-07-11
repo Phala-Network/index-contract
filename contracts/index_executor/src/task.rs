@@ -444,6 +444,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
+            tx_indexer: Default::default(),
         };
         assert_eq!(
             goerli
@@ -509,6 +510,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
+                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: pre_mock_executor_address.into(),
@@ -534,6 +536,7 @@ mod tests {
                             native_asset: vec![0],
                             foreign_asset: None,
                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
+                            tx_indexer: Default::default(),
                         },
                         Chain {
                             id: 2,
@@ -542,7 +545,8 @@ mod tests {
                             chain_type: ChainType::Evm,
                             native_asset: vec![0],
                             foreign_asset: None,
-                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
+                            handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
+                            tx_indexer: Default::default(),
                         }
                     ],
                     assets: vec![],

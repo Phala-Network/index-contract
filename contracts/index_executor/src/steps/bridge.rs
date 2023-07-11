@@ -2,6 +2,7 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
+use crate::tx;
 use alloc::{string::String, vec::Vec};
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
@@ -108,22 +109,29 @@ impl Runner for BridgeStep {
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
 
-        // TODO. query off-chain indexer directly get the execution result
+        // Query off-chain indexer directly get the execution result
+        let chain = &context
+            .graph
+            .get_chain(self.source_chain.clone())
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        if tx::check_tx(&chain.tx_indexer, &account, nonce)? {
+            // Check balance change on source chain and dest chain
+            let latest_b0 = worker_account.get_balance(
+                self.source_chain.clone(),
+                self.from.clone(),
+                context,
+            )?;
+            let latest_b1 =
+                worker_account.get_balance(self.dest_chain.clone(), self.to.clone(), context)?;
+            let b0 = self.b0.ok_or("MissingB0")?;
+            let b1 = self.b1.ok_or("MissingB1")?;
 
-        // Check nonce
-        let onchain_nonce = worker_account.get_nonce(self.source_chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok(false);
+            return Ok((b0 - latest_b0) == self.amount && latest_b1 > b1);
         }
-
-        // Check balance change on source chain and dest chain
-        let latest_b0 =
-            worker_account.get_balance(self.source_chain.clone(), self.from.clone(), context)?;
-        let latest_b1 =
-            worker_account.get_balance(self.dest_chain.clone(), self.to.clone(), context)?;
-        let b0 = self.b0.ok_or("MissingB0")?;
-        let b1 = self.b1.ok_or("MissingB1")?;
-
-        Ok((b0 - latest_b0) == self.amount && latest_b1 > b1)
+        Ok(false)
     }
 }

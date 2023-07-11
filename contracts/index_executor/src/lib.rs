@@ -10,6 +10,7 @@ mod steps;
 mod storage;
 mod task;
 mod traits;
+mod tx;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
@@ -667,6 +668,7 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
+                        tx_indexer: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,

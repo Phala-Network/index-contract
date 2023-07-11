@@ -2,8 +2,8 @@ use crate::account::AccountInfo;
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
+use crate::tx;
 use alloc::{string::String, vec::Vec};
-use index::graph::BalanceFetcher;
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
@@ -82,30 +82,17 @@ impl Runner for TransferStep {
     /// nonce: from the current state, haven't synced with the onchain state,
     ///     must be smaller than that of the current state if the last step succeeded
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
-        let recipient = self.recipient.clone().ok_or("No recipient")?;
-        let worker = AccountInfo::from(context.signer);
-        let worker_account = worker.get_raw_account(self.chain.clone(), context)?;
-        // index chain
-        let chain = context
+        let worker_account = AccountInfo::from(context.signer);
+
+        // Query off-chain indexer directly get the execution result
+        let chain = &context
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        // Check nonce
-        let onchain_nonce = worker.get_nonce(self.chain.clone(), context)?;
-        if onchain_nonce <= nonce {
-            return Ok(false);
-        }
-        // Check balance change on source chain
-        let worker_balance = chain
-            .get_balance(self.asset.clone(), worker_account)
-            .map_err(|_| "Fail to get balance")?;
-        let b0 = self.b0.ok_or("Missing worker balance")?;
-        let b1 = self.b1.ok_or("Missing recipient balance")?;
-        let recipient_balance = chain
-            .get_balance(self.asset.clone(), recipient)
-            .map_err(|_| "Fail to get balance")?;
-        // the recipient receives exactly the same amount as required
-        // but the sender may pay more if the transfer asset is the native token
-        Ok((recipient_balance - b1) == self.amount && b0 - worker_balance >= self.amount)
+        let account = match chain.chain_type {
+            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
+            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        tx::check_tx(&chain.tx_indexer, &account, nonce)
     }
 }
