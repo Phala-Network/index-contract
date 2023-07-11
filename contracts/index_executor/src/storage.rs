@@ -100,7 +100,7 @@ impl StorageClient {
     fn read_storage(&self, key: &[u8]) -> Result<Option<(Vec<u8>, String)>, &'static str> {
         let key = key
             .iter()
-            .map(|byte| format!("{:02x}", byte))
+            .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         pink_extension::debug!("read_storage: id: {}", key);
 
@@ -128,9 +128,9 @@ impl StorageClient {
 
         let response_body: Vec<u8> = self.send_request("POST", "documents:runQuery", &cmd)?;
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
-            Ok(if response.len() > 0 {
+            Ok(if !response.is_empty() {
                 let data_str = response[0].document.fields.data.string_value.clone();
-                let data = hex::decode(&data_str).map_err(|_| "DecodedDataFailed")?;
+                let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
                 let document_id = response[0]
                     .document
                     .name
@@ -144,7 +144,7 @@ impl StorageClient {
             })
         } else {
             // Trying decode from EmptyData, this is highly related to the response format of the storage service
-            if let Ok(_) = pink_json::from_slice::<Vec<EmptyData>>(&response_body) {
+            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
                 pink_extension::debug!("read_storage: no storage item found: {}", key);
                 Ok(None)
             } else {
@@ -159,11 +159,11 @@ impl StorageClient {
         let storage_data: Option<(Vec<u8>, String)> = self.read_storage(key)?;
         let key = key
             .iter()
-            .map(|byte| format!("{:02x}", byte))
+            .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let data_str = data
             .iter()
-            .map(|byte| format!("{:02x}", byte))
+            .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
         let api: String;
 
