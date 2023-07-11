@@ -117,7 +117,11 @@ impl TryInto<index_graph::Graph> for Graph {
                     },
                     handler_contract: hexified_to_vec_u8(&chain.handler_contract)
                         .or(Err("InvalidInput"))?,
+<<<<<<< HEAD
                     tx_indexer_url: chain.tx_indexer_url.clone(),
+=======
+                    tx_indexer: chain.tx_indexer.clone(),
+>>>>>>> ef32483 (check tx with off-chin indexer)
                 };
                 arr.push(item);
             }
@@ -247,7 +251,11 @@ impl From<index_graph::Graph> for Graph {
                         }
                     },
                     handler_contract: vec_u8_to_hexified(&chain.handler_contract),
+<<<<<<< HEAD
                     tx_indexer_url: chain.tx_indexer_url.clone(),
+=======
+                    tx_indexer: chain.tx_indexer.clone(),
+>>>>>>> ef32483 (check tx with off-chin indexer)
                 };
                 arr.push(item);
             }
@@ -429,7 +437,11 @@ mod tests {
             native_asset: 3,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x12"),
+<<<<<<< HEAD
             tx_indexer_url: Default::default(),
+=======
+            tx_indexer: Default::default(),
+>>>>>>> ef32483 (check tx with off-chin indexer)
         };
         let phala = Chain {
             id: 2,
@@ -439,7 +451,11 @@ mod tests {
             native_asset: 2,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x23"),
+<<<<<<< HEAD
             tx_indexer_url: Default::default(),
+=======
+            tx_indexer: Default::default(),
+>>>>>>> ef32483 (check tx with off-chin indexer)
         };
         let pha_on_ethereum = Asset {
             id: 1,

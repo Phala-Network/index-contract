@@ -72,6 +72,7 @@ fn get_tx(
         }}"#
     );
     let body = send_request(indexer_url, &query)?;
+
     let response: ResponseData = pink_json::from_slice(&body).or(Err("InvalidBody"))?;
     let transactions = &response.data.transactions;
 
