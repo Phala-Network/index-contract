@@ -88,7 +88,7 @@ impl Runner for TransferStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
-            .graph
+            .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
 

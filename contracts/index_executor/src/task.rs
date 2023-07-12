@@ -223,7 +223,7 @@ impl Task {
                 Some(nonce) => nonce,
                 None => {
                     let chain = context
-                        .graph
+                        .registry
                         .get_chain(step.chain.clone())
                         .ok_or("MissingChain")?;
                     let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
@@ -252,7 +252,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(swap_step.chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -269,7 +269,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(bridge_step.dest_chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -286,7 +286,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(transfer_step.chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -422,7 +422,7 @@ mod tests {
     use super::*;
     use crate::account::AccountInfo;
     use crate::chain::{Chain, ChainType};
-    use crate::graph::Graph;
+    use crate::registry::Registry;
     use crate::steps::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
@@ -527,7 +527,7 @@ mod tests {
         assert_eq!(task.init_and_submit(
             &Context {
                 signer: [0; 32],
-                graph: Graph {
+                registry: &Registry {
                     chains: vec![
                         Chain {
                             id: 1,
@@ -550,17 +550,8 @@ mod tests {
                             tx_indexer_url: Default::default(),
                         }
                     ],
-                    assets: vec![],
-                    dexs: vec![],
-                    dex_pairs: vec![],
-                    dex_indexers: vec![],
-                    bridges: vec![],
-                    bridge_pairs: vec![],
                 },
                 worker_accounts: worker_accounts.clone(),
-                bridge_executors: vec![],
-                dex_executors: vec![],
-                transfer_executors: vec![],
             },
             &client,
         ), Ok(()));

@@ -112,7 +112,7 @@ impl Runner for BridgeStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
-            .graph
+            .registry
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
         let account = match chain.chain_type {
