@@ -116,8 +116,8 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
         if tx::check_tx(&chain.tx_indexer, &account, nonce)? {
             // Check balance change on source chain and dest chain

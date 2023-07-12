@@ -426,7 +426,6 @@ mod tests {
     use crate::steps::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::graph::{Chain, ChainType, Graph};
     use pink_extension::chain_extension::AccountId;
     use primitive_types::H160;
 

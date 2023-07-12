@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod account;
+mod chain;
 mod context;
 mod gov;
 mod registry;
@@ -16,6 +17,7 @@ mod tx;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
+    use crate::chain::{Chain, ChainType};
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
@@ -23,13 +25,10 @@ mod index_executor {
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
+    use index::prelude::AcalaDexExecutor;
     use index::prelude::*;
     use index::traits::executor::TransferExecutor;
     use index::utils::ToArray;
-    use index::{
-        graph::{Chain, ChainType, Graph},
-        prelude::AcalaDexExecutor,
-    };
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
     use pink_extension::ResultExt;
@@ -291,10 +290,8 @@ mod index_executor {
 
         /// Returs the interior registry, callable to all
         #[ink(message)]
-        pub fn get_graph(&self) -> Result<RegistryGraph> {
-            let graph: Graph =
-                Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
-            Ok(graph.into())
+        pub fn get_graph(&self) -> Result<Graph> {
+            Ok(self.graph.clone())
         }
 
         /// Return whole worker account information
@@ -488,22 +485,22 @@ mod index_executor {
         #[ink::test]
         fn setup_worker_on_storage_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-            use crate::graph::Asset as RegistryAsset;
-            use crate::graph::Chain as RegistryChain;
+            use crate::chain::{Chain, ChainType};
+            use crate::graph::{Asset, Graph};
             let mut executor = deploy_executor();
             executor
-                .set_graph(RegistryGraph {
-                    chains: vec![RegistryChain {
+                .set_graph(Graph {
+                    chains: vec![Chain {
                         id: 1,
                         name: "Khala".to_string(),
-                        chain_type: 2,
+                        chain_type: ChainType::Sub,
                         endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: 1,
-                        foreign_asset_type: 1,
-                        handler_contract: String::default(),
-                        tx_indexer: Default::default(),
+                        native_asset: vec![1],
+                        foreign_asset: None,
+                        handler_contract: vec![],
+                        tx_indexer_url: Default::default(),
                     }],
-                    assets: vec![RegistryAsset {
+                    assets: vec![Asset {
                         id: 1,
                         chain_id: 2,
                         name: "Phala Token".to_string(),

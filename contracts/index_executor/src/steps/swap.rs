@@ -117,8 +117,8 @@ impl Runner for SwapStep {
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
         tx::check_tx(&chain.tx_indexer, &account, nonce)
     }
