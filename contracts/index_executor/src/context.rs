@@ -1,6 +1,7 @@
 use super::account::AccountInfo;
+use crate::graph::Graph;
 use alloc::{boxed::Box, string::String, vec::Vec};
-use index::{graph::Graph, prelude::*, traits::executor::TransferExecutor};
+use index::{prelude::*, traits::executor::TransferExecutor};
 
 pub struct Context {
     pub signer: [u8; 32],

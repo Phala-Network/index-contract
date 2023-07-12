@@ -66,13 +66,13 @@ pub enum ExistenceReason<Balance> {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, MaxEncodedLen)]
 pub struct AssetAccount<Balance, DepositBalance, Extra> {
     /// The balance.
-    pub(super) balance: Balance,
+    pub balance: Balance,
     /// Whether the account is frozen.
-    pub(super) is_frozen: bool,
+    pub is_frozen: bool,
     /// The reason for the existence of the account.
-    pub(super) reason: ExistenceReason<DepositBalance>,
+    pub reason: ExistenceReason<DepositBalance>,
     /// Additional "sidecar" data, in case some other pallet wants to use this storage item.
-    pub(super) extra: Extra,
+    pub extra: Extra,
 }
 
 /// balance information for an account.

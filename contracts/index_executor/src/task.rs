@@ -1,10 +1,10 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
+use crate::chain::{ChainType, NonceFetcher};
 use crate::steps::{Step, StepMeta};
 use crate::storage::StorageClient;
 use alloc::{string::String, vec, vec::Vec};
-use index::graph::{ChainType, NonceFetcher};
 use ink::storage::Mapping;
 use scale::{Decode, Encode};
 
@@ -421,10 +421,11 @@ impl Task {
 mod tests {
     use super::*;
     use crate::account::AccountInfo;
+    use crate::chain::{Chain, ChainType};
+    use crate::graph::Graph;
     use crate::steps::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::graph::{Chain, ChainType, Graph};
     use pink_extension::chain_extension::AccountId;
     use primitive_types::H160;
 

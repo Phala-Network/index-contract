@@ -1370,6 +1370,7 @@ dependencies = [
  "primitive-types 0.12.1",
  "scale-info",
  "serde",
+ "sp-runtime",
  "sp-std 4.0.0",
  "xcm",
 ]
