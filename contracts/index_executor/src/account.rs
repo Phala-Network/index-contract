@@ -1,14 +1,10 @@
 use super::context::Context;
+use crate::chain::{BalanceFetcher, ChainType, NonceFetcher};
 use alloc::{format, string::String, vec::Vec};
-use index::{
-    graph::{BalanceFetcher, ChainType, NonceFetcher},
-    utils::ToArray,
-};
+use index::utils::ToArray;
 use ink::storage::traits::StorageLayout;
-use pink_extension::{
-    chain_extension::{signing, SigType},
-    ResultExt,
-};
+use pink_extension::chain_extension::{signing, SigType};
+use pink_extension::ResultExt;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]

@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod account;
+mod chain;
 mod context;
 mod gov;
 mod graph;
@@ -16,20 +17,18 @@ mod tx;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
+    use crate::chain::{Chain, ChainType};
     use crate::context::Context;
     use crate::gov::WorkerGov;
-    use crate::graph::Graph as RegistryGraph;
+    use crate::graph::Graph;
     use crate::steps::claimer::ActivedTaskFetcher;
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
+    use index::prelude::AcalaDexExecutor;
     use index::prelude::*;
     use index::traits::executor::TransferExecutor;
     use index::utils::ToArray;
-    use index::{
-        graph::{Chain, ChainType, Graph},
-        prelude::AcalaDexExecutor,
-    };
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
     use pink_extension::ResultExt;
@@ -95,7 +94,7 @@ mod index_executor {
     pub struct Executor {
         pub admin: AccountId,
         pub config: Option<Config>,
-        pub graph: Vec<u8>,
+        pub graph: Graph,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
         pub is_paused: bool,
@@ -114,7 +113,7 @@ mod index_executor {
             Self {
                 admin: Self::env().caller(),
                 config: None,
-                graph: Vec::default(),
+                graph: Graph::default(),
                 worker_prv_keys: vec![],
                 worker_accounts: vec![],
                 // Make sure we configured the executor before running
@@ -159,14 +158,13 @@ mod index_executor {
             Ok(())
         }
 
-        /// Sets the graph, callable only to a specifically crafted management tool,
-        /// should not be called by anyone else
+        /// Set graph by owner.
+        ///
+        /// The `Graph` contains all informations of supported chains, assets, bridges, and DEXs.
         #[ink(message)]
-        pub fn set_graph(&mut self, graph: RegistryGraph) -> Result<()> {
-            // self.ensure_owner()?;
-            self.graph = TryInto::<Graph>::try_into(graph)
-                .or(Err(Error::SetGraphFailed))?
-                .encode();
+        pub fn set_graph(&mut self, graph: Graph) -> Result<()> {
+            self.ensure_owner()?;
+            self.graph = graph;
             Self::env().emit_event(GraphSet {});
             Ok(())
         }
@@ -288,10 +286,8 @@ mod index_executor {
 
         /// Returs the interior graph, callable to all
         #[ink(message)]
-        pub fn get_graph(&self) -> Result<RegistryGraph> {
-            let graph: Graph =
-                Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
-            Ok(graph.into())
+        pub fn get_graph(&self) -> Result<Graph> {
+            Ok(self.graph.clone())
         }
 
         /// Return whole worker account information
@@ -332,11 +328,7 @@ mod index_executor {
                         &Context {
                             // Don't need signer here
                             signer: [0; 32],
-                            graph: {
-                                let bytes = self.graph.clone();
-                                let mut bytes = bytes.as_ref();
-                                Graph::decode(&mut bytes).unwrap()
-                            },
+                            graph: self.graph.clone(),
                             worker_accounts: self.worker_accounts.clone(),
                             bridge_executors: vec![],
                             dex_executors: vec![],
@@ -381,11 +373,7 @@ mod index_executor {
                 match task.execute(
                     &Context {
                         signer: self.pub_to_prv(task.worker).unwrap(),
-                        graph: {
-                            let bytes = self.graph.clone();
-                            let mut bytes = bytes.as_ref();
-                            Graph::decode(&mut bytes).unwrap()
-                        },
+                        graph: self.graph.clone(),
                         worker_accounts: self.worker_accounts.clone(),
                         bridge_executors: bridge_executors.clone(),
                         dex_executors: dex_executors.clone(),
@@ -434,8 +422,7 @@ mod index_executor {
         }
 
         pub fn get_chain(&self, name: String) -> Option<Chain> {
-            let graph = Graph::decode(&mut &self.graph[..]).unwrap();
-            graph.get_chain(name)
+            self.graph.get_chain(name)
         }
 
         /// Returns BadOrigin error if the caller is not the owner
@@ -453,7 +440,7 @@ mod index_executor {
         }
 
         fn ensure_graph_set(&self) -> Result<()> {
-            if self.graph == Vec::<u8>::default() {
+            if self.graph.chains.is_empty() {
                 return Err(Error::GraphNotSet);
             }
             Ok(())
@@ -655,22 +642,22 @@ mod index_executor {
         #[ink::test]
         fn setup_worker_on_storage_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-            use crate::graph::Asset as RegistryAsset;
-            use crate::graph::Chain as RegistryChain;
+            use crate::chain::{Chain, ChainType};
+            use crate::graph::{Asset, Graph};
             let mut executor = deploy_executor();
             executor
-                .set_graph(RegistryGraph {
-                    chains: vec![RegistryChain {
+                .set_graph(Graph {
+                    chains: vec![Chain {
                         id: 1,
                         name: "Khala".to_string(),
-                        chain_type: 2,
+                        chain_type: ChainType::Sub,
                         endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: 1,
-                        foreign_asset_type: 1,
-                        handler_contract: String::default(),
+                        native_asset: vec![1],
+                        foreign_asset: None,
+                        handler_contract: vec![],
                         tx_indexer_url: Default::default(),
                     }],
-                    assets: vec![RegistryAsset {
+                    assets: vec![Asset {
                         id: 1,
                         chain_id: 2,
                         name: "Phala Token".to_string(),

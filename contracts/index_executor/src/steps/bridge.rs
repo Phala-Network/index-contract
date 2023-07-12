@@ -1,4 +1,5 @@
 use crate::account::AccountInfo;
+use crate::chain::ChainType;
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
@@ -115,8 +116,8 @@ impl Runner for BridgeStep {
             .get_chain(self.source_chain.clone())
             .ok_or("MissingChain")?;
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
 
         if tx::check_tx(&chain.tx_indexer_url, &account, nonce)? {

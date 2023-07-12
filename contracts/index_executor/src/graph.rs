@@ -1,558 +1,255 @@
 //#[allow(clippy::large_enum_variant)]
-use crate::alloc::string::ToString;
-use alloc::{string::String, vec::Vec};
-use index::graph as index_graph;
+use crate::chain::{Chain, ChainType, ForeignAssetModule};
 use ink::storage::traits::StorageLayout;
 
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Chain {
-    pub id: u32,
-    pub name: String,
-    pub endpoint: String,
-    pub chain_type: u32,
-    pub native_asset: u32,
-    pub foreign_asset_type: u32,
-    pub handler_contract: String,
-    pub tx_indexer_url: String,
-}
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+use index::prelude::AcalaDexExecutor;
+use index::prelude::*;
+use index::traits::executor::TransferExecutor;
+use index::utils::ToArray;
 
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Asset {
-    pub id: u32,
-    pub symbol: String,
-    pub name: String,
-    pub location: String,
-    pub decimals: u32,
-    pub chain_id: u32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Dex {
-    pub id: u32,
-    pub name: String,
-    pub chain_id: u32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct DexIndexer {
-    pub id: u32,
-    pub url: String,
-    pub dex_id: u32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct DexPair {
-    pub id: u32,
-    pub asset0_id: u32,
-    pub asset1_id: u32,
-    pub dex_id: u32,
-    pub pair_id: String,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Bridge {
-    pub id: u32,
-    pub name: String,
-    pub location: String,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct BridgePair {
-    pub id: u32,
-    pub asset0_id: u32,
-    pub asset1_id: u32,
-    pub bridge_id: u32,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
-#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
-pub struct Graph {
+#[derive(Clone, scale::Encode, scale::Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct Registry {
     pub chains: Vec<Chain>,
-    pub assets: Vec<Asset>,
-    pub dexs: Vec<Dex>,
-    pub dex_pairs: Vec<DexPair>,
-    pub dex_indexers: Vec<DexIndexer>,
-    pub bridges: Vec<Bridge>,
-    pub bridge_pairs: Vec<BridgePair>,
 }
 
-impl TryInto<index_graph::Graph> for Graph {
-    type Error = &'static str;
-    fn try_into(self) -> core::result::Result<index_graph::Graph, Self::Error> {
-        let mut local_graph: index_graph::Graph = index_graph::Graph::default();
-
-        {
-            let mut arr: Vec<index_graph::Chain> = Vec::new();
-            for chain in &self.chains {
-                let item: index_graph::Chain = index_graph::Chain {
-                    id: chain.id,
-                    name: chain.name.clone(),
-                    endpoint: chain.endpoint.clone(),
-                    chain_type: {
-                        match chain.chain_type {
-                            // 0 => index_graph::ChainType::Unknown,
-                            1 => index_graph::ChainType::Evm,
-                            2 => index_graph::ChainType::Sub,
-                            _ => return Err("Unsupported chain!"),
-                        }
-                    },
-                    native_asset: {
-                        let asset_id = chain.native_asset;
-                        let asset = &self.assets[asset_id as usize - 1];
-                        hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?
-                    },
-                    foreign_asset: {
-                        match chain.foreign_asset_type {
-                            1 => Some(index_graph::ForeignAssetModule::PalletAsset),
-                            2 => Some(index_graph::ForeignAssetModule::OrmlToken),
-                            _ => return Err("Unsupported chain!"),
-                        }
-                    },
-                    handler_contract: hexified_to_vec_u8(&chain.handler_contract)
-                        .or(Err("InvalidInput"))?,
-<<<<<<< HEAD
-                    tx_indexer_url: chain.tx_indexer_url.clone(),
-=======
-                    tx_indexer: chain.tx_indexer.clone(),
->>>>>>> ef32483 (check tx with off-chin indexer)
-                };
-                arr.push(item);
-            }
-            local_graph.chains = arr;
-        }
-
-        {
-            let mut arr: Vec<index_graph::Asset> = Vec::new();
-            for asset in &self.assets {
-                let item = index_graph::Asset {
-                    id: asset.id,
-                    symbol: asset.symbol.clone(),
-                    name: asset.name.clone(),
-                    location: hexified_to_vec_u8(&asset.location).or(Err("InvalidInput"))?,
-                    decimals: asset.decimals,
-                    chain_id: asset.chain_id,
-                };
-                arr.push(item);
-            }
-            local_graph.assets = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for dex in &self.dexs {
-                let item = index_graph::Dex {
-                    id: dex.id,
-                    name: dex.name.clone(),
-                    chain_id: dex.chain_id,
-                };
-                arr.push(item);
-            }
-            local_graph.dexs = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for indexer in &self.dex_indexers {
-                let item = index_graph::DexIndexer {
-                    id: indexer.id,
-                    url: indexer.url.clone(),
-                    dex_id: indexer.dex_id,
-                };
-                arr.push(item);
-            }
-            local_graph.dex_indexers = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for pair in &self.dex_pairs {
-                let item = index_graph::DexPair {
-                    id: pair.id,
-                    asset0_id: pair.asset0_id,
-                    asset1_id: pair.asset1_id,
-                    dex_id: pair.dex_id,
-                    pair_id: hexified_to_string(&pair.pair_id).or(Err("InvalidInput"))?,
-                };
-                arr.push(item);
-            }
-            local_graph.dex_pairs = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for bridge in &self.bridges {
-                let item = index_graph::Bridge {
-                    id: bridge.id,
-                    name: bridge.name.clone(),
-                    location: hexified_to_vec_u8(&bridge.location).or(Err("InvalidInput"))?,
-                };
-                arr.push(item);
-            }
-            local_graph.bridges = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for pair in &self.bridge_pairs {
-                let item = index_graph::BridgePair {
-                    id: pair.id,
-                    asset0_id: pair.asset0_id,
-                    asset1_id: pair.asset1_id,
-                    bridge_id: pair.bridge_id,
-                };
-                arr.push(item);
-            }
-            local_graph.bridge_pairs = arr;
-        }
-
-        Ok(local_graph)
+impl Default for Registry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
-impl From<index_graph::Graph> for Graph {
-    fn from(graph: index_graph::Graph) -> Graph {
-        let mut local_graph: Graph = Graph::default();
-
-        {
-            let mut arr: Vec<Chain> = Vec::new();
-            for chain in &graph.chains {
-                let item: Chain = Chain {
-                    id: chain.id,
-                    name: chain.name.clone(),
-                    endpoint: chain.endpoint.clone(),
-                    chain_type: {
-                        match chain.chain_type {
-                            index_graph::ChainType::Evm => 1,
-                            index_graph::ChainType::Sub => 2,
-                        }
-                    },
-                    native_asset: {
-                        let location = &chain.native_asset;
-                        let asset = graph
-                            .assets
-                            .iter()
-                            .find(|a| a.chain_id == chain.id && &a.location == location)
-                            .expect("must not fail");
-                        asset.id
-                    },
-                    foreign_asset_type: {
-                        match chain.foreign_asset {
-                            Some(index_graph::ForeignAssetModule::PalletAsset) => 1,
-                            Some(index_graph::ForeignAssetModule::OrmlToken) => 2,
-                            // FIXME: Is is reasonable here
-                            None => 3,
-                        }
-                    },
-                    handler_contract: vec_u8_to_hexified(&chain.handler_contract),
-<<<<<<< HEAD
-                    tx_indexer_url: chain.tx_indexer_url.clone(),
-=======
-                    tx_indexer: chain.tx_indexer.clone(),
->>>>>>> ef32483 (check tx with off-chin indexer)
-                };
-                arr.push(item);
-            }
-            local_graph.chains = arr;
-        }
-
-        {
-            let mut arr: Vec<Asset> = Vec::new();
-            for asset in &graph.assets {
-                let item = Asset {
-                    id: asset.id,
-                    symbol: asset.symbol.clone(),
-                    name: asset.name.clone(),
-                    location: vec_u8_to_hexified(&asset.location),
-                    decimals: asset.decimals,
-                    chain_id: asset.chain_id,
-                };
-                arr.push(item);
-            }
-            local_graph.assets = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for dex in &graph.dexs {
-                let item = Dex {
-                    id: dex.id,
-                    name: dex.name.clone(),
-                    chain_id: dex.chain_id,
-                };
-                arr.push(item);
-            }
-            local_graph.dexs = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for indexer in &graph.dex_indexers {
-                let item = DexIndexer {
-                    id: indexer.id,
-                    url: indexer.url.clone(),
-                    dex_id: indexer.dex_id,
-                };
-                arr.push(item);
-            }
-            local_graph.dex_indexers = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for pair in &graph.dex_pairs {
-                let item = DexPair {
-                    id: pair.id,
-                    asset0_id: pair.asset0_id,
-                    asset1_id: pair.asset1_id,
-                    dex_id: pair.dex_id,
-                    pair_id: string_to_hexified(&pair.pair_id),
-                };
-                arr.push(item);
-            }
-            local_graph.dex_pairs = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for bridge in &graph.bridges {
-                let item = Bridge {
-                    id: bridge.id,
-                    name: bridge.name.clone(),
-                    location: vec_u8_to_hexified(&bridge.location),
-                };
-                arr.push(item);
-            }
-            local_graph.bridges = arr;
-        }
-
-        {
-            let mut arr = Vec::new();
-            for pair in &graph.bridge_pairs {
-                let item = BridgePair {
-                    id: pair.id,
-                    asset0_id: pair.asset0_id,
-                    asset1_id: pair.asset1_id,
-                    bridge_id: pair.bridge_id,
-                };
-                arr.push(item);
-            }
-            local_graph.bridge_pairs = arr;
-        }
-
-        local_graph
-    }
-}
-
-// some field from the first graph(the RegistryGraph) is a String that is hexified somewhere else,
-// the right way to decode it is:
-//  - de-hexify it to be Vec<u8>
-//  - restore the string from Vec<u8>
-// for example:
-// - a tool hexifies a string "0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB" into 33613632613439383062393532433932663464343234336334413030393333364565306132366542
-// - Phat contract receives 33613632613439383062393532433932663464343234336334413030393333364565306132366542
-// - Phat contract needs to decode 33613632613439383062393532433932663464343234336334413030393333364565306132366542 into 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB
-// - 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB is in bytes because the hex::decode gives Vec<u8> output
-// - restore string from bytes using String::from_utf8_lossy
-fn hexified_to_string(hs: &str) -> core::result::Result<String, &'static str> {
-    Ok(
-        String::from_utf8_lossy(&hex::decode(hs).or(Err("DecodeFailed"))?)
-            .to_string()
-            .to_lowercase(),
-    )
-}
-
-// when we restore a string from hexified string, to turn that into Vec<u8>,
-// first thing is to remove the prefixing 0x, then hex::decode again
-fn hexified_to_vec_u8(hs: &str) -> core::result::Result<Vec<u8>, &'static str> {
-    let binding = hex::decode(hs).or(Err("DecodeFailed"))?;
-    let withhead = &String::from_utf8_lossy(&binding);
-
-    if let Some(headless) = withhead.strip_prefix("0x") {
-        hex::decode(headless).or(Err("DecodeFailed"))
-    } else {
-        Err("wrong hex string")
-    }
-}
-
-fn vec_u8_to_hexified(v: &[u8]) -> String {
-    let headless = hex::encode(v);
-    let withhead = String::from("0x") + &headless;
-    hex::encode(withhead.as_bytes())
-}
-
-fn string_to_hexified(s: &str) -> String {
-    hex::encode(s.as_bytes())
-}
-
-#[cfg(test)]
-mod tests {
-    use core::str::FromStr;
-    use primitive_types::H160;
-
-    use super::*;
-
-    #[test]
-    fn string_codec_should_work() {
-        let input =
-            "307833613632613439383062393532633932663464343234336334613030393333366565306132366562"
-                .to_string();
-        assert_eq!(
-            "0x3a62a4980b952c92f4d4243c4a009336ee0a26eb".to_string(),
-            hexified_to_string(&input).unwrap()
-        );
-        let v = hexified_to_vec_u8(&input).unwrap();
-        assert_eq!(
-            vec![
-                0x3a, 0x62, 0xa4, 0x98, 0x0b, 0x95, 0x2C, 0x92, 0xf4, 0xd4, 0x24, 0x3c, 0x4A, 0x00,
-                0x93, 0x36, 0xEe, 0x0a, 0x26, 0xeB
+impl Registry {
+    pub fn new() -> Registry {
+        Registry {
+            chains: vec![
+                Chain {
+                    id: 0,
+                    name: "Ethereum".to_string(),
+                    endpoint: "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
+                        .to_string(),
+                    chain_type: ChainType::Evm,
+                    native_asset: hex::decode("0000000000000000000000000000000000000000")
+                        .expect("InvalidLocation"),
+                    foreign_asset: None,
+                    handler_contract: hex::decode("F9eaE3Ec6BFE94F510eb3a5de8Ac9dEB9E74DF39")
+                        .expect("InvalidLocation"),
+                    tx_indexer_url: "null".to_string(),
+                },
+                Chain {
+                    id: 1,
+                    name: "Moonbeam".to_string(),
+                    endpoint: "https://moonbeam.api.onfinality.io/public".to_string(),
+                    chain_type: ChainType::Evm,
+                    native_asset: hex::decode("0000000000000000000000000000000000000000")
+                        .expect("InvalidLocation"),
+                    foreign_asset: None,
+                    handler_contract: hex::decode("1e4ED6d37685D2FB254e47C5b58Cf95173326E4c")
+                        .expect("InvalidLocation"),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
+                },
+                Chain {
+                    id: 2,
+                    name: "Astar".to_string(),
+                    endpoint: "https://astar.public.blastapi.io".to_string(),
+                    chain_type: ChainType::Evm,
+                    native_asset: hex::decode("0000000000000000000000000000000000000000")
+                        .expect("InvalidLocation"),
+                    foreign_asset: None,
+                    // FIXME: Handle contract on AStar
+                    handler_contract: hex::decode("0000000000000000000000000000000000000000")
+                        .expect("InvalidLocation"),
+                    tx_indexer_url: "null".to_string(),
+                },
+                Chain {
+                    id: 3,
+                    name: "Khala".to_string(),
+                    endpoint: "wss://khala-api.phala.network/ws".to_string(),
+                    chain_type: ChainType::Sub,
+                    native_asset: hex::decode("0000").expect("InvalidLocation"),
+                    foreign_asset: Some(ForeignAssetModule::PalletAsset),
+                    handler_contract: hex::decode("79").expect("InvalidLocation"),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-khala/graphql".to_string(),
+                },
+                Chain {
+                    id: 4,
+                    name: "Phala".to_string(),
+                    endpoint: "https://api.phala.network/rpc".to_string(),
+                    chain_type: ChainType::Sub,
+                    native_asset: hex::decode("0000").expect("InvalidLocation"),
+                    foreign_asset: Some(ForeignAssetModule::PalletAsset),
+                    handler_contract: hex::decode("79").expect("InvalidLocation"),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-phala/graphql".to_string(),
+                },
+                Chain {
+                    id: 5,
+                    name: "Acala".to_string(),
+                    endpoint: "https://acala-rpc.dwellir.com".to_string(),
+                    chain_type: ChainType::Sub,
+                    native_asset: hex::decode("010200411f06080000").expect("InvalidLocation"),
+                    foreign_asset: Some(ForeignAssetModule::OrmlToken),
+                    // FIXME: No Handler pallet in Acala
+                    handler_contract: hex::decode("00").expect("InvalidLocation"),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-acala/graphql".to_string(),
+                },
             ],
-            v
-        );
-        let h1 = H160::from_slice(&v);
-        let h2 = H160::from_str("0x3a62a4980b952c92f4d4243c4a009336ee0a26eb").unwrap();
-        assert_eq!(h1, h2);
-
-        let s = vec_u8_to_hexified(&v);
-
-        assert_eq!(s, input);
+        }
     }
 
-    #[test]
-    fn graph_conversion_should_work() {
-        // we are not registering entities manually!
-        // just for demonstration.
-        // there is a specfic management tool for all this data management
-        let ethereum = Chain {
-            id: 1,
-            name: "Ethereum".to_string(),
-            chain_type: 1,
-            endpoint: "endpoint".to_string(),
-            native_asset: 3,
-            foreign_asset_type: 1,
-            handler_contract: string_to_hexified("0x12"),
-<<<<<<< HEAD
-            tx_indexer_url: Default::default(),
-=======
-            tx_indexer: Default::default(),
->>>>>>> ef32483 (check tx with off-chin indexer)
-        };
-        let phala = Chain {
-            id: 2,
-            name: "Phala".to_string(),
-            chain_type: 2,
-            endpoint: "endpoint".to_string(),
-            native_asset: 2,
-            foreign_asset_type: 1,
-            handler_contract: string_to_hexified("0x23"),
-<<<<<<< HEAD
-            tx_indexer_url: Default::default(),
-=======
-            tx_indexer: Default::default(),
->>>>>>> ef32483 (check tx with off-chin indexer)
-        };
-        let pha_on_ethereum = Asset {
-            id: 1,
-            chain_id: 1,
-            name: "Phala Token".to_string(),
-            symbol: "PHA".to_string(),
-            decimals: 18,
-            location: string_to_hexified("0x34"),
-        };
-        let pha_on_phala = Asset {
-            id: 2,
-            chain_id: 2,
-            name: "Phala Token".to_string(),
-            symbol: "PHA".to_string(),
-            decimals: 12,
-            location: string_to_hexified("0x45"),
-        };
-        let weth_on_ethereum = Asset {
-            id: 3,
-            chain_id: 1,
-            name: "Wrap Ether".to_string(),
-            symbol: "WETH".to_string(),
-            decimals: 18,
-            location: string_to_hexified("0x56"),
-        };
-        let weth_on_phala = Asset {
-            id: 4,
-            chain_id: 2,
-            name: "Phala Wrap Ether".to_string(),
-            symbol: "pWETH".to_string(),
-            decimals: 18,
-            location: string_to_hexified("0x67"),
-        };
-        let ethereum2phala_pha_pair = BridgePair {
-            id: 1,
-            asset0_id: 1,
-            asset1_id: 2,
-            bridge_id: 1,
-        };
-        let ethereum2phala_weth_pair = BridgePair {
-            id: 2,
-            asset0_id: 3,
-            asset1_id: 4,
-            bridge_id: 1,
-        };
-        let phala2ethereum_pha_pair = BridgePair {
-            id: 3,
-            asset0_id: 2,
-            asset1_id: 1,
-            bridge_id: 1,
-        };
-        let pha_weth_dex_pair = DexPair {
-            id: 1,
-            dex_id: 1,
-            pair_id: string_to_hexified("pair_address"),
-            asset0_id: 1,
-            asset1_id: 3,
-        };
-        let bridge = Bridge {
-            id: 1,
-            name: "demo bridge".to_string(),
-            location: string_to_hexified("0x78"),
-        };
-        let dex = Dex {
-            id: 1,
-            name: "UniSwapV2".to_string(),
-            chain_id: 1,
-        };
+    pub fn get_chain(&self, name: String) -> Option<Chain> {
+        let chains = &self.chains;
+        chains
+            .iter()
+            .position(|c| c.name == name)
+            .map(|idx| chains[idx].clone())
+    }
 
-        // should have a jonction table but this structure suffices
-        let dex_indexer = DexIndexer {
-            id: 1,
-            url: "https://some-graph.network".to_string(),
-            dex_id: 1,
-        };
+    #[allow(clippy::type_complexity)]
+    pub fn create_bridge_executors(&self) -> Vec<((String, String), Box<dyn BridgeExecutor>)> {
+        let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
+        let moonbeam = self
+            .get_chain(String::from("Moonbeam"))
+            .expect("ChainNotFound");
+        let phala = self
+            .get_chain(String::from("Phala"))
+            .expect("ChainNotFound");
+        let khala = self
+            .get_chain(String::from("Khala"))
+            .expect("ChainNotFound");
+        let ethereum = self
+            .get_chain(String::from("Ethereum"))
+            .expect("ChainNotFound");
 
-        let graph = Graph {
-            chains: vec![ethereum, phala],
-            assets: vec![
-                pha_on_ethereum,
-                pha_on_phala,
-                weth_on_ethereum,
-                weth_on_phala,
-            ],
-            dexs: vec![dex],
-            bridges: vec![bridge],
-            dex_pairs: vec![pha_weth_dex_pair],
-            bridge_pairs: vec![
-                ethereum2phala_pha_pair,
-                ethereum2phala_weth_pair,
-                phala2ethereum_pha_pair,
-            ],
-            dex_indexers: vec![dex_indexer],
-        };
+        let moonbeam_xtoken: [u8; 20] =
+            hex_literal::hex!("0000000000000000000000000000000000000804");
+        let chainbridge_on_ethereum: [u8; 20] =
+            hex_literal::hex!("8F92e7353b180937895E0C5937d616E8ea1A2Bb9");
 
-        let index_graph: index_graph::Graph = graph.clone().try_into().unwrap();
-        let decoded_graph: Graph = index_graph.into();
-        assert_eq!(decoded_graph, graph)
+        // Moonbeam -> Acala
+        bridge_executors.push((
+            (String::from("Moonbeam"), String::from("Acala")),
+            Box::new(MoonbeamXTokenExecutor::new(
+                &moonbeam.endpoint,
+                moonbeam_xtoken.into(),
+                ACALA_PARACHAIN_ID,
+            )),
+        ));
+        // Moonbeam -> Phala
+        bridge_executors.push((
+            (String::from("Moonbeam"), String::from("Phala")),
+            Box::new(MoonbeamXTokenExecutor::new(
+                &moonbeam.endpoint,
+                moonbeam_xtoken.into(),
+                PHALA_PARACHAIN_ID,
+            )),
+        ));
+        // Phala -> Acala
+        bridge_executors.push((
+            (String::from("Phala"), String::from("Acala")),
+            Box::new(PhalaXTransferExecutor::new(
+                &phala.endpoint,
+                ACALA_PARACHAIN_ID,
+                index::AccountType::Account32,
+            )),
+        ));
+        // Ethereum -> Phala
+        bridge_executors.push((
+            (String::from("Ethereum"), String::from("Phala")),
+            Box::new(ChainBridgeEthereum2Phala::new(
+                &ethereum.endpoint,
+                CHAINBRIDGE_ID_PHALA,
+                chainbridge_on_ethereum.into(),
+                vec![(
+                    // PHA contract address on Ethereum
+                    hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
+                    // PHA ChainBridge resource id on Phala
+                    hex_literal::hex!(
+                        "00b14e071ddad0b12be5aca6dffc5f2584ea158d9b0ce73e1437115e97a32a3e"
+                    ),
+                )],
+            )),
+        ));
+        // Phala -> Ethereum
+        bridge_executors.push((
+            (String::from("Phala"), String::from("Ethereum")),
+            Box::new(ChainBridgePhala2Ethereum::new(
+                CHAINBRIDGE_ID_ETHEREUM,
+                &phala.endpoint,
+            )),
+        ));
+        // Ethereum -> Khala
+        bridge_executors.push((
+            (String::from("Ethereum"), String::from("Khala")),
+            Box::new(ChainBridgeEthereum2Phala::new(
+                &ethereum.endpoint,
+                CHAINBRIDGE_ID_KHALA,
+                chainbridge_on_ethereum.into(),
+                vec![(
+                    // PHA contract address on Ethereum
+                    hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
+                    // PHA ChainBridge resource id on Khala
+                    hex_literal::hex!(
+                        "00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6"
+                    ),
+                )],
+            )),
+        ));
+        // Khala -> Ethereum
+        bridge_executors.push((
+            (String::from("Khala"), String::from("Ethereum")),
+            Box::new(ChainBridgePhala2Ethereum::new(
+                CHAINBRIDGE_ID_ETHEREUM,
+                &khala.endpoint,
+            )),
+        ));
+        bridge_executors
+    }
+
+    pub fn create_dex_executors(&self) -> Vec<(String, Box<dyn DexExecutor>)> {
+        let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
+        let moonbeam = self
+            .get_chain(String::from("Moonbeam"))
+            .expect("ChainNotFound");
+        let acala = self
+            .get_chain(String::from("Acala"))
+            .expect("ChainNotFound");
+
+        let stellaswap_router: [u8; 20] = hex::decode("70085a09D30D6f8C4ecF6eE10120d1847383BB57")
+            .unwrap()
+            .to_array();
+
+        // Acala DEX
+        dex_executors.push((
+            String::from("Acala"),
+            Box::new(AcalaDexExecutor::new(&acala.endpoint)),
+        ));
+        // Moonbeam::StellaSwap
+        dex_executors.push((
+            String::from("Moonbeam"),
+            Box::new(MoonbeamDexExecutor::new(
+                &moonbeam.endpoint,
+                stellaswap_router.into(),
+            )),
+        ));
+        dex_executors
+    }
+
+    pub fn create_transfer_executors(&self) -> Vec<(String, Box<dyn TransferExecutor>)> {
+        let mut transfer_executors: Vec<(String, Box<dyn TransferExecutor>)> = vec![];
+        let acala = self
+            .get_chain(String::from("Acala"))
+            .expect("ChainNotFound");
+
+        transfer_executors.push((
+            String::from("Acala"),
+            Box::new(AcalaTransferExecutor::new(&acala.endpoint)),
+        ));
+        transfer_executors
     }
 }

@@ -1,5 +1,5 @@
+use crate::chain::{Chain, ChainType};
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType};
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -98,8 +98,8 @@ impl Runner for ClaimStep {
             .ok_or("MissingChain")?;
 
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
         tx::check_tx(&chain.tx_indexer_url, &account, nonce)
     }
@@ -548,14 +548,13 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::context::Context;
+    use crate::graph::Graph;
     use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::{
-        graph::{BalanceFetcher, Chain, ChainType, Graph},
-        utils::ToArray,
-    };
+    use index::utils::ToArray;
 
     #[test]
     fn test_json_parse() {
