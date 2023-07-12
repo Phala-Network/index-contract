@@ -24,11 +24,7 @@ mod index_executor {
     use crate::steps::claimer::ActivedTaskFetcher;
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
-    use alloc::{boxed::Box, string::String, vec, vec::Vec};
-    use index::prelude::AcalaDexExecutor;
-    use index::prelude::*;
-    use index::traits::executor::TransferExecutor;
-    use index::utils::ToArray;
+    use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
     use pink_extension::ResultExt;
@@ -290,8 +286,8 @@ mod index_executor {
 
         /// Returs the interior registry, callable to all
         #[ink(message)]
-        pub fn get_graph(&self) -> Result<Graph> {
-            Ok(self.graph.clone())
+        pub fn get_registry(&self) -> Result<Registry> {
+            Ok(self.registry.clone())
         }
 
         /// Return whole worker account information
@@ -354,10 +350,6 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            let bridge_executors = self.create_bridge_executors()?;
-            let dex_executors = self.create_dex_executors()?;
-            let transfer_executors = self.create_transfer_executors()?;
-
             for id in client.lookup_pending_tasks().iter() {
                 pink_extension::debug!(
                     "Found one pending tasks exist in storge, task id: {:?}",
