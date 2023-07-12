@@ -6,7 +6,7 @@ mod account;
 mod chain;
 mod context;
 mod gov;
-mod graph;
+mod registry;
 mod steps;
 mod storage;
 mod task;
@@ -20,15 +20,11 @@ mod index_executor {
     use crate::chain::{Chain, ChainType};
     use crate::context::Context;
     use crate::gov::WorkerGov;
-    use crate::graph::Graph;
+    use crate::registry::Registry;
     use crate::steps::claimer::ActivedTaskFetcher;
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
-    use alloc::{boxed::Box, string::String, vec, vec::Vec};
-    use index::prelude::AcalaDexExecutor;
-    use index::prelude::*;
-    use index::traits::executor::TransferExecutor;
-    use index::utils::ToArray;
+    use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
     use pink_extension::ResultExt;
@@ -70,10 +66,6 @@ mod index_executor {
         storage_key: String,
     }
 
-    /// Event emitted when graph is set.
-    #[ink(event)]
-    pub struct GraphSet;
-
     /// Event emitted when executor is configured.
     #[ink(event)]
     pub struct Configured;
@@ -94,7 +86,7 @@ mod index_executor {
     pub struct Executor {
         pub admin: AccountId,
         pub config: Option<Config>,
-        pub graph: Graph,
+        pub registry: Registry,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
         pub is_paused: bool,
@@ -113,7 +105,7 @@ mod index_executor {
             Self {
                 admin: Self::env().caller(),
                 config: None,
-                graph: Graph::default(),
+                registry: Registry::new(),
                 worker_prv_keys: vec![],
                 worker_accounts: vec![],
                 // Make sure we configured the executor before running
@@ -155,17 +147,6 @@ mod index_executor {
                 self.worker_accounts.clone()
             );
             Self::env().emit_event(Configured {});
-            Ok(())
-        }
-
-        /// Set graph by owner.
-        ///
-        /// The `Graph` contains all informations of supported chains, assets, bridges, and DEXs.
-        #[ink(message)]
-        pub fn set_graph(&mut self, graph: Graph) -> Result<()> {
-            self.ensure_owner()?;
-            self.graph = graph;
-            Self::env().emit_event(GraphSet {});
             Ok(())
         }
 
@@ -284,10 +265,10 @@ mod index_executor {
             Ok(None)
         }
 
-        /// Returs the interior graph, callable to all
+        /// Returs the interior registry, callable to all
         #[ink(message)]
-        pub fn get_graph(&self) -> Result<Graph> {
-            Ok(self.graph.clone())
+        pub fn get_registry(&self) -> Result<Registry> {
+            Ok(self.registry.clone())
         }
 
         /// Return whole worker account information
@@ -328,11 +309,8 @@ mod index_executor {
                         &Context {
                             // Don't need signer here
                             signer: [0; 32],
-                            graph: self.graph.clone(),
+                            registry: &self.registry,
                             worker_accounts: self.worker_accounts.clone(),
-                            bridge_executors: vec![],
-                            dex_executors: vec![],
-                            transfer_executors: vec![],
                         },
                         client,
                     )
@@ -352,10 +330,6 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            let bridge_executors = self.create_bridge_executors()?;
-            let dex_executors = self.create_dex_executors()?;
-            let transfer_executors = self.create_transfer_executors()?;
-
             for id in client.lookup_pending_tasks().iter() {
                 pink_extension::debug!(
                     "Found one pending tasks exist in storge, task id: {:?}",
@@ -373,11 +347,8 @@ mod index_executor {
                 match task.execute(
                     &Context {
                         signer: self.pub_to_prv(task.worker).unwrap(),
-                        graph: self.graph.clone(),
                         worker_accounts: self.worker_accounts.clone(),
-                        bridge_executors: bridge_executors.clone(),
-                        dex_executors: dex_executors.clone(),
-                        transfer_executors: transfer_executors.clone(),
+                        registry: &self.registry,
                     },
                     client,
                 ) {
@@ -422,7 +393,7 @@ mod index_executor {
         }
 
         pub fn get_chain(&self, name: String) -> Option<Chain> {
-            self.graph.get_chain(name)
+            self.registry.get_chain(name)
         }
 
         /// Returns BadOrigin error if the caller is not the owner
@@ -440,7 +411,7 @@ mod index_executor {
         }
 
         fn ensure_graph_set(&self) -> Result<()> {
-            if self.graph.chains.is_empty() {
+            if self.registry.chains.is_empty() {
                 return Err(Error::GraphNotSet);
             }
             Ok(())
@@ -465,151 +436,6 @@ mod index_executor {
                 .iter()
                 .position(|a| a.account32 == pub_key)
                 .map(|idx| self.worker_prv_keys[idx])
-        }
-
-        #[allow(clippy::type_complexity)]
-        fn create_bridge_executors(
-            &self,
-        ) -> Result<Vec<((String, String), Box<dyn BridgeExecutor>)>> {
-            let mut bridge_executors: Vec<((String, String), Box<dyn BridgeExecutor>)> = vec![];
-            let moonbeam = self
-                .get_chain(String::from("Moonbeam"))
-                .ok_or(Error::ChainNotFound)?;
-            let phala = self
-                .get_chain(String::from("Phala"))
-                .ok_or(Error::ChainNotFound)?;
-            let khala = self
-                .get_chain(String::from("Khala"))
-                .ok_or(Error::ChainNotFound)?;
-            let ethereum = self
-                .get_chain(String::from("Ethereum"))
-                .ok_or(Error::ChainNotFound)?;
-
-            let moonbeam_xtoken: [u8; 20] =
-                hex_literal::hex!("0000000000000000000000000000000000000804");
-            let chainbridge_on_ethereum: [u8; 20] =
-                hex_literal::hex!("8F92e7353b180937895E0C5937d616E8ea1A2Bb9");
-
-            // Moonbeam -> Acala
-            bridge_executors.push((
-                (String::from("Moonbeam"), String::from("Acala")),
-                Box::new(MoonbeamXTokenExecutor::new(
-                    &moonbeam.endpoint,
-                    moonbeam_xtoken.into(),
-                    ACALA_PARACHAIN_ID,
-                )),
-            ));
-            // Moonbeam -> Phala
-            bridge_executors.push((
-                (String::from("Moonbeam"), String::from("Phala")),
-                Box::new(MoonbeamXTokenExecutor::new(
-                    &moonbeam.endpoint,
-                    moonbeam_xtoken.into(),
-                    PHALA_PARACHAIN_ID,
-                )),
-            ));
-            // Phala -> Acala
-            bridge_executors.push((
-                (String::from("Phala"), String::from("Acala")),
-                Box::new(PhalaXTransferExecutor::new(
-                    &phala.endpoint,
-                    ACALA_PARACHAIN_ID,
-                    index::AccountType::Account32,
-                )),
-            ));
-            // Ethereum -> Phala
-            bridge_executors.push((
-                (String::from("Ethereum"), String::from("Phala")),
-                Box::new(ChainBridgeEthereum2Phala::new(
-                    &ethereum.endpoint,
-                    CHAINBRIDGE_ID_PHALA,
-                    chainbridge_on_ethereum.into(),
-                    vec![(
-                        // PHA contract address on Ethereum
-                        hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
-                        // PHA ChainBridge resource id on Phala
-                        hex_literal::hex!(
-                            "00b14e071ddad0b12be5aca6dffc5f2584ea158d9b0ce73e1437115e97a32a3e"
-                        ),
-                    )],
-                )),
-            ));
-            // Phala -> Ethereum
-            bridge_executors.push((
-                (String::from("Phala"), String::from("Ethereum")),
-                Box::new(ChainBridgePhala2Ethereum::new(
-                    CHAINBRIDGE_ID_ETHEREUM,
-                    &phala.endpoint,
-                )),
-            ));
-            // Ethereum -> Khala
-            bridge_executors.push((
-                (String::from("Ethereum"), String::from("Khala")),
-                Box::new(ChainBridgeEthereum2Phala::new(
-                    &ethereum.endpoint,
-                    CHAINBRIDGE_ID_KHALA,
-                    chainbridge_on_ethereum.into(),
-                    vec![(
-                        // PHA contract address on Ethereum
-                        hex_literal::hex!("6c5bA91642F10282b576d91922Ae6448C9d52f4E").into(),
-                        // PHA ChainBridge resource id on Khala
-                        hex_literal::hex!(
-                            "00e6dfb61a2fb903df487c401663825643bb825d41695e63df8af6162ab145a6"
-                        ),
-                    )],
-                )),
-            ));
-            // Khala -> Ethereum
-            bridge_executors.push((
-                (String::from("Khala"), String::from("Ethereum")),
-                Box::new(ChainBridgePhala2Ethereum::new(
-                    CHAINBRIDGE_ID_ETHEREUM,
-                    &khala.endpoint,
-                )),
-            ));
-            Ok(bridge_executors)
-        }
-
-        fn create_dex_executors(&self) -> Result<Vec<(String, Box<dyn DexExecutor>)>> {
-            let mut dex_executors: Vec<(String, Box<dyn DexExecutor>)> = vec![];
-            let moonbeam = self
-                .get_chain(String::from("Moonbeam"))
-                .ok_or(Error::ChainNotFound)?;
-            let acala = self
-                .get_chain(String::from("Acala"))
-                .ok_or(Error::ChainNotFound)?;
-
-            let stellaswap_router: [u8; 20] =
-                hex::decode("70085a09D30D6f8C4ecF6eE10120d1847383BB57")
-                    .unwrap()
-                    .to_array();
-
-            // Acala DEX
-            dex_executors.push((
-                String::from("Acala"),
-                Box::new(AcalaDexExecutor::new(&acala.endpoint)),
-            ));
-            // Moonbeam::StellaSwap
-            dex_executors.push((
-                String::from("Moonbeam"),
-                Box::new(MoonbeamDexExecutor::new(
-                    &moonbeam.endpoint,
-                    stellaswap_router.into(),
-                )),
-            ));
-            Ok(dex_executors)
-        }
-
-        fn create_transfer_executors(&self) -> Result<Vec<(String, Box<dyn TransferExecutor>)>> {
-            let mut transfer_executors: Vec<(String, Box<dyn TransferExecutor>)> = vec![];
-            let acala = self
-                .get_chain(String::from("Acala"))
-                .ok_or(Error::ChainNotFound)?;
-            transfer_executors.push((
-                String::from("Acala"),
-                Box::new(AcalaTransferExecutor::new(&acala.endpoint)),
-            ));
-            Ok(transfer_executors)
         }
     }
 
@@ -636,55 +462,6 @@ mod index_executor {
                 executor.config("url".to_string(), "key".to_string(), [0; 32].into()),
                 Ok(())
             );
-        }
-
-        #[ignore]
-        #[ink::test]
-        fn setup_worker_on_storage_should_work() {
-            pink_extension_runtime::mock_ext::mock_all_ext();
-            use crate::chain::{Chain, ChainType};
-            use crate::graph::{Asset, Graph};
-            let mut executor = deploy_executor();
-            executor
-                .set_graph(Graph {
-                    chains: vec![Chain {
-                        id: 1,
-                        name: "Khala".to_string(),
-                        chain_type: ChainType::Sub,
-                        endpoint: "http://127.0.0.1:39933".to_string(),
-                        native_asset: vec![1],
-                        foreign_asset: None,
-                        handler_contract: vec![],
-                        tx_indexer: Default::default(),
-                    }],
-                    assets: vec![Asset {
-                        id: 1,
-                        chain_id: 2,
-                        name: "Phala Token".to_string(),
-                        symbol: "PHA".to_string(),
-                        decimals: 12,
-                        location: hex::encode("Somewhere on Phala"),
-                    }],
-                    dexs: vec![],
-                    bridges: vec![],
-                    dex_pairs: vec![],
-                    bridge_pairs: vec![],
-                    dex_indexers: vec![],
-                })
-                .unwrap();
-            // Initial executor
-            assert_eq!(
-                executor.config("url".to_string(), "key".to_string(), [0; 32].into()),
-                Ok(())
-            );
-            assert_eq!(executor.setup_worker_on_storage(), Ok(()));
-            let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
-            let local_worker_accounts: Vec<[u8; 32]> = executor
-                .worker_accounts
-                .into_iter()
-                .map(|account| account.account32.clone())
-                .collect();
-            assert_eq!(onchain_free_accounts, local_worker_accounts);
         }
 
         #[ink::test]
