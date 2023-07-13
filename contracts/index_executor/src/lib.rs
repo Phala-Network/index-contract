@@ -17,7 +17,7 @@ mod tx;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
-    use crate::chain::{Chain, ChainType};
+    use crate::chain::ChainType;
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
@@ -45,8 +45,6 @@ mod index_executor {
         FailedToInitTask,
         FailedToDestoryTask,
         FailedToUploadTask,
-        DecodeGraphFailed,
-        SetGraphFailed,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
