@@ -17,7 +17,7 @@ mod tx;
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
-    use crate::chain::{Chain, ChainType};
+    use crate::chain::ChainType;
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
@@ -36,7 +36,6 @@ mod index_executor {
     pub enum Error {
         BadOrigin,
         NotConfigured,
-        MissingPalletId,
         ChainNotFound,
         ImportWorkerFailed,
         WorkerNotFound,
@@ -46,11 +45,8 @@ mod index_executor {
         FailedToInitTask,
         FailedToDestoryTask,
         FailedToUploadTask,
-        DecodeGraphFailed,
-        SetGraphFailed,
         TaskNotFoundInStorage,
         UnexpectedChainType,
-        GraphNotSet,
         ExecutorPaused,
         ExecutorNotPaused,
     }
@@ -203,11 +199,10 @@ mod index_executor {
         ) -> Result<()> {
             self.ensure_owner()?;
             let _ = self.ensure_configured()?;
-            self.ensure_graph_set()?;
             // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
             self.ensure_paused()?;
 
-            let chain = self.get_chain(chain).ok_or(Error::ChainNotFound)?;
+            let chain = self.registry.get_chain(chain).ok_or(Error::ChainNotFound)?;
             if chain.chain_type != ChainType::Evm {
                 return Err(Error::UnexpectedChainType);
             }
@@ -226,7 +221,6 @@ mod index_executor {
         #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             self.ensure_running()?;
-            self.ensure_graph_set()?;
 
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
@@ -296,7 +290,8 @@ mod index_executor {
         ) -> Result<()> {
             // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
-                self.get_chain(source_chain.clone())
+                self.registry
+                    .get_chain(source_chain.clone())
                     .ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?),
             )
@@ -392,10 +387,6 @@ mod index_executor {
             Ok(())
         }
 
-        pub fn get_chain(&self, name: String) -> Option<Chain> {
-            self.registry.get_chain(name)
-        }
-
         /// Returns BadOrigin error if the caller is not the owner
         fn ensure_owner(&self) -> Result<()> {
             if self.env().caller() == self.admin {
@@ -408,13 +399,6 @@ mod index_executor {
         /// Returns the config reference or raise the error `NotConfigured`
         fn ensure_configured(&self) -> Result<&Config> {
             self.config.as_ref().ok_or(Error::NotConfigured)
-        }
-
-        fn ensure_graph_set(&self) -> Result<()> {
-            if self.registry.chains.is_empty() {
-                return Err(Error::GraphNotSet);
-            }
-            Ok(())
         }
 
         fn ensure_paused(&self) -> Result<()> {
