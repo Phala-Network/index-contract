@@ -22,6 +22,7 @@ mod key_store {
     pub struct KeyStore {
         pub admin: AccountId,
         pub prv_keys: Vec<[u8; 32]>,
+        pub engine_key: [u8; 32],
         pub executor: Option<[u8; 32]>,
     }
 
@@ -35,8 +36,9 @@ mod key_store {
         #[allow(clippy::should_implement_trait)]
         #[ink(constructor)]
         pub fn default() -> Self {
+            let engine_key =
+                pink_web3::keys::pink::KeyPair::derive_keypair(b"engine").private_key();
             let mut prv_keys: Vec<[u8; 32]> = vec![];
-
             for index in 0..10 {
                 let private_key = pink_web3::keys::pink::KeyPair::derive_keypair(
                     &[b"worker".to_vec(), [index].to_vec()].concat(),
@@ -48,6 +50,7 @@ mod key_store {
             Self {
                 admin: Self::env().caller(),
                 prv_keys,
+                engine_key,
                 executor: None,
             }
         }
@@ -78,6 +81,13 @@ mod key_store {
         pub fn get_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
             self.ensure_executor()?;
             Ok(self.prv_keys.clone())
+        }
+
+        /// Only the whitelisted executor are allowed to call this function
+        #[ink(message)]
+        pub fn get_engine_key(&self) -> Result<[u8; 32]> {
+            self.ensure_executor()?;
+            Ok(self.engine_key.clone())
         }
 
         #[ink(message)]

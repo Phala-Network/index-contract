@@ -1,42 +1,31 @@
 # Play With inDEX
 
-Suppose we are playing on poc5, after deployed executor and keystore contract, add the owner account mnemonic to the .env file
+Suppose we are playing on poc5, after deployed executor and keystore contract, add the owner account mnemonic and cloud storage base url, access token (only support Google firebase so far) to the .env file
 
 ```sh
-URI="<your mnemonic"
+URI="<your mnemonic>"
+STORAGE_URL="<your storage base url>"
+STORAGE_KEY="<your storage access token>"
 ```
-then update `executor_contract_id` and `key_store_contract_id` in `scripts/src/config.poc5.json` with the proper contract id
 
-Now we are ready to start config executor and keystore contract
+then update the value of `executor_contract_id` and `key_store_contract_id` in `scripts/src/config.poc5.json` with the proper contract id that you deployed just now.
 
-## Whitelist executor id on keystore contract
+Now we are ready to start contract configuration
 
-Only whitelisted executor id can get private keys of worker account from keystore contract, `cd scripts` and execute
+## [1] Whitelist executor contract id on keystore contract
+
+Instead of change worker accounts everytime we deployed executor engine, we split the worker accounts generation to keystore contract. Only whitelisted executor contract id can get private keys of worker accounts from keystore contract, `cd scripts` and execute
 
 ```sh
 node src/console.js --config src/config.poc5.json keystore set-executor
 ```
 
-## Config executor contract
-
-### 1. Fund executor account
-- first query executor account (derived inside executor contract, not executor contract id) by executing
-
-```sh
-node src/console.js --config src/config.poc5.json executor account --balance
-```
-
-with `--balance` will get balance returned
-
-- send some PHA to executor account to pay transaction fee when config rollup
-
-### 2. Setup executor
+## [2] Config executor contract
 
 We need to config executor contract after deployed, stuff contains:
-1) import worker key from KeyStore contract (call executor.config);
-2) claim rollup storage (call executor.setup_rollup);
-3) setup worker account in rollup storage (call executor.setup_worker_on_rollup);
-4) resume executor (call executor.resume_executor);
+1) import worker key from KeyStore contract (call `executor.config`);
+3) setup worker account in remote storage (call `executor.setup_worker_on_storage`);
+3) [Optional] resume executor (call `executor.resume_executor`);
 
 Now, issue command
 
@@ -44,18 +33,17 @@ Now, issue command
 node src/console.js --config src/config.poc5.json executor setup --resume
 ```
 
-with `--resume` will unpause the executor (executor is paused by default after deployed)
-
-### 3. Set graph
-
-Use tablizer tool, clone source code from [here](), and
+with `--resume` will unpause the executor (executor is paused by default after deployed). You will get the output like below:
 ```sh
-rm db.sqlite && ./bin/dev parse -c dotflow.yaml
-
-./bin/dev contract -n wss://poc5.phala.network/ws -r https://poc5.phala.network/tee-api-1 -a <executor contract id> -s "<mnemonic>" --set
+✅ Config done
+✅ Setup worker on remote storage done
+✅ Resume executor done
+🎉 Finished executor configuration!
 ```
 
 ## Run scheduler
+
+The scheduler is responsible for scheduling the execution of inDEX engine. It will call `executor.run` periodically to 1) fetch tasks that distributed to a specific worker from handler on source chain and 2) run tasks that are successfully claimed by the worker.
 
 - get worker account info
 
