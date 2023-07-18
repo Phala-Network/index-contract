@@ -176,7 +176,7 @@ mod index_executor {
             let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
 
             // Setup worker accounts if it hasn't been set yet.
-            if client.lookup_free_accounts().is_none() {
+            if client.lookup_free_accounts().is_empty() {
                 pink_extension::debug!("No onchain worker account exist, start setting to storage");
                 client
                     .set_worker_accounts(
@@ -294,7 +294,7 @@ mod index_executor {
 
         /// Return worker accounts information that is free
         #[ink(message)]
-        pub fn get_free_worker_account(&self) -> Result<Option<Vec<[u8; 32]>>> {
+        pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
 
