@@ -68,7 +68,7 @@ impl Task {
         context: &Context,
         client: &StorageClient,
     ) -> Result<(), &'static str> {
-        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut free_accounts = client.lookup_free_accounts();
         let mut pending_tasks = client.lookup_pending_tasks();
 
         if client.lookup_task(&self.id).is_some() {
@@ -191,7 +191,7 @@ impl Task {
 
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
-        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut free_accounts = client.lookup_free_accounts();
         let mut pending_tasks = client.lookup_pending_tasks();
 
         if client.lookup_task(&self.id).is_some() {
