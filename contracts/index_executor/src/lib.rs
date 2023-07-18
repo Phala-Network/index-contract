@@ -116,12 +116,14 @@ mod index_executor {
             Ok(())
         }
 
+        /// FIXME: Pass the key implicitly
         #[ink(message)]
         pub fn config(
             &mut self,
             db_url: String,
             db_token: String,
             keystore_account: AccountId,
+            import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
             self.config = Some(Config {
@@ -130,12 +132,14 @@ mod index_executor {
             });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
-            let key_store_contract = KeyStoreRef::from_account_id(keystore_account);
-            self.worker_prv_keys = key_store_contract
-                .get_worker_keys()
-                .or(Err(Error::ImportWorkerFailed))?;
-            for key in self.worker_prv_keys.iter() {
-                self.worker_accounts.push(AccountInfo::from(*key))
+            if import_key {
+                let key_store_contract = KeyStoreRef::from_account_id(keystore_account);
+                self.worker_prv_keys = key_store_contract
+                    .get_worker_keys()
+                    .or(Err(Error::ImportWorkerFailed))?;
+                for key in self.worker_prv_keys.iter() {
+                    self.worker_accounts.push(AccountInfo::from(*key))
+                }
             }
             pink_extension::debug!(
                 "Configured information as: {:?}, imported worker accounts: {:?}",
@@ -143,6 +147,23 @@ mod index_executor {
                 self.worker_accounts.clone()
             );
             Self::env().emit_event(Configured {});
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn update_registry(
+            &mut self,
+            chain: String,
+            endpoint: String,
+            indexer: String,
+        ) -> Result<()> {
+            self.ensure_owner()?;
+
+            if let Some(index) = self.registry.chains.iter().position(|x| x.name == chain) {
+                // Update the value at the found index
+                self.registry.chains[index].endpoint = endpoint;
+                self.registry.chains[index].tx_indexer = indexer;
+            }
             Ok(())
         }
 
@@ -443,7 +464,7 @@ mod index_executor {
             let mut executor = deploy_executor();
             // Initial executor
             assert_eq!(
-                executor.config("url".to_string(), "key".to_string(), [0; 32].into()),
+                executor.config("url".to_string(), "key".to_string(), [0; 32].into(), true),
                 Ok(())
             );
         }

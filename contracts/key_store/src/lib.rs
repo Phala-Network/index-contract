@@ -87,7 +87,7 @@ mod key_store {
         #[ink(message)]
         pub fn get_engine_key(&self) -> Result<[u8; 32]> {
             self.ensure_executor()?;
-            Ok(self.engine_key.clone())
+            Ok(self.engine_key)
         }
 
         #[ink(message)]

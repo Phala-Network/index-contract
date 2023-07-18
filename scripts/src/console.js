@@ -162,6 +162,7 @@ executor
     .command('setup')
     .description('setup executor, stuff contains 1) call config; 3) setup worker account in remote storage')
     .option('--resume', 'resume executor', false)
+    .option('--import-key', 'import worker keys from keystore contract', true)
     .action(run(async (opt) => {
         let { uri, storageUrl, storageKey } = program.opts();
         if (storageUrl === undefined || storageKey === undefined) {
@@ -179,6 +180,7 @@ executor
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
+                opt.resume,
             );
             // transaction / extrinct
             let options = {
@@ -189,6 +191,7 @@ executor
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
+                opt.resume
             ).signAndSend(pair, { nonce: -1 });
             console.log(`✅ Config done`)
         }
