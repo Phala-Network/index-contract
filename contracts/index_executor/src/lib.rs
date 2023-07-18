@@ -466,7 +466,7 @@ mod index_executor {
             let mut executor = deploy_executor();
             // Initial executor
             assert_eq!(
-                executor.config("url".to_string(), "key".to_string(), [0; 32].into(), false),
+                executor.config("url".to_string(), "key".to_string(), [0; 32].into(), true),
                 Ok(())
             );
         }
