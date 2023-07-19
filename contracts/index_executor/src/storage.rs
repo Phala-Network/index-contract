@@ -5,10 +5,8 @@ use alloc::{
     vec::Vec,
 };
 use pink_extension::http_req;
-use scale::{Decode, Encode};
+use scale::Decode;
 use serde::Deserialize;
-
-use crate::task::{Task, TaskId};
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -96,13 +94,13 @@ impl StorageClient {
         Ok(response.body)
     }
 
-    /// Return (encoded_data, document_id) if success
-    fn read_storage(&self, key: &[u8]) -> Result<Option<(Vec<u8>, String)>, &'static str> {
+    /// Return (data, document_id) if success
+    pub fn read_storage<T: Decode>(&self, key: &[u8]) -> Result<Option<(T, String)>, &'static str> {
         let key = key
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        pink_extension::debug!("read_storage: id: {}", key);
+        pink_extension::debug!("read_storage: trying to read storage item, key: {}", key);
 
         let cmd = format!(
             r#"{{
@@ -130,7 +128,9 @@ impl StorageClient {
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
             Ok(if !response.is_empty() {
                 let data_str = response[0].document.fields.data.string_value.clone();
-                let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
+                let raw_data = hex::decode(data_str).map_err(|_| "InvalidDataStr")?;
+                let data: T =
+                    T::decode(&mut raw_data.as_slice()).map_err(|_| "DecodeDataFailed")?;
                 let document_id = response[0]
                     .document
                     .name
@@ -154,20 +154,57 @@ impl StorageClient {
         }
     }
 
-    /// Update storage data if necessary, will create a new record if storage item does not exist
-    fn write_storage(&self, key: &[u8], data: &Vec<u8>) -> Result<(), &'static str> {
-        let storage_data: Option<(Vec<u8>, String)> = self.read_storage(key)?;
-        let key = key
+    /// Create a new storage item
+    pub fn alloc_storage(&self, key: &[u8], data: &[u8]) -> Result<(), &'static str> {
+        let key: String = key
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
+        pink_extension::debug!(
+            "alloc_storage: trying to create storage item, key: {:?}",
+            key
+        );
         let data_str = data
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        let api: String;
+        let cmd = format!(
+            r#"{{
+                "fields": {{
+                    "id": {{
+                      "stringValue": "{key}"
+                    }},
+                    "data": {{
+                      "stringValue": "{data_str}"
+                    }}
+                }}
+            }}"#
+        );
+        let api = "documents/index-storage".to_string();
+        let _ = self.send_request("POST", &api[..], &cmd)?;
 
-        pink_extension::debug!("write_storage: id: {}", &key);
+        Ok(())
+    }
+
+    /// Update storage data
+    pub fn update_storage(
+        &self,
+        key: &[u8],
+        data: &[u8],
+        document: String,
+    ) -> Result<(), &'static str> {
+        let key: String = key
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        pink_extension::debug!(
+            "update_storage: trying to update storage item, key: {}",
+            &key
+        );
+        let data_str = data
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
 
         let cmd = format!(
             r#"{{
@@ -181,111 +218,35 @@ impl StorageClient {
                 }}
             }}"#
         );
-        if storage_data.is_some() {
-            pink_extension::debug!("write_storage: storage item already exist in with document id: {}, update it if necessary", storage_data.clone().unwrap().1);
-            if &storage_data.clone().unwrap().0 == data {
-                pink_extension::debug!("write_storage: same storage data, ignore");
-                return Ok(());
-            }
-            api = format!("documents/index-storage/{}", storage_data.unwrap().1);
-            let _ = self.send_request("PATCH", &api[..], &cmd)?;
-        } else {
-            pink_extension::debug!(
-                "write_storage: storage item doesn't exist in storage, trying to create one"
-            );
-            api = "documents/index-storage".to_string();
-            let _ = self.send_request("POST", &api[..], &cmd)?;
-        }
+        let api = format!("documents/index-storage/{document}");
+        let _ = self.send_request("PATCH", &api[..], &cmd)?;
 
         Ok(())
     }
 
     /// Remove a document from remote storage
-    fn remove_storage_item(&self, key: &[u8]) -> Result<(), &'static str> {
-        let storage_data: Option<(Vec<u8>, String)> = self.read_storage(key)?;
-        if storage_data.is_some() {
-            let api = format!("documents/index-storage/{}", storage_data.unwrap().1);
-            let _ = self.send_request("DELETE", &api[..], "")?;
-        }
+    pub fn remove_storage(&self, _key: &[u8], document: String) -> Result<(), &'static str> {
+        let api = format!("documents/index-storage/{document}");
+        let _ = self.send_request("DELETE", &api[..], "")?;
         Ok(())
-    }
-
-    /// Put or update a storage item to the remote storage
-    pub fn put(&self, key: &[u8], data: &Vec<u8>) -> Result<(), &'static str> {
-        self.write_storage(key, data)
-    }
-
-    /// Get a storage item from remote storage
-    pub fn get(&self, key: &[u8]) -> Result<Vec<u8>, &'static str> {
-        if let Some((storage_data, _)) = self.read_storage(key)? {
-            return Ok(storage_data);
-        }
-        Err("StorageItemNotFound")
-    }
-
-    /// Delete a storage item from remote storage
-    pub fn delete(&self, key: &[u8]) -> Result<(), &'static str> {
-        self.remove_storage_item(key)
-    }
-
-    /// Upload task data to remote storage
-    pub fn upload_task(&self, task: &Task) -> Result<(), &'static str> {
-        self.write_storage(&task.id, &task.encode())
-    }
-
-    /// Lookup task data from remote storage, return None if not found
-    pub fn lookup_task(&self, id: &TaskId) -> Option<Task> {
-        if let Ok(Some((storage_data, _))) = self.read_storage(id) {
-            return match Decode::decode(&mut storage_data.as_slice()) {
-                Ok(task) => Some(task),
-                _ => None,
-            };
-        }
-        None
-    }
-
-    /// Lookup pending task from remote storage, return a list of pending task id
-    pub fn lookup_pending_tasks(&self) -> Vec<TaskId> {
-        if let Ok(Some((storage_data, _))) = self.read_storage(b"pending-tasks") {
-            return match Decode::decode(&mut storage_data.as_slice()) {
-                Ok(task_ids) => task_ids,
-                _ => vec![],
-            };
-        }
-        vec![]
-    }
-
-    /// Return None if worker account has not been setup
-    pub fn lookup_free_accounts(&self) -> Vec<[u8; 32]> {
-        if let Ok(Some((storage_data, _))) = self.read_storage(b"free_accounts") {
-            return match Decode::decode(&mut storage_data.as_slice()) {
-                Ok(worker_accounts) => worker_accounts,
-                _ => vec![],
-            };
-        }
-        vec![]
-    }
-
-    /// Setup worker account to remote storage
-    pub fn set_worker_accounts(&self, accounts: Vec<[u8; 32]>) -> Result<(), &'static str> {
-        self.write_storage(b"free_accounts", &accounts.encode())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::task::TaskStatus;
+    use crate::task::{Task, TaskStatus};
     use dotenv::dotenv;
+    use scale::Encode;
 
     // cargo test --package index_executor --lib -- storage::tests::should_work --exact --nocapture
     #[test]
-    // #[ignore]
+    #[ignore]
     fn should_work() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
         let base_url = "https://firestore.googleapis.com/v1/projects/plexiform-leaf-391708/databases/(default)/".to_string();
-        let access_token = "ya29.a0AbVbY6Oh6cDMcxjW1gbgF8g9G_dQQ4mPcAMCsGORFF3EmWgIYUi2D-XaD_y2lisG_t229bJ1als16JIwbkWoAyQP-rP4kLew_AvN8hXlAqIKuuwmHOSe9bZL61tNNe0mCRX0MtYUKlQnXDqkLZ7ubqTUY1tEagYEwrz_dgaCgYKAT0SARMSFQFWKvPl-nThjxCtC5UgOp0Wym-m6w0173".to_string();
+        let access_token = "put your access token".to_string();
 
         let client = StorageClient::new(base_url, access_token);
 
@@ -300,24 +261,33 @@ mod tests {
             recipient: vec![],
         };
 
-        assert_eq!(client.get(&task.id), Err("StorageItemNotFound"));
-        assert_eq!(client.lookup_task(&task.id), None);
+        assert_eq!(client.read_storage::<Task>(&task.id).unwrap(), None);
         // Save task to remote storage
         assert_eq!(
-            client.put(b"pending-tasks", &vec![task.id].encode()),
+            client.alloc_storage(b"pending_tasks", &vec![task.id].encode()),
             Ok(())
         );
-        assert_eq!(client.put(&task.id, &task.encode()), Ok(()));
-        assert_eq!(client.get(&task.id), Ok(task.encode()));
+        assert_eq!(client.alloc_storage(&task.id, &task.encode()), Ok(()));
+        // Query storage for tasks
+        let (storage_task, document_id) = client.read_storage::<Task>(&task.id).unwrap().unwrap();
+        assert_eq!(storage_task.encode(), task.encode());
         // Modify task status
         task.status = TaskStatus::Completed;
         // Update task data on remote storage
-        assert_eq!(client.upload_task(&task), Ok(()));
-        let remote_task = client.lookup_task(&task.id).unwrap();
-        assert_eq!(remote_task.status, TaskStatus::Completed);
-        assert_eq!(client.lookup_pending_tasks(), vec![task.id]);
+        assert_eq!(
+            client.update_storage(&task.id, &task.encode(), document_id),
+            Ok(())
+        );
+        // Read again
+        let (updated_storage_task, document_id) =
+            client.read_storage::<Task>(&task.id).unwrap().unwrap();
+        assert_eq!(updated_storage_task.status, TaskStatus::Completed);
         // Delete task data from remote storage
-        assert_eq!(client.delete(&task.id), Ok(()));
-        assert_eq!(client.lookup_task(&task.id), None);
+        assert_eq!(
+            client.remove_storage(&updated_storage_task.id, document_id),
+            Ok(())
+        );
+        // Veify task existence
+        assert_eq!(client.read_storage::<Task>(&task.id).unwrap(), None);
     }
 }

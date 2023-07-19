@@ -70,7 +70,8 @@ impl Runner for ClaimStep {
         } else {
             // If task already exist in storage, it is ready to be claimed
             let client = client.ok_or("MissingClient")?;
-            Ok(client.lookup_task(&self.id).is_some())
+            let task_item = client.read_storage::<Task>(&self.id)?;
+            Ok(task_item.is_some())
         }
     }
 
