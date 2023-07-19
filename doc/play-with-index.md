@@ -35,9 +35,9 @@ node src/console.js --config src/config.poc5.json executor setup --resume
 
 with `--resume` will unpause the executor (executor is paused by default after deployed). You will get the output like below:
 ```sh
-✅ Config done
-✅ Setup worker on remote storage done
-✅ Resume executor done
+✅ Config executor
+✅ Config storage
+✅ Resume executor
 🎉 Finished executor configuration!
 ```
 

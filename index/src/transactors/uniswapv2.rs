@@ -26,21 +26,22 @@ impl UniswapV2Client {
     ) -> core::result::Result<H256, Error> {
         let params = (amount_in, amount_out, path, to, deadline);
         // Estiamte gas before submission
-        let gas = resolve_ready(self.contract.estimate_gas(
-            "swapExactTokensForTokens",
-            params.clone(),
-            signer.address(),
-            Options::default(),
-        ))
-        .map_err(|_| Error::FailedToGetGas)?;
-        pink_extension::debug!("Estimated swap operation gas cost: {:?}", gas);
+        // FIXME: this piece of code will failed unexpectedly
+        // let gas = resolve_ready(self.contract.estimate_gas(
+        //     "swapExactTokensForTokens",
+        //     params.clone(),
+        //     signer.address(),
+        //     Options::default(),
+        // ))
+        // .map_err(|_| Error::FailedToGetGas)?;
+        // pink_extension::debug!("Estimated swap operation gas cost: {:?}", gas);
 
         // Actually submit the tx (no guarantee for success)
         let tx_id = resolve_ready(self.contract.signed_call(
             "swapExactTokensForTokens",
             params,
             Options::with(|opt| {
-                opt.gas = Some(gas);
+                opt.gas = Some(U256::from(2_000_000));
                 opt.nonce = nonce.map(|nonce| nonce.into());
             }),
             signer,
