@@ -280,12 +280,12 @@ mod tests {
 
     // cargo test --package index_executor --lib -- storage::tests::should_work --exact --nocapture
     #[test]
-    // #[ignore]
+    #[ignore]
     fn should_work() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
         let base_url = "https://firestore.googleapis.com/v1/projects/plexiform-leaf-391708/databases/(default)/".to_string();
-        let access_token = "ya29.a0AbVbY6Oh6cDMcxjW1gbgF8g9G_dQQ4mPcAMCsGORFF3EmWgIYUi2D-XaD_y2lisG_t229bJ1als16JIwbkWoAyQP-rP4kLew_AvN8hXlAqIKuuwmHOSe9bZL61tNNe0mCRX0MtYUKlQnXDqkLZ7ubqTUY1tEagYEwrz_dgaCgYKAT0SARMSFQFWKvPl-nThjxCtC5UgOp0Wym-m6w0173".to_string();
+        let access_token = "put your access token here".to_string();
 
         let client = StorageClient::new(base_url, access_token);
 
