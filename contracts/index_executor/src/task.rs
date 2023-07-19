@@ -72,7 +72,7 @@ impl Task {
             .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
         let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"free_accounts")?
+            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
         if client.read_storage::<Task>(&self.id)?.is_some() {
@@ -108,14 +108,12 @@ impl Task {
         pending_tasks.push(self.id);
         // Save task data
         client.alloc_storage(self.id.as_ref(), &self.encode())?;
-        // client.create_task(self.id.as_ref(), &self.encode())?;
 
         client.update_storage(
             b"free_accounts".as_ref(),
             &free_accounts.encode(),
             free_accounts_doc,
         )?;
-        // client.update
         client.update_storage(
             b"pending_tasks".as_ref(),
             &pending_tasks.encode(),
