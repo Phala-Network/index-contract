@@ -44,6 +44,8 @@ pub struct Task {
     pub sender: Vec<u8>,
     /// Recipient address on dest chain
     pub recipient: Vec<u8>,
+    // Retry counter, retry counter will be cleared after one step executed successfully
+    pub retry_counter: u8,
 }
 
 impl Default for Task {
@@ -57,6 +59,7 @@ impl Default for Task {
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
+            retry_counter: 0,
         }
     }
 }
@@ -98,7 +101,7 @@ impl Task {
         }
 
         // Apply worker nonce for each step in task
-        self.apply_nonce(context, client)?;
+        self.apply_nonce(0, context, client)?;
         // Apply recipient for each step in task
         self.apply_recipient(context)?;
         // TODO: query initial balance of worker account and setup to specific step
@@ -132,71 +135,91 @@ impl Task {
             return Ok(TaskStatus::Completed);
         }
 
-        // If step already executed successfully, execute next step
-        if self.steps[self.execute_index as usize].check(
+        match self.steps[self.execute_index as usize].check(
             // An executing task must have nonce applied
             self.steps[self.execute_index as usize].nonce.unwrap(),
             context,
-        ) == Ok(true)
-        // FIXME: handle returned error
-        {
-            self.execute_index += 1;
-            // If all step executed successfully, set task as `Completed`
-            if self.execute_index as usize == self.steps.len() {
-                self.status = TaskStatus::Completed;
-                return Ok(self.status.clone());
-            }
+        ) {
+            // If step already executed successfully, execute next step
+            Ok(true) => {
+                self.execute_index += 1;
+                self.retry_counter = 0;
+                // If all step executed successfully, set task as `Completed`
+                if self.execute_index as usize == self.steps.len() {
+                    self.status = TaskStatus::Completed;
+                    return Ok(self.status.clone());
+                }
 
-            // Settle before execute next step
-            let settle_balance = self.settle(context)?;
-            pink_extension::debug!(
-                "Settle balance of last step[{:?}], settle amount: {:?}",
-                (self.execute_index - 1),
-                settle_balance,
-            );
-            // Update balance that actually can be consumed
-            self.update_balance(settle_balance, context)?;
-            pink_extension::debug!("Finished previous step execution");
-
-            // An executing task must have nonce applied
-            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
-            // FIXME: handle returned error
-            if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
-                == Ok(true)
-            {
+                // Settle before execute next step
+                let settle_balance = self.settle(context)?;
                 pink_extension::debug!(
-                    "Trying to run step[{:?}] with nonce {:?}",
-                    self.execute_index,
-                    nonce
+                    "Settle balance of last step[{:?}], settle amount: {:?}",
+                    (self.execute_index - 1),
+                    settle_balance,
                 );
-                self.steps[self.execute_index as usize].run(nonce, context)?;
-                self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
-            } else {
-                pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
-            }
-        } else {
-            let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
-            // Claim step should be considered separately
-            if let StepMeta::Claim(claim_step) = &mut self.steps[self.execute_index as usize].meta {
-                let worker_account = AccountInfo::from(context.signer);
-                let latest_balance = worker_account.get_balance(
-                    claim_step.chain.clone(),
-                    claim_step.asset.clone(),
-                    context,
-                )?;
-                claim_step.b0 = Some(latest_balance);
+                // Update balance that actually can be consumed
+                self.update_balance(settle_balance, context)?;
+                pink_extension::debug!("Finished previous step execution");
 
                 // FIXME: handle returned error
-                if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
-                    == Ok(true)
+                let _ = self.execute_step(context, client)?;
+            }
+            // There are several situations that indexer return `false`:
+            // - Step hasn't been executed yet
+            // - Step failed to execute
+            // - Step has been executed, but off-chain indexer hasn't caught up
+            Ok(false) => {
+                // Claim step should be considered separately
+                if let StepMeta::Claim(claim_step) =
+                    &mut self.steps[self.execute_index as usize].meta
                 {
-                    pink_extension::debug!("Trying to claim task with nonce {:?}", nonce);
-                    self.steps[self.execute_index as usize].run(nonce, context)?;
-                    self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+                    let worker_account = AccountInfo::from(context.signer);
+                    let latest_balance = worker_account.get_balance(
+                        claim_step.chain.clone(),
+                        claim_step.asset.clone(),
+                        context,
+                    )?;
+                    claim_step.b0 = Some(latest_balance);
+                }
+                // Since we don't actually understand what happened, retry is the only choice.
+                // To avoid we retry too many times, we involved `retry_counter`
+                self.retry_counter += 1;
+                if self.retry_counter < 5 {
+                    // FIXME: handle returned error
+                    let _ = self.execute_step(context, client)?;
                 } else {
-                    pink_extension::debug!("Claim step not runnable, return");
+                    return Err("TooManyRetry");
                 }
             }
+            Err(e) => return Err(e),
+        }
+
+        Ok(self.status.clone())
+    }
+
+    /// Check and execute a single step. Only can be executed when the step is ready to run.
+    ///
+    /// Note this method assume that the last step has been settled, e.g. finished
+    pub fn execute_step(
+        &mut self,
+        context: &Context,
+        client: &StorageClient,
+    ) -> Result<TaskStatus, &'static str> {
+        // An executing task must have nonce applied
+        let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+
+        if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+            == Ok(true)
+        {
+            pink_extension::debug!(
+                "Trying to run step[{:?}] with nonce {:?}",
+                self.execute_index,
+                nonce
+            );
+            self.steps[self.execute_index as usize].run(nonce, context)?;
+            self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
+        } else {
+            pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
         }
         Ok(self.status.clone())
     }
@@ -234,15 +257,26 @@ impl Task {
         Ok(())
     }
 
+    pub fn reapply_nonce(
+        &mut self,
+        start_index: u64,
+        context: &Context,
+        client: &StorageClient,
+    ) -> Result<(), &'static str> {
+        self.apply_nonce(start_index, context, client)
+    }
+
     fn apply_nonce(
         &mut self,
+        start_index: u64,
         context: &Context,
         _client: &StorageClient,
     ) -> Result<(), &'static str> {
         // Only in last step the recipient with be set as real recipient on destchain,
         // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
-        for step in self.steps.iter_mut() {
+        for index in start_index as usize..self.steps.len() {
+            let step = &mut self.steps[index];
             let nonce = match nonce_map.get(&step.chain) {
                 Some(nonce) => nonce,
                 None => {
