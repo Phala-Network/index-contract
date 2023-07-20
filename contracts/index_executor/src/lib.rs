@@ -266,6 +266,7 @@ mod index_executor {
         /// This is used to retry task when it failed to execute in current step indicated by `execute_index`
         #[ink(message)]
         pub fn retry(&self, id: TaskId) -> Result<()> {
+            self.ensure_running()?;
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
             let (mut task, task_doc) = client
