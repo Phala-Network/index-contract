@@ -230,7 +230,7 @@ impl Task {
             .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
         let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"free_accounts")?
+            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
         if let Some((_, task_doc)) = client.read_storage::<Task>(&self.id)? {

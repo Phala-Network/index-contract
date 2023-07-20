@@ -409,7 +409,7 @@ mod index_executor {
                         .ok_or(Error::TaskNotFoundInStorage)?;
 
                     pink_extension::info!(
-                        "Start execute next step of task, execute worker account: {:?}",
+                        "Start execute task, execute worker account: {:?}",
                         &hex::encode(task.worker)
                     );
                     match task.execute(
