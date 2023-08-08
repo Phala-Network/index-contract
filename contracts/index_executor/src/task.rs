@@ -1,12 +1,27 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::chain::{ChainType, NonceFetcher};
+use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::steps::{Step, StepMeta};
 use crate::storage::StorageClient;
 use alloc::{string::String, vec, vec::Vec};
 use ink::storage::Mapping;
 use scale::{Decode, Encode};
+use pink_subrpc::{
+    create_transaction,
+    send_transaction,
+    ExtraParam,
+};
+
+use pink_web3::{
+    api::{Eth, Namespace},
+    contract::{Contract, Options},
+    keys::pink::KeyPair,
+    signing::Key,
+    transports::{resolve_ready, PinkHttp},
+    types::H160,
+};
+use crate::tx;
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -36,6 +51,8 @@ pub struct Task {
     pub status: TaskStatus,
     // Source chain name
     pub source: String,
+    // Nonce applied to claim task froom source chain
+    pub claim_nonce: Option<u64>,
     /// All steps to included in the task
     pub steps: Vec<Step>,
     /// Current step index that is executing
@@ -55,6 +72,7 @@ impl Default for Task {
             worker: [0; 32],
             status: TaskStatus::Actived,
             source: String::default(),
+            claim_nonce: None,
             steps: vec![],
             execute_index: 0,
             sender: vec![],
@@ -66,7 +84,7 @@ impl Default for Task {
 
 impl Task {
     // Initialize task
-    pub fn init_and_submit(
+    pub fn init(
         &mut self,
         context: &Context,
         client: &StorageClient,
@@ -79,7 +97,9 @@ impl Task {
             .ok_or("StorageNotConfigured")?;
 
         if client.read_storage::<Task>(&self.id)?.is_some() {
-            // Task already saved, return
+            if !(self.has_claimed(context))? {
+                self.claim(context)?;
+            }
             return Ok(());
         }
 
@@ -122,6 +142,9 @@ impl Task {
             &pending_tasks.encode(),
             pending_tasks_doc,
         )?;
+
+        self.claim(context)?;
+
         Ok(())
     }
 
@@ -169,18 +192,6 @@ impl Task {
             // - Step failed to execute
             // - Step has been executed, but off-chain indexer hasn't caught up
             Ok(false) => {
-                // Claim step should be considered separately
-                if let StepMeta::Claim(claim_step) =
-                    &mut self.steps[self.execute_index as usize].meta
-                {
-                    let worker_account = AccountInfo::from(context.signer);
-                    let latest_balance = worker_account.get_balance(
-                        claim_step.chain.clone(),
-                        claim_step.asset.clone(),
-                        context,
-                    )?;
-                    claim_step.b0 = Some(latest_balance);
-                }
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
                 self.retry_counter += 1;
@@ -275,22 +286,19 @@ impl Task {
         // Only in last step the recipient with be set as real recipient on destchain,
         // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
+
+        // Apply nonce for claim operation
+        let claim_nonce = self.get_nonce(context, self.source.clone())?;
+        nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
+        self.claim_nonce = Some(claim_nonce);
+
+        // Apply nonce for each step
         for index in start_index as usize..self.steps.len() {
             let step = &mut self.steps[index];
             let nonce = match nonce_map.get(&step.chain) {
                 Some(nonce) => nonce,
                 None => {
-                    let chain = context
-                        .registry
-                        .get_chain(step.chain.clone())
-                        .ok_or("MissingChain")?;
-                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                    let account = match chain.chain_type {
-                        ChainType::Evm => account_info.account20.to_vec(),
-                        ChainType::Sub => account_info.account32.to_vec(),
-                        // ChainType::Unknown => panic!("chain not supported!"),
-                    };
-                    chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?
+                    self.get_nonce(context, step.chain.clone())?
                 }
             };
             step.nonce = Some(nonce);
@@ -299,6 +307,21 @@ impl Task {
         }
 
         Ok(())
+    }
+
+    fn get_nonce(&self, context: &Context, chain: String) -> Result<u64, &'static str> {
+        let chain: Chain = context
+                        .registry
+                        .get_chain(chain)
+                        .ok_or("MissingChain")?;
+        let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+        let account = match chain.chain_type {
+            ChainType::Evm => account_info.account20.to_vec(),
+            ChainType::Sub => account_info.account32.to_vec(),
+            // ChainType::Unknown => panic!("chain not supported!"),
+        };
+        let nonce = chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?;
+        Ok(nonce)
     }
 
     fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
@@ -361,6 +384,46 @@ impl Task {
         }
 
         Ok(())
+    }
+
+    fn claim(&mut self, context: &Context) -> Result<Vec<u8>, &'static str> {
+        let chain = context
+            .registry
+            .get_chain(self.source.clone())
+            .map(Ok)
+            .unwrap_or(Err("MissingChain"))?;
+        let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
+
+        match chain.chain_type {
+            ChainType::Evm => Ok(self.claim_evm_actived_tasks(chain, self.id, &context.signer, claim_nonce)?),
+            ChainType::Sub => Ok(self.claim_sub_actived_tasks(chain, self.id, &context.signer, claim_nonce)?),
+        }
+    }
+
+    fn has_claimed(&self,  context: &Context) -> Result<bool, &'static str> {
+        let worker_account = AccountInfo::from(context.signer);
+        let chain = context
+            .registry
+            .get_chain(self.source.clone())
+            .map(Ok)
+            .unwrap_or(Err("MissingChain"))?;
+        let account = match chain.chain_type {
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
+
+        // Check if already claimed success
+        let onchain_nonce = worker_account.get_nonce(self.source.clone(), context)?;
+        if onchain_nonce > claim_nonce {
+            if tx::check_tx(&chain.tx_indexer, &account, claim_nonce)? {
+                return Ok(true);
+            } else {
+                return Err("ClaimFailed");
+            }
+        } else {
+            return Ok(false)
+        }
     }
 
     fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
@@ -473,6 +536,89 @@ impl Task {
         }
         Ok(())
     }
+
+    fn claim_evm_actived_tasks(
+        &self,
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
+        let transport = Eth::new(PinkHttp::new(chain.endpoint));
+        let handler = Contract::from_json(
+            transport,
+            handler_on_goerli,
+            include_bytes!("./abi/handler.json"),
+        )
+        .map_err(|_| "ConstructContractFailed")?;
+        let worker = KeyPair::from(*worker_key);
+
+        // Estiamte gas before submission
+        let gas = resolve_ready(handler.estimate_gas(
+            "claim",
+            task_id,
+            worker.address(),
+            Options::default(),
+        ))
+        .map_err(|_| "GasEstimateFailed")?;
+
+        // Submit the claim transaction
+        let tx_id = resolve_ready(handler.signed_call(
+            "claim",
+            task_id,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = Some(nonce.into());
+            }),
+            worker,
+        ))
+        .map_err(|_| "ClaimSubmitFailed")?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone().as_bytes())
+        );
+        Ok(tx_id.as_bytes().to_vec())
+    }
+
+    fn claim_sub_actived_tasks(
+        &self,
+        chain: Chain,
+        task_id: TaskId,
+        worker_key: &[u8; 32],
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let signed_tx = create_transaction(
+            worker_key,
+            "phala",
+            &chain.endpoint,
+            // Pallet id of `pallet-index`
+            *chain
+                .handler_contract
+                .first()
+                .ok_or("ClaimMissingPalletId")?,
+            // Call index of `claim_task`
+            0x03u8,
+            task_id,
+            ExtraParam {
+                tip: 0,
+                nonce: Some(nonce),
+                era: None,
+            },
+        )
+        .map_err(|_| "ClaimInvalidSignature")?;
+        let tx_id =
+            send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone())
+        );
+        Ok(tx_id)
+    }
 }
 
 #[cfg(test)]
@@ -581,7 +727,7 @@ mod tests {
         assert_eq!(task.steps.len(), 3);
 
         // Init task
-        assert_eq!(task.init_and_submit(
+        assert_eq!(task.init(
             &Context {
                 signer: [0; 32],
                 registry: &Registry {

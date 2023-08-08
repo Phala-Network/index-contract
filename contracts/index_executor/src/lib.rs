@@ -369,7 +369,7 @@ mod index_executor {
             if let Some(mut actived_task) = actived_task {
                 // Initialize task, and save it to on-chain storage
                 actived_task
-                    .init_and_submit(
+                    .init(
                         &Context {
                             // Don't need signer here
                             signer: [0; 32],
