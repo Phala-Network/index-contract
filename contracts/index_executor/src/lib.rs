@@ -3,6 +3,7 @@
 extern crate alloc;
 
 mod account;
+mod call;
 mod chain;
 mod context;
 mod gov;
