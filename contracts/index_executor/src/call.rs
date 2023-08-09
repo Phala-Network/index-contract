@@ -37,5 +37,5 @@ pub struct Call {
 }
 
 pub trait CallBuilder {
-    fn build_call(step: Step) -> Result<Call, &'static str>;
+    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str>;
 }
