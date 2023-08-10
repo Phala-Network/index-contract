@@ -14,6 +14,7 @@ mod storage;
 mod task;
 mod traits;
 mod tx;
+mod utils;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]

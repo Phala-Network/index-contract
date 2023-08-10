@@ -7,6 +7,12 @@ use pink_extension::chain_extension::{signing, SigType};
 use pink_extension::ResultExt;
 use scale::{Decode, Encode};
 
+#[derive(Clone)]
+pub enum AccountType {
+    Account20,
+    Account32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct AccountInfo {

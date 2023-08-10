@@ -1,5 +1,6 @@
 use crate::step::Step;
 use pink_web3::types::{Address, Bytes, U256};
+use scale::{Decode, Encode};
 
 #[derive(Clone, Debug)]
 pub struct EvmCall {
@@ -16,9 +17,17 @@ pub struct EvmCall {
     pub receive_asset: Address,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
 pub struct SubCall {
     pub calldata: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct SubUnsignedExtrinsic<T: Encode> {
+    pub pallet_id: u8,
+    pub call_id: u8,
+    pub call: T,
 }
 
 #[derive(Clone, Debug)]
