@@ -29,8 +29,6 @@ jobs:
       - uses: ./.github/actions/install_toolchain
       - name: Install clippy
         run: rustup component add clippy
-      - name: Run cargo clippy for index
-        run: cd index/ && cargo clippy --all-targets -- -D warnings
       - name: Run cargo clippy for contracts
         run: cargo clippy -- --allow clippy::let_unit_value --allow clippy::nonminimal_bool -D warnings
 

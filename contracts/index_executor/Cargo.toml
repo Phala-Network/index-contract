@@ -17,6 +17,7 @@ ink = { version = "4.0.1", default-features = false }
 ink_env = { version = "4.0.1", default-features = false }
 
 sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
+sp-io = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false, features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
 primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "scale-info"] }
 scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
@@ -28,7 +29,6 @@ pink-extension = { version = "0.4.1", default-features = false }
 pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
 pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
 pink-subrpc = { version = "0.4.2", default-features = false }
-index = { path = "../../index", default-features = false }
 worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = ["ink-as-dependency"] }
 
 [dev-dependencies]
@@ -70,9 +70,9 @@ std = [
     "pink-web3/std",
     "pink-json/std",
     "pink-subrpc/std",
-    "index/std",
     "worker_key_store/std",
     "sp-std/std",
+    "sp-io/std",
     "sp-runtime/std",
 ]
 ink-as-dependency = []

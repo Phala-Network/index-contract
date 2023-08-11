@@ -1323,29 +1323,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "index"
-version = "0.1.0"
-dependencies = [
- "base58",
- "blake2-rfc",
- "dyn-clone",
- "hex",
- "hex-literal",
- "parity-scale-codec",
- "pink-extension",
- "pink-json 0.4.0 (git+https://github.com/Phala-Network/pink-json.git?branch=pink)",
- "pink-subrpc",
- "pink-web3",
- "primitive-types 0.12.1",
- "scale-info",
- "sp-core-hashing 4.0.0",
- "sp-io",
- "sp-runtime",
- "ss58-registry",
- "xcm",
-]
-
-[[package]]
 name = "index_executor"
 version = "0.1.0"
 dependencies = [
@@ -1355,7 +1332,6 @@ dependencies = [
  "fixed",
  "hex",
  "hex-literal",
- "index",
  "ink",
  "ink_env",
  "key_store",
@@ -1370,6 +1346,7 @@ dependencies = [
  "primitive-types 0.12.1",
  "scale-info",
  "serde",
+ "sp-io",
  "sp-runtime",
  "sp-std 4.0.0",
  "xcm",
@@ -2753,24 +2730,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "semi_bridge"
-version = "0.1.2"
-dependencies = [
- "dotenv",
- "hex",
- "hex-literal",
- "index",
- "ink",
- "parity-scale-codec",
- "pink-extension",
- "pink-extension-runtime",
- "pink-subrpc",
- "pink-web3",
- "primitive-types 0.12.1",
- "scale-info",
-]
-
-[[package]]
 name = "semver"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3529,24 +3488,6 @@ dependencies = [
  "quote",
  "syn",
  "unicode-xid",
-]
-
-[[package]]
-name = "system_remark"
-version = "0.1.2"
-dependencies = [
- "dotenv",
- "hex",
- "hex-literal",
- "index",
- "ink",
- "parity-scale-codec",
- "pink-extension",
- "pink-extension-runtime",
- "pink-subrpc",
- "pink-web3",
- "primitive-types 0.12.1",
- "scale-info",
 ]
 
 [[package]]

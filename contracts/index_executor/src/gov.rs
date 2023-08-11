@@ -58,10 +58,10 @@ impl WorkerGov {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::ToArray;
     use alloc::string::String;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::utils::ToArray;
     use pink_web3::types::H160;
 
     #[test]

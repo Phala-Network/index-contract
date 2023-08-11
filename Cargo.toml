@@ -2,14 +2,10 @@
 resolver = "2"
 
 members = [
-    "examples/semi_bridge",
-    "examples/system_remark",
+    # "examples/semi_bridge",
+    # "examples/system_remark",
     "contracts/index_executor",
     "contracts/key_store",
-]
-
-exclude = [
-    "index"
 ]
 
 # Sneak peek of the new test engine!

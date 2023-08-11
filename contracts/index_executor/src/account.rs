@@ -1,7 +1,7 @@
 use super::context::Context;
 use crate::chain::{BalanceFetcher, ChainType, NonceFetcher};
+use crate::utils::ToArray;
 use alloc::{format, string::String, vec::Vec};
-use index::utils::ToArray;
 use ink::storage::traits::StorageLayout;
 use pink_extension::chain_extension::{signing, SigType};
 use pink_extension::ResultExt;

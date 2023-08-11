@@ -776,9 +776,9 @@ mod tests {
     use crate::account::AccountInfo;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
+    use crate::utils::ToArray;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::utils::ToArray;
     use primitive_types::H160;
 
     #[test]
