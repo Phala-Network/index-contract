@@ -1,5 +1,5 @@
 use super::account::AccountInfo;
-use crate::registry::Registry;
+use crate::{call::CallBuilder, registry::Registry};
 use alloc::{boxed::Box, string::String, vec::Vec};
 use index::{prelude::*, traits::executor::TransferExecutor};
 
@@ -52,5 +52,15 @@ impl<'a> Context<'a> {
             .iter()
             .position(|e| e.0 == chain)
             .map(|idx| dyn_clone::clone_box(&*transfer_executors[idx].1))
+    }
+
+    pub fn get_actions(&self, chain: String) -> Option<Box<dyn CallBuilder>> {
+        pink_extension::debug!("Lookup actions on {:?}", &chain);
+        let actions: Vec<(String, Box<dyn CallBuilder>)> =
+            self.registry.create_actions(chain.clone());
+        actions
+            .iter()
+            .position(|e| e.0 == chain)
+            .map(|idx| dyn_clone::clone_box(&*actions[idx].1))
     }
 }

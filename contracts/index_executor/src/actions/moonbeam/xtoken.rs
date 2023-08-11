@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Tokenize, Contract},

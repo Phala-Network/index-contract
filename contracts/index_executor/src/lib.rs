@@ -6,6 +6,7 @@ mod account;
 mod actions;
 mod call;
 mod chain;
+mod constants;
 mod context;
 mod gov;
 mod registry;

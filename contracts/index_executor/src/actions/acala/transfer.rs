@@ -5,8 +5,11 @@ use super::asset::{AcalaAssetMap, CurrencyId, TokenType as AcalaTokenType};
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubUnsignedExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
-use alloc::string::{String, ToString};
-use alloc::vec::Vec;
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use scale::{Compact, Decode, Encode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;

@@ -89,6 +89,11 @@ impl Runner for Step {
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
 
+        let action = context
+            .get_actions(self.source_chain.clone())
+            .ok_or("NoActionFound")?;
+        let call = action.build_call(self.clone())?;
+
         pink_extension::debug!("Start to execute step with nonce: {}", nonce);
 
         // TODO: Sign and send transaction

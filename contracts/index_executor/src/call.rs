@@ -1,4 +1,6 @@
 use crate::step::Step;
+use alloc::vec::Vec;
+use dyn_clone::DynClone;
 use pink_web3::types::{Address, Bytes, U256};
 use scale::{Decode, Encode};
 
@@ -45,6 +47,7 @@ pub struct Call {
     pub call_index: Option<u8>,
 }
 
-pub trait CallBuilder {
+pub trait CallBuilder: DynClone {
     fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str>;
 }
+dyn_clone::clone_trait_object!(CallBuilder);

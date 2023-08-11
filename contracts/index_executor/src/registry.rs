@@ -1,5 +1,8 @@
 //#[allow(clippy::large_enum_variant)]
-use crate::chain::{Chain, ChainType, ForeignAssetModule};
+use crate::{
+    call::CallBuilder,
+    chain::{Chain, ChainType, ForeignAssetModule},
+};
 use ink::storage::traits::StorageLayout;
 
 use alloc::{
@@ -251,5 +254,18 @@ impl Registry {
             Box::new(AcalaTransferExecutor::new(&acala.endpoint)),
         ));
         transfer_executors
+    }
+
+    pub fn create_actions(&self, chain: String) -> Vec<(String, Box<dyn CallBuilder>)> {
+        let chain = self.get_chain(String::from(chain)).expect("ChainNotFound");
+
+        match chain.name.as_str() {
+            "Acala" => crate::actions::acala::create_actions(&chain),
+            "Astar" => crate::actions::astar::create_actions(&chain),
+            "Ethereum" => crate::actions::ethereum::create_actions(&chain),
+            "Moonbeam" => crate::actions::moonbeam::create_actions(&chain),
+            "Phala" | "Khala" => crate::actions::phala::create_actions(&chain),
+            _ => vec![],
+        }
     }
 }
