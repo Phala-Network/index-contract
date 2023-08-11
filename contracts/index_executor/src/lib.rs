@@ -501,9 +501,9 @@ mod index_executor {
     mod tests {
         use super::*;
         // use dotenv::dotenv;
-        use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
-        use xcm::latest::{prelude::*, MultiLocation};
+        use sp_runtime::{traits::ConstU32, BoundedSlice};
+        use xcm::latest::{prelude::*, Junction, MultiLocation};
 
         fn deploy_executor() -> Executor {
             // Deploy Executor
@@ -531,7 +531,12 @@ mod index_executor {
                         1,
                         X2(
                             Parachain(2000),
-                            GeneralKey(WrapSlice(&hex_literal::hex!["0081"]).into())
+                            Junction::from(
+                                BoundedSlice::<u8, ConstU32<32>>::try_from(
+                                    hex_literal::hex!["0081"].as_ref()
+                                )
+                                .unwrap(),
+                            ),
                         )
                     )
                     .encode()

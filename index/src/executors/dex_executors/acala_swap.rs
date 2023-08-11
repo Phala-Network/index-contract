@@ -1,6 +1,6 @@
 use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
-use xcm::v1::prelude::*;
+use xcm::v3::prelude::*;
 
 use crate::assets::{AcalaAssetMap, AggregatedSwapPath, CurrencyId, TokenSymbol};
 

@@ -5,8 +5,8 @@ use alloc::{
     vec::Vec,
 };
 
-use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v1::{prelude::*, MultiLocation};
+use sp_runtime::{traits::ConstU32, BoundedSlice};
+use xcm::v3::{prelude::*, MultiLocation};
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -42,10 +42,12 @@ impl Assetid2Location {
                                 1,
                                 X2(
                                     Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
+                                    Junction::from(
+                                        BoundedSlice::<u8, ConstU32<32>>::try_from(
+                                            vec![0x00, 0x80].as_slice(),
+                                        )
+                                        .unwrap(),
+                                    ),
                                 ),
                             ),
                         ),
@@ -98,10 +100,12 @@ impl Location2Assetid {
                                 1,
                                 X2(
                                     Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
+                                    Junction::from(
+                                        BoundedSlice::<u8, ConstU32<32>>::try_from(
+                                            vec![0x00, 0x80].as_slice(),
+                                        )
+                                        .unwrap(),
+                                    ),
                                 ),
                             ),
                             1,

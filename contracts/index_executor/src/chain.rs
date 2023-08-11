@@ -18,7 +18,7 @@ use pink_web3::{
     Web3,
 };
 use scale::Encode;
-use xcm::v1::MultiLocation;
+use xcm::v3::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -229,8 +229,8 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use scale::Encode;
-    use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-    use xcm::v1::{prelude::*, MultiLocation};
+    use sp_runtime::{traits::ConstU32, BoundedSlice};
+    use xcm::v3::{prelude::*, MultiLocation};
 
     #[test]
     fn test_get_evm_account_nonce() {
@@ -346,10 +346,10 @@ mod tests {
                 1,
                 X2(
                     Parachain(2000),
-                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                        vec![0x00, 0x80],
-                        None,
-                    )),
+                    Junction::from(
+                        BoundedSlice::<u8, ConstU32<32>>::try_from(vec![0x00, 0x80].as_slice())
+                            .unwrap(),
+                    ),
                 ),
             )
             .encode(),

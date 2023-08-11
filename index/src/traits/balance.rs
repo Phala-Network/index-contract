@@ -5,13 +5,11 @@ use pink_web3::{
     transports::{resolve_ready, PinkHttp},
     Eth,
 };
-use xcm::{
-    latest::{AssetId, MultiLocation},
-    v2::{
-        AssetId::Concrete,
-        Junction::{GeneralKey, Parachain},
-        Junctions,
-    },
+use xcm::v2::{
+    AssetId,
+    AssetId::Concrete,
+    Junction::{GeneralKey, Parachain},
+    Junctions, MultiLocation,
 };
 
 use crate::prelude::Error;

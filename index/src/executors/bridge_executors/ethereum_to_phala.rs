@@ -13,7 +13,7 @@ use pink_web3::{
 };
 use scale::Encode;
 use subrpc::ExtraParam;
-use xcm::v1::{prelude::*, Junction, Junctions, MultiLocation};
+use xcm::v3::{Junction, Junctions, MultiLocation};
 
 #[derive(Clone)]
 pub struct ChainBridgeEthereum2Phala {
@@ -70,7 +70,7 @@ impl BridgeExecutor for ChainBridgeEthereum2Phala {
         let dest = MultiLocation::new(
             0,
             Junctions::X1(Junction::AccountId32 {
-                network: NetworkId::Any,
+                network: None,
                 id: recipient,
             }),
         );

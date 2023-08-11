@@ -7,8 +7,7 @@ mod tests {
 
     use primitive_types::H256;
     use scale::Encode;
-    use xcm::v0::NetworkId;
-    use xcm::v1::{Junction, Junctions, MultiLocation};
+    use xcm::v3::{Junction, Junctions, MultiLocation};
     #[test]
     fn xcm_works() {
         use hex_literal::hex;
@@ -18,7 +17,7 @@ mod tests {
         let dest = MultiLocation::new(
             0,
             Junctions::X1(Junction::AccountId32 {
-                network: NetworkId::Any,
+                network: None,
                 id: addr.into(),
             }),
         );

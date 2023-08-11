@@ -7,7 +7,7 @@ pub mod phala_xtransfer;
 mod tests {
     use primitive_types::H256;
     use scale::Encode;
-    use xcm::v1::{prelude::*, Junction, Junctions, MultiLocation};
+    use xcm::v3::{Junction, Junctions, MultiLocation};
 
     #[test]
     fn it_works() {
@@ -18,7 +18,7 @@ mod tests {
         let dest = MultiLocation::new(
             0,
             Junctions::X1(Junction::AccountId32 {
-                network: NetworkId::Any,
+                network: None,
                 id: addr.into(),
             }),
         );

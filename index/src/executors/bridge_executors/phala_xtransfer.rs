@@ -9,7 +9,7 @@ use alloc::{
 };
 use scale::Decode;
 
-use xcm::v1::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
+use xcm::v3::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
 
 #[derive(Clone)]
 pub struct PhalaXTransferExecutor {
@@ -56,14 +56,14 @@ impl BridgeExecutor for PhalaXTransferExecutor {
                     AccountType::Account20 => {
                         let recipient: [u8; 20] = recipient.to_array();
                         AccountKey20 {
-                            network: NetworkId::Any,
+                            network: None,
                             key: recipient,
                         }
                     }
                     AccountType::Account32 => {
                         let recipient: [u8; 32] = recipient.to_array();
                         AccountId32 {
-                            network: NetworkId::Any,
+                            network: None,
                             id: recipient,
                         }
                     }

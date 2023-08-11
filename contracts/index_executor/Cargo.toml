@@ -8,7 +8,10 @@ homepage = "https://phala.network/"
 repository = "https://github.com/Phala-Network/index-contract"
 
 [dependencies]
-serde = { version = "1.0.140", default-features = false, features = ["derive", "alloc"]}
+serde = { version = "1.0.140", default-features = false, features = [
+    "derive",
+    "alloc",
+] }
 dyn-clone = "1.0.10"
 hex-literal = "0.3"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
@@ -16,19 +19,32 @@ fixed = { version = "1", default-features = false, features = ["serde"] }
 ink = { version = "4.0.1", default-features = false }
 ink_env = { version = "4.0.1", default-features = false }
 
-sp-std = { version = "4.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
-primitive-types = { version = "0.12.1", default-features = false, features = ["codec", "scale-info"] }
-scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
-scale-info = { version = "2.1", default-features = false, features = ["derive"], optional = true }
-xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29", default-features = false }
+sp-std = { version = "5.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.43", default-features = false }
+primitive-types = { version = "0.12.1", default-features = false, features = [
+    "codec",
+    "scale-info",
+] }
+scale = { package = "parity-scale-codec", version = "3.1", default-features = false, features = [
+    "derive",
+] }
+scale-info = { version = "2", default-features = false, features = [
+    "derive",
+], optional = true }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43", default-features = false }
 phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", tag = "v0.1.18", default-features = false }
 pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4.1", default-features = false }
-pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
-pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
+pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = [
+    "pink",
+] }
+pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = [
+    "custom-error-messages",
+] }
 pink-subrpc = { version = "0.4.2", default-features = false }
 index = { path = "../../index", default-features = false }
-worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = ["ink-as-dependency"] }
+worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = [
+    "ink-as-dependency",
+] }
 
 [dev-dependencies]
 env_logger = "0.10.0"
@@ -37,18 +53,18 @@ pink-extension-runtime = "0.4.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 
-sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
+sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.43", default-features = false }
 
 [profile.release]
-overflow-checks = false     # Disable integer overflow checks.
-lto = false                 # Enable full link-time optimization.
+overflow-checks = false # Disable integer overflow checks.
+lto = false             # Enable full link-time optimization.
 
 [lib]
 name = "index_executor"
 path = "src/lib.rs"
 crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
+    # Used for normal contract Wasm blobs.
+    "cdylib",
     # Used for ABI generation.
     "rlib",
 ]

@@ -2,8 +2,8 @@ use alloc::{vec, vec::Vec};
 
 use scale::Decode;
 use scale::Encode;
-use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v1::{prelude::*, MultiLocation};
+use sp_runtime::{traits::ConstU32, BoundedSlice};
+use xcm::v3::{prelude::*, MultiLocation};
 
 // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
 // with modification
@@ -120,10 +120,10 @@ impl AcalaAssetMap {
             1,
             X2(
                 Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x80],
-                    None,
-                )),
+                Junction::from(
+                    BoundedSlice::<u8, ConstU32<32>>::try_from(vec![0x00, 0x80].as_slice())
+                        .unwrap(),
+                ),
             ),
         );
         let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
@@ -131,20 +131,20 @@ impl AcalaAssetMap {
             1,
             X2(
                 Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x00],
-                    None,
-                )),
+                Junction::from(
+                    BoundedSlice::<u8, ConstU32<32>>::try_from(vec![0x00, 0x00].as_slice())
+                        .unwrap(),
+                ),
             ),
         );
         let lc_dot: MultiLocation = MultiLocation::new(
             1,
             X2(
                 Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x02],
-                    None,
-                )),
+                Junction::from(
+                    BoundedSlice::<u8, ConstU32<32>>::try_from(vec![0x00, 0x02].as_slice())
+                        .unwrap(),
+                ),
             ),
         );
         vec![
