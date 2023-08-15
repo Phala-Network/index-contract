@@ -9,7 +9,7 @@ use alloc::{string::String, vec, vec::Vec};
 use ink::storage::Mapping;
 use pink_extension::ResultExt;
 use scale::{Decode, Encode};
-use xcm::latest::AssetId as XcmAssetId;
+use xcm::v2::AssetId as XcmAssetId;
 
 use pink_subrpc::{
     create_transaction, get_storage,

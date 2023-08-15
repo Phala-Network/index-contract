@@ -3,7 +3,7 @@ use alloc::{vec, vec::Vec};
 use scale::Decode;
 use scale::Encode;
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v1::{prelude::*, MultiLocation};
+use xcm::v2::{prelude::*, MultiLocation};
 
 // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
 // with modification

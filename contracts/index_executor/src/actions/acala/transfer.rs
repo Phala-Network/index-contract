@@ -1,8 +1,8 @@
 use pink_extension::AccountId;
-use xcm::v1::prelude::*;
+use xcm::v2::prelude::*;
 
 use super::asset::{AcalaAssetMap, CurrencyId, TokenType as AcalaTokenType};
-use crate::call::{Call, CallBuilder, CallParams, SubCall, SubUnsignedExtrinsic};
+use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
 use alloc::{
@@ -45,7 +45,7 @@ impl CallBuilder for AcalaTransactor {
             AcalaTokenType::Utility => {
                 Ok(vec![Call {
                     params: CallParams::Sub(SubCall {
-                        calldata: SubUnsignedExtrinsic {
+                        calldata: SubExtrinsic {
                             // Balance
                             pallet_id: 0x0au8,
                             call_id: 0x0u8,
@@ -67,7 +67,7 @@ impl CallBuilder for AcalaTransactor {
                 };
                 Ok(vec![Call {
                     params: CallParams::Sub(SubCall {
-                        calldata: SubUnsignedExtrinsic {
+                        calldata: SubExtrinsic {
                             // Currencies
                             pallet_id: 0x0cu8,
                             call_id: 0x0u8,

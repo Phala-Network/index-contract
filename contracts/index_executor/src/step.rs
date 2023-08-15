@@ -1,12 +1,21 @@
 use crate::chain::ChainType;
-use alloc::vec;
-use alloc::{string::String, vec::Vec};
+use crate::utils::ToArray;
+use alloc::{borrow::ToOwned, string::String, vec::Vec};
+use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
 
 use crate::account::AccountInfo;
+use crate::call::{Call, CallParams, SubCall};
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
 use crate::tx;
+use pink_web3::{
+    api::{Eth, Namespace},
+    contract::{Contract, Options},
+    keys::pink::KeyPair,
+    transports::{resolve_ready, PinkHttp},
+    types::U256,
+};
 use scale::{Decode, Encode};
 use serde::Deserialize;
 
@@ -81,7 +90,7 @@ impl Runner for Step {
     }
 
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
-        let _signer = context.signer;
+        let signer = context.signer;
         let worker_account = AccountInfo::from(context.signer);
         let chain = context
             .registry
@@ -92,20 +101,66 @@ impl Runner for Step {
         let action = context
             .get_actions(self.source_chain.clone())
             .ok_or("NoActionFound")?;
-        let call = action.build_call(self.clone())?;
+        let calls: Vec<Call> = action.build_call(self.clone())?;
+        if calls.is_empty() {
+            return Err("EmptyCall");
+        }
 
         pink_extension::debug!("Start to execute step with nonce: {}", nonce);
-
-        // TODO: Sign and send transaction
         let tx_id = match chain.chain_type {
             ChainType::Evm => {
-                worker_account.account20.to_vec();
-                vec![]
+                let handler = Contract::from_json(
+                    Eth::new(PinkHttp::new(chain.endpoint)),
+                    chain.handler_contract.to_array().into(),
+                    include_bytes!("./abi/handler.json"),
+                )
+                .expect("Bad abi data");
+
+                // Estiamte gas before submission
+                let gas = resolve_ready(handler.estimate_gas(
+                    "batchCall",
+                    calls.clone(),
+                    worker_account.account20.into(),
+                    Options::default(),
+                ))
+                .map_err(|_| "FailedToEstimateGas")?;
+                pink_extension::debug!("Estimated step gas cost: {:?}", gas);
+
+                // Actually submit the tx (no guarantee for success)
+                let tx_id = resolve_ready(handler.signed_call(
+                    "batchCall",
+                    calls,
+                    Options::with(|opt| {
+                        opt.gas = Some(gas);
+                        opt.nonce = Some(U256::from(nonce));
+                    }),
+                    KeyPair::from(signer),
+                ))
+                .map_err(|_| "FailedToSubmitTransaction")?;
+
+                tx_id.as_bytes().to_owned()
             }
-            ChainType::Sub => {
-                worker_account.account32.to_vec();
-                vec![]
-            }
+            ChainType::Sub => match calls[0].params.clone() {
+                CallParams::Sub(SubCall { calldata }) => {
+                    let signed_tx = create_transaction_with_calldata(
+                        &signer,
+                        &chain.name.to_lowercase(),
+                        &chain.endpoint,
+                        &calldata,
+                        ExtraParam {
+                            tip: 0,
+                            nonce: Some(nonce),
+                            era: None,
+                        },
+                    )
+                    .map_err(|_| "InvalidSignature")?;
+
+                    let tx_id = send_transaction(&chain.endpoint, &signed_tx)
+                        .map_err(|_| "FailedToSubmitTransaction")?;
+                    tx_id
+                }
+                _ => return Err("UnexpectedCallType"),
+            },
         };
 
         pink_extension::info!(

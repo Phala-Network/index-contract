@@ -506,7 +506,7 @@ mod index_executor {
         // use dotenv::dotenv;
         use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
-        use xcm::latest::{prelude::*, MultiLocation};
+        use xcm::v2::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
             // Deploy Executor

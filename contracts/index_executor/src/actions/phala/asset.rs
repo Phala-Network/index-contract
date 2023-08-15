@@ -6,7 +6,7 @@ use alloc::{
 };
 
 use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v1::{prelude::*, MultiLocation};
+use xcm::v2::{prelude::*, MultiLocation};
 
 #[allow(dead_code)]
 #[derive(Default)]

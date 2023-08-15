@@ -4,13 +4,13 @@ use alloc::{
     vec::Vec,
 };
 use scale::{Decode, Encode};
-use xcm::v1::prelude::*;
+use xcm::v2::prelude::*;
 
-use crate::call::{Call, CallBuilder, CallParams, SubCall, SubUnsignedExtrinsic};
+use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 use crate::utils::ToArray;
-use xcm::v1::{AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
+use xcm::v2::{AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
 
 use crate::account::AccountType;
 
@@ -68,18 +68,17 @@ impl CallBuilder for XTransferXcm {
         );
         let dest_weight: core::option::Option<u64> = Some(6000000000);
 
-        let bridge_calldata = SubUnsignedExtrinsic {
-            // the call index of acala dex module
-            //0x5b_u8,
-            // the call index of acala aggregateddex module
-            pallet_id: 0x52u8,
-            call_id: 0x0u8,
-            call: (multi_asset, dest, dest_weight),
-        };
-
         Ok(vec![Call {
             params: CallParams::Sub(SubCall {
-                calldata: bridge_calldata.encode(),
+                calldata: SubExtrinsic {
+                    // the call index of acala dex module
+                    //0x5b_u8,
+                    // the call index of acala aggregateddex module
+                    pallet_id: 0x52u8,
+                    call_id: 0x0u8,
+                    call: (multi_asset, dest, dest_weight),
+                }
+                .encode(),
             }),
             input_call: None,
             call_index: None,

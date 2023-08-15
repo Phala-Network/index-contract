@@ -7,9 +7,9 @@ use alloc::{
 };
 use pink_extension::ResultExt;
 use scale::{Compact, Decode, Encode};
-use xcm::v1::prelude::*;
+use xcm::v2::prelude::*;
 
-use crate::call::{Call, CallBuilder, CallParams, SubCall, SubUnsignedExtrinsic};
+use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 #[derive(Clone)]
@@ -69,18 +69,17 @@ impl CallBuilder for AcalaSwap {
         ]);
         let path = vec![taiga_path, dex_path];
 
-        let swap_calldata = SubUnsignedExtrinsic {
-            // the call index of acala dex module
-            //0x5b_u8,
-            // the call index of acala aggregateddex module
-            pallet_id: 0x5d_u8,
-            call_id: 0x0u8,
-            call: (path, amount_in, amount_out),
-        };
-
         Ok(vec![Call {
             params: CallParams::Sub(SubCall {
-                calldata: swap_calldata.encode(),
+                calldata: SubExtrinsic {
+                    // the call index of acala dex module
+                    //0x5b_u8,
+                    // the call index of acala aggregateddex module
+                    pallet_id: 0x5d_u8,
+                    call_id: 0x0u8,
+                    call: (path, amount_in, amount_out),
+                }
+                .encode(),
             }),
             input_call: None,
             call_index: None,
