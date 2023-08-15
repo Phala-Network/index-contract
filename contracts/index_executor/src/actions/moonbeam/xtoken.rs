@@ -4,7 +4,7 @@ use pink_web3::{
     contract::{tokens::Tokenize, Contract},
     ethabi::{Address, Token},
     transports::PinkHttp,
-    types::{Bytes, U256},
+    types::U256,
 };
 
 use crate::call::{Call, CallBuilder, CallParams, EvmCall};
@@ -78,10 +78,9 @@ impl CallBuilder for XTokenBridge {
             .abi()
             .function("transfer")
             .map_err(|_| "NoFunctionFound")?;
-        let bridge_data = bridge_func
+        let bridge_calldata = bridge_func
             .encode_input(&bridge_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
-        let bridge_calldata = Bytes(bridge_data);
 
         let token = Contract::from_json(
             self.eth.clone(),
@@ -94,10 +93,9 @@ impl CallBuilder for XTokenBridge {
             .abi()
             .function("approve")
             .map_err(|_| "NoFunctionFound")?;
-        let approve_data = approve_func
+        let approve_calldata = approve_func
             .encode_input(&approve_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
-        let approve_calldata = Bytes(approve_data);
 
         Ok(vec![
             Call {

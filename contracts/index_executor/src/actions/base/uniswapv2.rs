@@ -4,7 +4,7 @@ use pink_web3::{
     contract::{tokens::Tokenize, Contract},
     ethabi::Address,
     transports::PinkHttp,
-    types::{Bytes, U256},
+    types::U256,
 };
 
 use crate::call::{Call, CallBuilder, CallParams, EvmCall};
@@ -46,10 +46,9 @@ impl CallBuilder for UniswapV2 {
             .abi()
             .function("swapExactTokensForTokens")
             .map_err(|_| "NoFunctionFound")?;
-        let swap_data = swap_func
+        let swap_calldata = swap_func
             .encode_input(&swap_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
-        let swap_calldata = Bytes(swap_data);
 
         let token = Contract::from_json(
             self.eth.clone(),
@@ -62,10 +61,9 @@ impl CallBuilder for UniswapV2 {
             .abi()
             .function("approve")
             .map_err(|_| "NoFunctionFound")?;
-        let approve_data = approve_func
+        let approve_calldata = approve_func
             .encode_input(&approve_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
-        let approve_calldata = Bytes(approve_data);
 
         Ok(vec![
             Call {

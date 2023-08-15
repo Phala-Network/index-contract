@@ -9,13 +9,14 @@ use pink_web3::{
     ethabi::Token,
     types::{Address, Bytes, U256},
 };
-use scale::Encode;
+use scale::{Decode, Encode};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct EvmCall {
     // The call metadata
     pub target: Address,
-    pub calldata: Bytes,
+    pub calldata: Vec<u8>,
     pub value: U256,
 
     pub need_settle: bool,
@@ -26,25 +27,29 @@ pub struct EvmCall {
     pub receive_asset: Address,
 }
 
-#[derive(Clone, Debug, Encode)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct SubExtrinsic<T: Encode> {
     pub pallet_id: u8,
     pub call_id: u8,
     pub call: T,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct SubCall {
     pub calldata: Vec<u8>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum CallParams {
     Evm(EvmCall),
     Sub(SubCall),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Call {
     pub params: CallParams,
     // The call index that whose result will be the input of call
@@ -63,7 +68,7 @@ impl Tokenizable for Call {
         match (self.params, self.input_call, self.call_index) {
             (CallParams::Evm(evm_call), Some(input_call), Some(call_index)) => {
                 tokens.push(evm_call.target.into_token());
-                tokens.push(evm_call.calldata.into_token());
+                tokens.push(Bytes(evm_call.calldata).into_token());
                 tokens.push(evm_call.value.into_token());
                 tokens.push(evm_call.need_settle.into_token());
                 tokens.push(evm_call.update_offset.into_token());
