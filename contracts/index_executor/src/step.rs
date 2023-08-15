@@ -52,6 +52,7 @@ pub struct Step {
     pub origin_balance: Option<u128>,
     pub nonce: Option<u64>,
     pub weight: u8,
+    pub calls: Option<Vec<Call>>,
 }
 
 impl TryFrom<StepJson> for Step {
@@ -71,7 +72,22 @@ impl TryFrom<StepJson> for Step {
             origin_balance: None,
             nonce: None,
             weight: json.weight,
+            calls: None,
         })
+    }
+}
+
+impl Step {
+    pub fn derive_calls(&mut self, context: &Context) -> Result<(), &'static str> {
+        let action = context
+            .get_actions(self.source_chain.clone())
+            .ok_or("NoActionFound")?;
+        let calls: Vec<Call> = action.build_call(self.clone())?;
+        if calls.is_empty() {
+            return Err("EmptyCall");
+        }
+        self.calls = Some(calls);
+        Ok(())
     }
 }
 
@@ -98,13 +114,7 @@ impl Runner for Step {
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
 
-        let action = context
-            .get_actions(self.source_chain.clone())
-            .ok_or("NoActionFound")?;
-        let calls: Vec<Call> = action.build_call(self.clone())?;
-        if calls.is_empty() {
-            return Err("EmptyCall");
-        }
+        let calls = self.calls.as_ref().ok_or("MissingCalls")?;
 
         pink_extension::debug!("Start to execute step with nonce: {}", nonce);
         let tx_id = match chain.chain_type {
@@ -129,7 +139,7 @@ impl Runner for Step {
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(
                     "batchCall",
-                    calls,
+                    calls.clone(),
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));
