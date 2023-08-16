@@ -1,7 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::chain::{Chain, ChainType, NonceFetcher};
+use crate::chain::{BalanceFetcher, Chain, ChainType, NonceFetcher};
 use crate::step::{Step, StepJson};
 use crate::storage::StorageClient;
 use crate::tx;
@@ -671,18 +671,16 @@ impl Task {
             return Err("InvalidExecuteIndex");
         }
 
-        let worker_account = AccountInfo::from(context.signer);
         let current_step = &mut self.steps[self.execute_index as usize];
-        current_step.spend_amount = Some(
-            settle_balance
-                .saturating_mul(current_step.weight as u128)
-                .saturating_div(100),
-        );
-        current_step.origin_balance = Some(worker_account.get_balance(
-            current_step.dest_chain.clone(),
-            current_step.receive_asset.clone(),
-            context,
-        )?);
+        let dest_chain = &context
+            .registry
+            .get_chain(current_step.dest_chain.clone())
+            .ok_or("MissingChain")?;
+        let recipient = current_step.recipient.clone().ok_or("MissingRecipient")?;
+
+        current_step.spend_amount = Some(settle_balance);
+        current_step.origin_balance =
+            Some(dest_chain.get_balance(current_step.receive_asset.clone(), recipient)?);
         Ok(())
     }
 

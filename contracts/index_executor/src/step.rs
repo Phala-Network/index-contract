@@ -1,4 +1,4 @@
-use crate::chain::ChainType;
+use crate::chain::{BalanceFetcher, ChainType};
 use crate::utils::ToArray;
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
@@ -31,9 +31,6 @@ pub struct StepJson {
     pub step_index: u8,
     /// Previous link step's index
     pub previous_step: u8,
-    /// Represent the portion of the consumatable amount output of the previous step
-    /// value should be in the range of [0, 100]
-    pub weight: u8,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -51,7 +48,6 @@ pub struct Step {
     // Used to check balance change
     pub origin_balance: Option<u128>,
     pub nonce: Option<u64>,
-    pub weight: u8,
     pub calls: Option<Vec<Call>>,
 }
 
@@ -71,7 +67,6 @@ impl TryFrom<StepJson> for Step {
             spend_amount: None,
             origin_balance: None,
             nonce: None,
-            weight: json.weight,
             calls: None,
         })
     }
@@ -203,8 +198,7 @@ impl Runner for Step {
         if tx::check_tx(&chain.tx_indexer, &account, nonce)? {
             // If is a bridge operation, check balance change on dest chain
             if self.exe_type == "bridge" {
-                let latest_balance =
-                    worker_account.get_balance(self.dest_chain.clone(), recipient, context)?;
+                let latest_balance = chain.get_balance(self.receive_asset.clone(), recipient)?;
                 let origin_balance = self.origin_balance.ok_or("MissingOriginReserve")?;
 
                 return Ok(latest_balance > origin_balance);
