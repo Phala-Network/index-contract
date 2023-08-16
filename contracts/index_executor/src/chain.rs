@@ -62,6 +62,14 @@ impl Chain {
             ChainType::Sub => asset == &self.native_asset,
         }
     }
+
+    pub fn is_evm_chain(&self) -> bool {
+        self.chain_type == ChainType::Evm
+    }
+
+    pub fn is_sub_chain(&self) -> bool {
+        self.chain_type == ChainType::Sub
+    }
 }
 
 /// Query on-chain `account` nonce

@@ -276,6 +276,7 @@ impl DepositData {
             source: source_chain.into(),
             sender: self.sender.clone(),
             recipient: self.recipient.clone(),
+            amount: self.amount,
             worker,
             ..Default::default()
         };
@@ -318,6 +319,8 @@ pub struct Task {
     pub status: TaskStatus,
     // Source chain name
     pub source: String,
+    // Amount of first spend asset
+    pub amount: u128,
     // Nonce applied to claim task froom source chain
     pub claim_nonce: Option<u64>,
     /// All steps to included in the task
@@ -339,6 +342,7 @@ impl Default for Task {
             worker: [0; 32],
             status: TaskStatus::Actived,
             source: String::default(),
+            amount: 0,
             claim_nonce: None,
             steps: vec![],
             execute_index: 0,
@@ -527,6 +531,77 @@ impl Task {
                 pending_tasks_doc,
             )?;
         }
+
+        Ok(())
+    }
+
+    pub fn merge_step(&mut self, context: &Context) -> Result<(), &'static str> {
+        let step_count = self.steps.len();
+        let mut merged_steps: Vec<Step> = vec![];
+
+        // Assign spend_amount & recipient for each step
+        for (index, step) in self.steps.iter_mut().enumerate() {
+            let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
+            let step_dest_chain = &step.dest_chain(context).ok_or("MissingChain")?;
+
+            // We know amount to spend at this point
+            step.spend_amount = if index == 0 {
+                Some(self.amount)
+            } else {
+                // Temporary, will be replaced after settlement
+                Some(0)
+            };
+
+            // For sure last step we should put real recipient, or else the recipient could be either
+            // worker account or handler account
+            step.recipient = if index == step_count - 1 {
+                Some(self.recipient.clone())
+            } else {
+                // If bridge to a EVM chain, asset should be send to Handler account to execute the reset of calls
+                if step.is_bridge_step() && step_dest_chain.is_evm_chain() {
+                    Some(step_dest_chain.handler_contract.clone())
+                } else {
+                    // For non-bridge operatoions, because we don't batch call in Sub chains, so recipient should
+                    // be worker account on source chain, or should be Handler address on source chain
+                    if step_source_chain.is_sub_chain() {
+                        let account_info =
+                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
+                        let worker_account = match step_source_chain.chain_type {
+                            ChainType::Evm => account_info.account20.to_vec(),
+                            ChainType::Sub => account_info.account32.to_vec(),
+                        };
+                        Some(worker_account)
+                    } else {
+                        Some(step_source_chain.handler_contract.clone())
+                    }
+                }
+            };
+
+            // Call action to produce calls for the step
+            step.derive_calls(context)?;
+
+            // Merge call and assign to new batched step
+            if index == 0 {
+                merged_steps.push(step.clone());
+            } else {
+                let merged_steps_count = merged_steps.len();
+                if step_source_chain.name.to_lowercase()
+                    == merged_steps[merged_steps_count - 1]
+                        .source_chain
+                        .to_lowercase()
+                    && step_source_chain.is_evm_chain()
+                {
+                    let mut calls = merged_steps[merged_steps_count - 1].calls.clone().unwrap();
+                    calls.append(&mut step.calls.clone().unwrap());
+                    merged_steps[merged_steps_count - 1].calls = Some(calls);
+                } else {
+                    merged_steps.push(step.clone());
+                }
+            }
+        }
+
+        // Replace existing task steps
+        self.steps = merged_steps;
 
         Ok(())
     }

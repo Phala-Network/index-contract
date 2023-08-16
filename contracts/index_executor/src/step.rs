@@ -1,4 +1,4 @@
-use crate::chain::{BalanceFetcher, ChainType};
+use crate::chain::{BalanceFetcher, Chain, ChainType};
 use crate::utils::ToArray;
 use alloc::{borrow::ToOwned, string::String, vec::Vec};
 use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
@@ -64,7 +64,7 @@ impl TryFrom<StepJson> for Step {
             receive_asset: Self::decode_address(&json.receive_asset)?,
             sender: None,
             recipient: None,
-            spend_amount: None,
+            spend_amount: Some(0),
             origin_balance: None,
             nonce: None,
             calls: None,
@@ -83,6 +83,18 @@ impl Step {
         }
         self.calls = Some(calls);
         Ok(())
+    }
+
+    pub fn is_bridge_step(&self) -> bool {
+        self.source_chain.to_lowercase() != self.dest_chain.to_lowercase()
+    }
+
+    pub fn source_chain(&self, context: &Context) -> Option<Chain> {
+        context.registry.get_chain(self.source_chain.clone())
+    }
+
+    pub fn dest_chain(&self, context: &Context) -> Option<Chain> {
+        context.registry.get_chain(self.dest_chain.clone())
     }
 }
 

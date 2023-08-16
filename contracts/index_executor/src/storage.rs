@@ -255,6 +255,7 @@ mod tests {
             worker: [0; 32],
             status: TaskStatus::Actived,
             source: "Ethereum".to_string(),
+            amount: 0,
             claim_nonce: None,
             steps: vec![],
             execute_index: 0,
