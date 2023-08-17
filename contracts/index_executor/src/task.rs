@@ -582,6 +582,14 @@ impl Task {
 
             // Merge call and assign to new batched step
             if index == 0 {
+                // Initialize call_index if first step happen on EVM chain
+                if step_source_chain.is_evm_chain() {
+                    let mut calls = step.calls.clone().unwrap();
+                    for (call_index, call) in calls.iter_mut().enumerate() {
+                        call.call_index = Some(call_index.try_into().expect("Too many calls"));
+                    }
+                    step.calls = Some(calls);
+                }
                 merged_steps.push(step.clone());
             } else {
                 let merged_steps_count = merged_steps.len();
@@ -592,7 +600,15 @@ impl Task {
                     && step_source_chain.is_evm_chain()
                 {
                     let mut calls = merged_steps[merged_steps_count - 1].calls.clone().unwrap();
-                    calls.append(&mut step.calls.clone().unwrap());
+                    let mut new_calls = step.calls.clone().unwrap();
+                    let origin_call_count = calls.len();
+                    let mut next_call_index = origin_call_count.try_into().expect("Too many calls");
+                    for call in new_calls.iter_mut() {
+                        call.call_index = Some(next_call_index);
+                        call.input_call = calls[origin_call_count - 1].call_index;
+                        next_call_index += 1;
+                    }
+                    calls.append(&mut new_calls);
                     merged_steps[merged_steps_count - 1].calls = Some(calls);
                 } else {
                     merged_steps.push(step.clone());

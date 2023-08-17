@@ -28,9 +28,6 @@ pub struct StepJson {
     pub dest_chain: String,
     pub spend_asset: String,
     pub receive_asset: String,
-    pub step_index: u8,
-    /// Previous link step's index
-    pub previous_step: u8,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
