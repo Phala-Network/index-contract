@@ -387,10 +387,11 @@ impl Task {
             return Err("WorkerIsBusy");
         }
 
+        self.merge_step(context)?;
+
         // Apply worker nonce for each step in task
         self.apply_nonce(0, context, client)?;
-        // Apply recipient for each step in task
-        self.apply_recipient(context)?;
+
         // TODO: query initial balance of worker account and setup to specific step
         self.status = TaskStatus::Initialized;
         self.execute_index = 0;
@@ -637,8 +638,6 @@ impl Task {
         context: &Context,
         _client: &StorageClient,
     ) -> Result<(), &'static str> {
-        // Only in last step the recipient with be set as real recipient on destchain,
-        // or else it will be the worker account under the hood
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
 
         // Apply nonce for claim operation
@@ -670,29 +669,6 @@ impl Task {
         };
         let nonce = chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?;
         Ok(nonce)
-    }
-
-    fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
-        let step_count = self.steps.len();
-        // FIXME: How can we apply recipient inside a batch step?
-        for (index, step) in self.steps.iter_mut().enumerate() {
-            step.recipient = if index == (step_count - 1) {
-                Some(self.recipient.clone())
-            } else {
-                let chain = context
-                    .registry
-                    .get_chain(step.source_chain.clone())
-                    .ok_or("MissingChain")?;
-                let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                Some(match chain.chain_type {
-                    ChainType::Evm => account_info.account20.to_vec(),
-                    ChainType::Sub => account_info.account32.to_vec(),
-                    // ChainType::Unknown => panic!("chain not supported!"),
-                })
-            };
-        }
-
-        Ok(())
     }
 
     fn claim(&mut self, context: &Context) -> Result<Vec<u8>, &'static str> {
@@ -776,26 +752,24 @@ impl Task {
     }
 
     fn claim_evm_actived_tasks(
-        &self,
+        &mut self,
         chain: Chain,
         task_id: TaskId,
         worker_key: &[u8; 32],
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
-        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
+        let handler: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
-        let handler = Contract::from_json(
-            transport,
-            handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
-        )
-        .map_err(|_| "ConstructContractFailed")?;
+        let handler = Contract::from_json(transport, handler, include_bytes!("./abi/handler.json"))
+            .map_err(|_| "ConstructContractFailed")?;
         let worker = KeyPair::from(*worker_key);
 
+        // We call claimAndBatchCall so that first step will be executed along with the claim operation
+        let params = (task_id, self.steps[0].calls.clone().unwrap());
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
-            "claim",
-            task_id,
+            "claimAndBatchCall",
+            params.clone(),
             worker.address(),
             Options::default(),
         ))
@@ -804,7 +778,7 @@ impl Task {
         // Submit the claim transaction
         let tx_id = resolve_ready(handler.signed_call(
             "claim",
-            task_id,
+            params,
             Options::with(|opt| {
                 opt.gas = Some(gas);
                 opt.nonce = Some(nonce.into());
@@ -812,6 +786,10 @@ impl Task {
             worker,
         ))
         .map_err(|_| "ClaimSubmitFailed")?;
+
+        // Merge nonce to let check for first step work properly
+        self.steps[0].nonce = self.claim_nonce;
+
         pink_extension::info!(
             "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
             hex::encode(task_id),
