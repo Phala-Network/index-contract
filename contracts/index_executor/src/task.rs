@@ -464,9 +464,9 @@ impl Task {
 
         // We call claimAndBatchCall so that first step will be executed along with the claim operation
         let first_step = &mut self.merged_steps[0];
-        let calls = first_step.derive_calls(context)?;
+        first_step.set_spend(self.amount);
         first_step.sync_origin_balance(context)?;
-        let params = (task_id, calls);
+        let params = (task_id, first_step.derive_calls(context)?);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "claimAndBatchCall",
