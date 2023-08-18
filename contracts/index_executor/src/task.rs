@@ -338,27 +338,39 @@ impl Task {
         let mut merged_steps: Vec<MultiStep> = vec![];
         let mut batch_steps: Vec<Step> = vec![];
 
-        for step in self.steps.iter() {
+        for (index, step) in self.steps.iter().enumerate() {
             let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
 
             if step_source_chain.is_sub_chain() {
+                if !batch_steps.is_empty() {
+                    merged_steps.push(MultiStep::Batch(batch_steps.clone()));
+                }
                 merged_steps.push(MultiStep::Single(step.clone()));
+                // clear queue
+                batch_steps = vec![];
             } else {
                 if batch_steps.is_empty() {
-                    batch_steps.push(step.clone())
+                    batch_steps.push(step.clone());
                 } else {
+                    // EVM chain hasn't changed
                     if step_source_chain.name.to_lowercase()
                         == batch_steps[batch_steps.len() - 1]
                             .source_chain
                             .to_lowercase()
                     {
                         batch_steps.push(step.clone())
-                    } else {
-                        // Push  batch step
+                    }
+                    // EVM chain changed
+                    else {
+                        // Push batch step
                         merged_steps.push(MultiStep::Batch(batch_steps.clone()));
                         // Reshipment batch step
                         batch_steps = vec![step.clone()];
                     }
+                }
+                // Save it if this is the last step
+                if index == self.steps.len() - 1 {
+                    merged_steps.push(MultiStep::Batch(batch_steps.clone()));
                 }
             }
         }
@@ -995,7 +1007,6 @@ mod tests {
         };
 
         task.apply_recipient(&context).unwrap();
-        println!("task: {:?}", &task);
 
         // moonbeam_stellaswap
         assert_eq!(
@@ -1048,5 +1059,183 @@ mod tests {
         );
         // astar_arthswap
         assert_eq!(task.steps[5].recipient, Some(task.recipient));
+    }
+
+    #[test]
+    fn test_merge_step() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_key = [0x11; 32];
+        let steps = build_steps();
+        let mut task = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: vec![0x12, 0x34, 0x56],
+            retry_counter: 0,
+        };
+        let context = Context {
+            signer: worker_key,
+            worker_accounts: vec![AccountInfo::from(worker_key)],
+            registry: &Registry::new(),
+        };
+
+        task.apply_recipient(&context).unwrap();
+        task.merge_step(&context).unwrap();
+
+        assert_eq!(task.merged_steps.len(), 3);
+        assert!(task.merged_steps[0].is_batch_step());
+        match &task.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[1].is_single_step());
+        match &task.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[2].is_batch_step());
+        match &task.merged_steps[2] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "Astar");
+                assert_eq!(batch_steps[1].source_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task1 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone().as_slice()[3..].to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: vec![0x12, 0x34, 0x56],
+            retry_counter: 0,
+        };
+
+        task1.apply_recipient(&context).unwrap();
+        task1.merge_step(&context).unwrap();
+        assert_eq!(task1.merged_steps.len(), 2);
+        assert!(task1.merged_steps[0].is_single_step());
+        match &task1.merged_steps[0] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+        assert!(task1.merged_steps[1].is_batch_step());
+        match &task1.merged_steps[1] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "Astar");
+                assert_eq!(batch_steps[1].source_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task2 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone().as_slice()[..4].to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: vec![0x12, 0x34, 0x56],
+            retry_counter: 0,
+        };
+
+        task2.apply_recipient(&context).unwrap();
+        task2.merge_step(&context).unwrap();
+
+        assert_eq!(task2.merged_steps.len(), 2);
+        assert!(task2.merged_steps[0].is_batch_step());
+        match &task2.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task2.merged_steps[1].is_single_step());
+        match &task2.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task3 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: [
+                &steps.clone().as_slice()[..3],
+                &steps.clone().as_slice()[4..],
+            ]
+            .concat()
+            .to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: vec![0x12, 0x34, 0x56],
+            retry_counter: 0,
+        };
+
+        task3.apply_recipient(&context).unwrap();
+        task3.merge_step(&context).unwrap();
+
+        assert_eq!(task3.merged_steps.len(), 2);
+        assert!(task3.merged_steps[0].is_batch_step());
+        match &task3.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task3.merged_steps[1].is_batch_step());
+        match &task3.merged_steps[1] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "Astar");
+                assert_eq!(batch_steps[1].source_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
     }
 }

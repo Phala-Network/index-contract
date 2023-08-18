@@ -187,6 +187,20 @@ impl MultiStep {
         }
     }
 
+    pub fn is_single_step(&self) -> bool {
+        match self {
+            MultiStep::Single(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_batch_step(&self) -> bool {
+        match self {
+            MultiStep::Batch(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn set_spend(&mut self, amount: u128) {
         match self {
             MultiStep::Single(step) => {
