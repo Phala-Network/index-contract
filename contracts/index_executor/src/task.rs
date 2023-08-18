@@ -1,8 +1,8 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::chain::{BalanceFetcher, Chain, ChainType, NonceFetcher};
-use crate::step::{Step, StepJson};
+use crate::chain::{Chain, ChainType, NonceFetcher};
+use crate::step::{MultiStep, Step, StepJson};
 use crate::storage::StorageClient;
 use crate::tx;
 use alloc::{string::String, vec, vec::Vec};
@@ -325,6 +325,8 @@ pub struct Task {
     pub claim_nonce: Option<u64>,
     /// All steps to included in the task
     pub steps: Vec<Step>,
+    /// Steps  after merged, those actually will be executed
+    pub merged_steps: Vec<MultiStep>,
     /// Current step index that is executing
     pub execute_index: u8,
     /// Sender address on source chain
@@ -345,6 +347,7 @@ impl Default for Task {
             amount: 0,
             claim_nonce: None,
             steps: vec![],
+            merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
@@ -387,6 +390,10 @@ impl Task {
             return Err("WorkerIsBusy");
         }
 
+        // Apply nonce
+        self.apply_recipient(context)?;
+
+        // Merge steps
         self.merge_step(context)?;
 
         // Apply worker nonce for each step in task
@@ -421,14 +428,17 @@ impl Task {
         context: &Context,
         client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
-        // To avoid unnecessary remote check, we check index in advance
-        if self.execute_index as usize == self.steps.len() {
+        let step_count = self.merged_steps.len();
+        // To avoid unnecessary remote check, we check execute_index in advance
+        if self.execute_index as usize == step_count {
             return Ok(TaskStatus::Completed);
         }
 
-        match self.steps[self.execute_index as usize].check(
+        match self.merged_steps[self.execute_index as usize].check(
             // An executing task must have nonce applied
-            self.steps[self.execute_index as usize].nonce.unwrap(),
+            self.merged_steps[self.execute_index as usize]
+                .get_nonce()
+                .unwrap(),
             context,
         ) {
             // If step already executed successfully, execute next step
@@ -436,21 +446,22 @@ impl Task {
                 self.execute_index += 1;
                 self.retry_counter = 0;
                 // If all step executed successfully, set task as `Completed`
-                if self.execute_index as usize == self.steps.len() {
+                if self.execute_index as usize == step_count {
                     self.status = TaskStatus::Completed;
                     return Ok(self.status.clone());
                 }
 
-                // Settle before execute next step
-                let settle_balance = self.settle(context)?;
+                // Settle last step before execute next step
+                let settle_balance =
+                    self.merged_steps[(self.execute_index - 1) as usize].settle(context)?;
                 pink_extension::debug!(
-                    "Settle balance of last step[{:?}], settle amount: {:?}",
+                    "Finished previous step execution, settle balance of last step[{:?}], settle amount: {:?}",
                     (self.execute_index - 1),
                     settle_balance,
                 );
-                // Update balance that actually can be consumed
-                self.update_balance(settle_balance, context)?;
-                pink_extension::debug!("Finished previous step execution");
+
+                pink_extension::debug!("Update sepnd amount of next executing step");
+                self.merged_steps[self.execute_index as usize].set_spend(settle_balance);
 
                 // FIXME: handle returned error
                 let _ = self.execute_step(context, client)?;
@@ -485,9 +496,11 @@ impl Task {
         client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
         // An executing task must have nonce applied
-        let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+        let nonce = self.merged_steps[self.execute_index as usize]
+            .get_nonce()
+            .unwrap();
 
-        if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+        if self.merged_steps[self.execute_index as usize].runnable(nonce, context, Some(client))
             == Ok(true)
         {
             pink_extension::debug!(
@@ -495,7 +508,7 @@ impl Task {
                 self.execute_index,
                 nonce
             );
-            self.steps[self.execute_index as usize].run(nonce, context)?;
+            self.merged_steps[self.execute_index as usize].run(nonce, context)?;
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
         } else {
             pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
@@ -536,22 +549,11 @@ impl Task {
         Ok(())
     }
 
-    pub fn merge_step(&mut self, context: &Context) -> Result<(), &'static str> {
+    pub fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
         let step_count = self.steps.len();
-        let mut merged_steps: Vec<Step> = vec![];
-
-        // Assign spend_amount & recipient for each step
         for (index, step) in self.steps.iter_mut().enumerate() {
             let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
             let step_dest_chain = &step.dest_chain(context).ok_or("MissingChain")?;
-
-            // We know amount to spend at this point
-            step.spend_amount = if index == 0 {
-                Some(self.amount)
-            } else {
-                // Temporary, will be replaced after settlement
-                Some(0)
-            };
 
             // For sure last step we should put real recipient, or else the recipient could be either
             // worker account or handler account
@@ -577,48 +579,41 @@ impl Task {
                     }
                 }
             };
+        }
+        Ok(())
+    }
 
-            // Call action to produce calls for the step
-            step.derive_calls(context)?;
+    pub fn merge_step(&mut self, context: &Context) -> Result<(), &'static str> {
+        let mut merged_steps: Vec<MultiStep> = vec![];
+        let mut batch_steps: Vec<Step> = vec![];
 
-            // Merge call and assign to new batched step
-            if index == 0 {
-                // Initialize call_index if first step happen on EVM chain
-                if step_source_chain.is_evm_chain() {
-                    let mut calls = step.calls.clone().unwrap();
-                    for (call_index, call) in calls.iter_mut().enumerate() {
-                        call.call_index = Some(call_index.try_into().expect("Too many calls"));
-                    }
-                    step.calls = Some(calls);
-                }
-                merged_steps.push(step.clone());
+        for step in self.steps.iter() {
+            let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
+
+            if step_source_chain.is_sub_chain() {
+                merged_steps.push(MultiStep::Single(step.clone()));
             } else {
-                let merged_steps_count = merged_steps.len();
-                if step_source_chain.name.to_lowercase()
-                    == merged_steps[merged_steps_count - 1]
-                        .source_chain
-                        .to_lowercase()
-                    && step_source_chain.is_evm_chain()
-                {
-                    let mut calls = merged_steps[merged_steps_count - 1].calls.clone().unwrap();
-                    let mut new_calls = step.calls.clone().unwrap();
-                    let origin_call_count = calls.len();
-                    let mut next_call_index = origin_call_count.try_into().expect("Too many calls");
-                    for call in new_calls.iter_mut() {
-                        call.call_index = Some(next_call_index);
-                        call.input_call = calls[origin_call_count - 1].call_index;
-                        next_call_index += 1;
-                    }
-                    calls.append(&mut new_calls);
-                    merged_steps[merged_steps_count - 1].calls = Some(calls);
+                if batch_steps.is_empty() {
+                    batch_steps.push(step.clone())
                 } else {
-                    merged_steps.push(step.clone());
+                    if step_source_chain.name.to_lowercase()
+                        == batch_steps[batch_steps.len() - 1]
+                            .source_chain
+                            .to_lowercase()
+                    {
+                        batch_steps.push(step.clone())
+                    } else {
+                        // Push  batch step
+                        merged_steps.push(MultiStep::Batch(batch_steps.clone()));
+                        // Clear batch step
+                        batch_steps = vec![step.clone()];
+                    }
                 }
             }
         }
 
         // Replace existing task steps
-        self.steps = merged_steps;
+        self.merged_steps = merged_steps;
 
         Ok(())
     }
@@ -646,14 +641,27 @@ impl Task {
         self.claim_nonce = Some(claim_nonce);
 
         // Apply nonce for each step
-        for index in start_index as usize..self.steps.len() {
-            let nonce = match nonce_map.get(&self.steps[index].source_chain) {
-                Some(nonce) => nonce,
-                None => self.get_nonce(context, self.steps[index].source_chain.clone())?,
-            };
-            self.steps[index].nonce = Some(nonce);
+        for index in start_index as usize..self.merged_steps.len() {
+            let nonce: u64 =
+                match nonce_map.get(&self.merged_steps[index].as_single_step().source_chain) {
+                    Some(nonce) => nonce,
+                    None => self.get_nonce(
+                        context,
+                        self.merged_steps[index]
+                            .as_single_step()
+                            .source_chain
+                            .clone(),
+                    )?,
+                };
+            self.merged_steps[index].set_nonce(nonce);
             // Increase nonce by 1
-            nonce_map.insert(self.steps[index].source_chain.clone(), &(nonce + 1));
+            nonce_map.insert(
+                self.merged_steps[index]
+                    .as_single_step()
+                    .source_chain
+                    .clone(),
+                &(nonce + 1),
+            );
         }
 
         Ok(())
@@ -681,10 +689,10 @@ impl Task {
 
         match chain.chain_type {
             ChainType::Evm => {
-                Ok(self.claim_evm_actived_tasks(chain, self.id, &context.signer, claim_nonce)?)
+                Ok(self.claim_evm_actived_tasks(chain, self.id, context, claim_nonce)?)
             }
             ChainType::Sub => {
-                Ok(self.claim_sub_actived_tasks(chain, self.id, &context.signer, claim_nonce)?)
+                Ok(self.claim_sub_actived_tasks(chain, self.id, context, claim_nonce)?)
             }
         }
     }
@@ -715,57 +723,24 @@ impl Task {
         }
     }
 
-    fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-
-        let last_step = self.steps[(self.execute_index - 1) as usize].clone();
-        let worker_account = AccountInfo::from(context.signer);
-
-        let old_balance = last_step.origin_balance.ok_or("MissingOriginBalance")?;
-        let latest_balance =
-            worker_account.get_balance(last_step.dest_chain, last_step.receive_asset, context)?;
-        Ok(latest_balance.saturating_sub(old_balance))
-    }
-
-    fn update_balance(
-        &mut self,
-        settle_balance: u128,
-        context: &Context,
-    ) -> Result<(), &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-
-        let current_step = &mut self.steps[self.execute_index as usize];
-        let dest_chain = &context
-            .registry
-            .get_chain(current_step.dest_chain.clone())
-            .ok_or("MissingChain")?;
-        let recipient = current_step.recipient.clone().ok_or("MissingRecipient")?;
-
-        current_step.spend_amount = Some(settle_balance);
-        current_step.origin_balance =
-            Some(dest_chain.get_balance(current_step.receive_asset.clone(), recipient)?);
-        Ok(())
-    }
-
     fn claim_evm_actived_tasks(
         &mut self,
         chain: Chain,
         task_id: TaskId,
-        worker_key: &[u8; 32],
+        context: &Context,
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
         let handler: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
         let handler = Contract::from_json(transport, handler, include_bytes!("./abi/handler.json"))
             .map_err(|_| "ConstructContractFailed")?;
-        let worker = KeyPair::from(*worker_key);
+        let worker = KeyPair::from(context.signer);
 
         // We call claimAndBatchCall so that first step will be executed along with the claim operation
-        let params = (task_id, self.steps[0].calls.clone().unwrap());
+        let first_step = &mut self.merged_steps[0];
+        let calls = first_step.derive_calls(context)?;
+        first_step.sync_origin_balance(context)?;
+        let params = (task_id, calls);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "claimAndBatchCall",
@@ -788,7 +763,7 @@ impl Task {
         .map_err(|_| "ClaimSubmitFailed")?;
 
         // Merge nonce to let check for first step work properly
-        self.steps[0].nonce = self.claim_nonce;
+        first_step.set_nonce(self.claim_nonce.unwrap());
 
         pink_extension::info!(
             "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
@@ -803,11 +778,11 @@ impl Task {
         &self,
         chain: Chain,
         task_id: TaskId,
-        worker_key: &[u8; 32],
+        context: &Context,
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
         let signed_tx = create_transaction(
-            worker_key,
+            &context.signer,
             "phala",
             &chain.endpoint,
             // Pallet id of `pallet-index`

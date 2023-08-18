@@ -258,6 +258,7 @@ mod tests {
             amount: 0,
             claim_nonce: None,
             steps: vec![],
+            merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
