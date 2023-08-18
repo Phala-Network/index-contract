@@ -13,6 +13,8 @@ mod registry;
 mod step;
 mod storage;
 mod task;
+mod task_deposit;
+mod task_fetcher;
 mod traits;
 mod tx;
 mod utils;
@@ -26,7 +28,8 @@ mod index_executor {
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
     use crate::storage::StorageClient;
-    use crate::task::{ActivedTaskFetcher, Task, TaskId, TaskStatus};
+    use crate::task::{Task, TaskId, TaskStatus};
+    use crate::task_fetcher::ActivedTaskFetcher;
     use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;

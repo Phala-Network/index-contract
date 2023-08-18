@@ -2,294 +2,23 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use crate::chain::{Chain, ChainType, NonceFetcher};
-use crate::step::{MultiStep, Step, StepJson};
+use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
 use crate::tx;
 use alloc::{string::String, vec, vec::Vec};
 use ink::storage::Mapping;
-use pink_extension::ResultExt;
 use scale::{Decode, Encode};
-use xcm::v2::AssetId as XcmAssetId;
 
-use pink_subrpc::{
-    create_transaction, get_storage,
-    hasher::Twox64Concat,
-    send_transaction,
-    storage::{storage_map_prefix, storage_prefix},
-    ExtraParam,
-};
+use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
 use pink_web3::{
     api::{Eth, Namespace},
-    contract::{tokens::Detokenize, Contract, Error as PinkError, Options},
-    ethabi::Token,
+    contract::{Contract, Options},
     keys::pink::KeyPair,
     signing::Key,
     transports::{resolve_ready, PinkHttp},
-    types::{Address, H160, U256},
+    types::H160,
 };
-
-/// Fetch actived tasks from blockchains and construct a `Task` from it.
-/// If the given chain is EVM based, fetch tasks from solidity-based smart contract storage through RPC task.
-/// For example, call RPC methods defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L147
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L165
-/// If the given chain is Substrate based, fetch tasks from pallet storage through RPC task.
-pub struct ActivedTaskFetcher {
-    pub chain: Chain,
-    pub worker: AccountInfo,
-}
-impl ActivedTaskFetcher {
-    pub fn new(chain: Chain, worker: AccountInfo) -> Self {
-        ActivedTaskFetcher { chain, worker }
-    }
-
-    pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
-        match self.chain.chain_type {
-            ChainType::Evm => Ok(self.query_evm_actived_task(&self.chain, &self.worker)?),
-            ChainType::Sub => Ok(self.query_sub_actived_task(&self.chain, &self.worker)?),
-        }
-    }
-
-    fn query_evm_actived_task(
-        &self,
-        chain: &Chain,
-        worker: &AccountInfo,
-    ) -> Result<Option<Task>, &'static str> {
-        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
-        let transport = Eth::new(PinkHttp::new(&chain.endpoint));
-        let handler = Contract::from_json(
-            transport,
-            handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
-        )
-        .map_err(|_| "ConstructContractFailed")?;
-
-        let worker_address: Address = worker.account20.into();
-        pink_extension::debug!(
-            "Lookup actived task for worker {:?} on {:?}",
-            &hex::encode(worker_address),
-            &chain.name
-        );
-
-        let task_id: [u8; 32] = resolve_ready(handler.query(
-            "getLastActivedTask",
-            worker_address,
-            None,
-            Options::default(),
-            None,
-        ))
-        .map_err(|_| "FailedGetLastActivedTask")?;
-        if task_id == [0; 32] {
-            return Ok(None);
-        }
-        pink_extension::debug!(
-            "getLastActivedTask, return task_id: {:?}",
-            hex::encode(task_id)
-        );
-        let evm_deposit_data: EvmDepositData =
-            resolve_ready(handler.query("getTaskData", task_id, None, Options::default(), None))
-                .map_err(|_| "FailedGetTaskData")?;
-        pink_extension::debug!(
-            "Fetch deposit data successfully for task {:?} on {:?}, deposit data: {:?}",
-            &hex::encode(task_id),
-            &chain.name,
-            &evm_deposit_data,
-        );
-        let deposit_data: DepositData = evm_deposit_data.into();
-        let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
-        Ok(Some(task))
-    }
-
-    fn query_sub_actived_task(
-        &self,
-        chain: &Chain,
-        worker: &AccountInfo,
-    ) -> Result<Option<Task>, &'static str> {
-        if let Some(raw_storage) = get_storage(
-            &chain.endpoint,
-            &storage_map_prefix::<Twox64Concat>(
-                &storage_prefix("PalletIndex", "ActivedTasks")[..],
-                &worker.account32,
-            ),
-            None,
-        )
-        .log_err("Read storage [actived task] failed")
-        .map_err(|_| "FailedGetTaskData")?
-        {
-            let actived_tasks: Vec<[u8; 32]> = scale::Decode::decode(&mut raw_storage.as_slice())
-                .log_err("Decode storage [actived task] failed")
-                .map_err(|_| "DecodeStorageFailed")?;
-            if !actived_tasks.is_empty() {
-                let oldest_task = actived_tasks[0];
-                if let Some(raw_storage) = get_storage(
-                    &chain.endpoint,
-                    &storage_map_prefix::<Twox64Concat>(
-                        &storage_prefix("PalletIndex", "DepositRecords")[..],
-                        &oldest_task,
-                    ),
-                    None,
-                )
-                .log_err("Read storage [actived task] failed")
-                .map_err(|_| "FailedGetDepositData")?
-                {
-                    let sub_deposit_data: SubDepositData =
-                        scale::Decode::decode(&mut raw_storage.as_slice())
-                            .log_err("Decode storage [deposit data] failed")
-                            .map_err(|_| "DecodeStorageFailed")?;
-                    pink_extension::debug!(
-                        "Fetch deposit data successfully for task {:?} on {:?}, deposit data: {:?}",
-                        &hex::encode(oldest_task),
-                        &chain.name,
-                        &sub_deposit_data,
-                    );
-                    let deposit_data: DepositData = sub_deposit_data.into();
-                    let task =
-                        deposit_data.to_task(&chain.name, oldest_task, self.worker.account32)?;
-                    Ok(Some(task))
-                } else {
-                    Err("DepositInfoNotFound")
-                }
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-#[derive(Debug)]
-struct EvmDepositData {
-    // TODO: use Bytes
-    sender: Address,
-    amount: U256,
-    recipient: Vec<u8>,
-    task: String,
-}
-
-impl Detokenize for EvmDepositData {
-    fn from_tokens(tokens: Vec<Token>) -> Result<Self, PinkError>
-    where
-        Self: Sized,
-    {
-        if tokens.len() == 1 {
-            let deposit_raw = tokens[0].clone();
-            match deposit_raw {
-                Token::Tuple(deposit_data) => {
-                    match (
-                        deposit_data[0].clone(),
-                        deposit_data[2].clone(),
-                        deposit_data[3].clone(),
-                        deposit_data[4].clone(),
-                    ) {
-                        (
-                            Token::Address(sender),
-                            Token::Uint(amount),
-                            Token::Bytes(recipient),
-                            Token::String(task),
-                        ) => Ok(EvmDepositData {
-                            sender,
-                            amount,
-                            recipient,
-                            task,
-                        }),
-                        _ => Err(PinkError::InvalidOutputType(String::from(
-                            "Return type dismatch",
-                        ))),
-                    }
-                }
-                _ => Err(PinkError::InvalidOutputType(String::from(
-                    "Unexpected output type",
-                ))),
-            }
-        } else {
-            Err(PinkError::InvalidOutputType(String::from("Invalid length")))
-        }
-    }
-}
-
-// Copy from pallet-index
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
-pub struct SubDepositData {
-    pub sender: [u8; 32],
-    pub asset: XcmAssetId,
-    pub amount: u128,
-    pub recipient: Vec<u8>,
-    pub task: Vec<u8>,
-}
-
-// Define the structures to parse deposit data json
-#[allow(dead_code)]
-#[derive(Debug)]
-struct DepositData {
-    // TODO: use Bytes
-    sender: Vec<u8>,
-    amount: u128,
-    recipient: Vec<u8>,
-    task: String,
-}
-
-impl From<EvmDepositData> for DepositData {
-    fn from(value: EvmDepositData) -> Self {
-        Self {
-            sender: value.sender.as_bytes().into(),
-            amount: value.amount.try_into().expect("Amount overflow"),
-            recipient: value.recipient,
-            task: value.task,
-        }
-    }
-}
-
-impl From<SubDepositData> for DepositData {
-    fn from(value: SubDepositData) -> Self {
-        Self {
-            sender: value.sender.into(),
-            amount: value.amount,
-            recipient: value.recipient,
-            task: String::from_utf8_lossy(&value.task).into_owned(),
-        }
-    }
-}
-
-impl DepositData {
-    fn to_task(
-        &self,
-        source_chain: &str,
-        id: [u8; 32],
-        worker: [u8; 32],
-    ) -> Result<Task, &'static str> {
-        pink_extension::debug!("Trying to parse task data from json string");
-        let execution_plan_json: ExecutionPlan =
-            pink_json::from_str(&self.task).map_err(|_| "InvalidTask")?;
-        pink_extension::debug!(
-            "Parse task data successfully, found {:?} operations",
-            execution_plan_json.len()
-        );
-        if execution_plan_json.is_empty() {
-            return Err("EmptyTask");
-        }
-        pink_extension::debug!("Trying to convert task data to task");
-
-        let mut uninitialized_task = Task {
-            id,
-            source: source_chain.into(),
-            sender: self.sender.clone(),
-            recipient: self.recipient.clone(),
-            amount: self.amount,
-            worker,
-            ..Default::default()
-        };
-
-        for step_json in execution_plan_json.iter() {
-            uninitialized_task.steps.push(step_json.clone().try_into()?);
-        }
-
-        Ok(uninitialized_task)
-    }
-}
-
-type ExecutionPlan = Vec<StepJson>;
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -815,6 +544,7 @@ mod tests {
     use crate::account::AccountInfo;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
+    use crate::task_fetcher::ActivedTaskFetcher;
     use crate::utils::ToArray;
     use dotenv::dotenv;
     use hex_literal::hex;
