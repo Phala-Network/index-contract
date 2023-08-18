@@ -31,7 +31,7 @@ pub struct StepJson {
     pub receive_asset: String,
 }
 
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Step {
     pub exe_type: String,
@@ -46,6 +46,27 @@ pub struct Step {
     // Used to check balance change
     pub origin_balance: Option<u128>,
     pub nonce: Option<u64>,
+}
+
+impl sp_std::fmt::Debug for Step {
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+        f.debug_struct("Step")
+            .field("exe_type", &self.exe_type)
+            .field("exe", &self.exe)
+            .field("source_chain", &self.source_chain)
+            .field("dest_chain", &self.dest_chain)
+            .field("spend_asset", &hex::encode(&self.spend_asset))
+            .field("receive_asset", &hex::encode(&self.receive_asset))
+            .field("sender", &self.sender.as_ref().map(|v| hex::encode(v)))
+            .field(
+                "recipient",
+                &self.recipient.as_ref().map(|v| hex::encode(v)),
+            )
+            .field("spend_amount", &self.spend_amount)
+            .field("origin_balance", &self.origin_balance)
+            .field("nonce", &self.nonce)
+            .finish()
+    }
 }
 
 impl TryFrom<StepJson> for Step {
