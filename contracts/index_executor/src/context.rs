@@ -16,13 +16,12 @@ impl<'a> Context<'a> {
             .map(|idx| self.worker_accounts[idx].clone())
     }
 
-    pub fn get_actions(&self, chain: String) -> Option<Box<dyn CallBuilder>> {
+    pub fn get_actions(&self, chain: &String, exe: &String) -> Option<Box<dyn CallBuilder>> {
         pink_extension::debug!("Lookup actions on {:?}", &chain);
-        let actions: Vec<(String, Box<dyn CallBuilder>)> =
-            self.registry.create_actions(chain.clone());
+        let actions: Vec<(String, Box<dyn CallBuilder>)> = self.registry.create_actions(&chain);
         actions
             .iter()
-            .position(|e| e.0 == chain)
+            .position(|e| e.0.to_lowercase() == exe.to_lowercase())
             .map(|idx| dyn_clone::clone_box(&*actions[idx].1))
     }
 }

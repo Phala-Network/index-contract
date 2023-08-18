@@ -71,16 +71,15 @@ impl TryFrom<StepJson> for Step {
 impl Step {
     pub fn get_action(&mut self, context: &Context) -> Result<Box<dyn CallBuilder>, &'static str> {
         let action = context
-            .get_actions(self.source_chain.clone())
+            .get_actions(&self.source_chain, &self.exe)
             .ok_or("NoActionFound")?;
         Ok(action)
     }
 
     pub fn derive_calls(&self, context: &Context) -> Result<Vec<Call>, &'static str> {
         let action = context
-            .get_actions(self.source_chain.clone())
+            .get_actions(&self.source_chain, &self.exe)
             .ok_or("NoActionFound")?;
-
         action.build_call(self.clone())
     }
 
@@ -89,11 +88,11 @@ impl Step {
     }
 
     pub fn source_chain(&self, context: &Context) -> Option<Chain> {
-        context.registry.get_chain(self.source_chain.clone())
+        context.registry.get_chain(&self.source_chain)
     }
 
     pub fn dest_chain(&self, context: &Context) -> Option<Chain> {
-        context.registry.get_chain(self.dest_chain.clone())
+        context.registry.get_chain(&self.dest_chain)
     }
 }
 
@@ -181,10 +180,7 @@ impl MultiStep {
 
     pub fn settle(&self, context: &Context) -> Result<u128, &'static str> {
         let step = self.as_single_step();
-        let dest_chain = &context
-            .registry
-            .get_chain(step.dest_chain.clone())
-            .ok_or("MissingChain")?;
+        let dest_chain = step.dest_chain(context).ok_or("MissingDestChain")?;
         let origin_balance = step.origin_balance.ok_or("MissingBalance")?;
         let recipient = step.recipient.clone().ok_or("MissingRecipient")?;
         let latest_balance = dest_chain.get_balance(step.receive_asset.clone(), recipient)?;
@@ -210,8 +206,8 @@ impl MultiStep {
 
         let chain = &context
             .registry
-            .get_chain(dest_chain)
-            .ok_or("MissingChain")?;
+            .get_chain(&dest_chain)
+            .ok_or("MissingDestChain")?;
         let origin_balance =
             chain.get_balance(receive_asset, recipient.ok_or("MissingRecipient")?)?;
 
@@ -262,19 +258,17 @@ impl Runner for MultiStep {
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
         let onchain_nonce =
-            worker_account.get_nonce(self.as_single_step().source_chain.clone(), context)?;
+            worker_account.get_nonce(&self.as_single_step().source_chain, context)?;
         Ok(onchain_nonce <= nonce)
     }
 
     fn run(&mut self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let as_single_step = self.as_single_step();
+        let chain = as_single_step
+            .source_chain(context)
+            .ok_or("MissingSourceChain")?;
         let signer = context.signer;
         let worker_account = AccountInfo::from(context.signer);
-        let chain = context
-            .registry
-            .get_chain(as_single_step.source_chain.clone())
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
         let calls = self.derive_calls(context)?;
 
         self.sync_origin_balance(context)?;
@@ -352,14 +346,13 @@ impl Runner for MultiStep {
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         let as_single_step = self.as_single_step();
+        let chain = as_single_step
+            .source_chain(context)
+            .ok_or("MissingSourceChain")?;
         let worker_account = AccountInfo::from(context.signer);
         let recipient = as_single_step.recipient.clone().ok_or("MissingRecipient")?;
 
         // Query off-chain indexer directly get the execution result
-        let chain = &context
-            .registry
-            .get_chain(as_single_step.source_chain.clone())
-            .ok_or("MissingChain")?;
         let account = match chain.chain_type {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),

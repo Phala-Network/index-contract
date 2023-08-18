@@ -231,7 +231,10 @@ mod index_executor {
             // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
             self.ensure_paused()?;
 
-            let chain = self.registry.get_chain(chain).ok_or(Error::ChainNotFound)?;
+            let chain = self
+                .registry
+                .get_chain(&chain)
+                .ok_or(Error::ChainNotFound)?;
             if chain.chain_type != ChainType::Evm {
                 return Err(Error::UnexpectedChainType);
             }
@@ -256,7 +259,7 @@ mod index_executor {
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
-                    self.fetch_task(&client, source_chain, worker)?
+                    self.fetch_task(&client, &source_chain, worker)?
                 }
                 RunningType::Execute => self.execute_task(&client)?,
             };
@@ -356,14 +359,14 @@ mod index_executor {
         pub fn fetch_task(
             &self,
             client: &StorageClient,
-            source_chain: String,
+            source_chain: &String,
             // Worker sr25519 public key
             worker: [u8; 32],
         ) -> Result<()> {
             // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
                 self.registry
-                    .get_chain(source_chain.clone())
+                    .get_chain(source_chain)
                     .ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?),
             )

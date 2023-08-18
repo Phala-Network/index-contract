@@ -636,7 +636,7 @@ impl Task {
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
 
         // Apply nonce for claim operation
-        let claim_nonce = self.get_nonce(context, self.source.clone())?;
+        let claim_nonce = self.get_nonce(context, &self.source)?;
         nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
         self.claim_nonce = Some(claim_nonce);
 
@@ -647,10 +647,7 @@ impl Task {
                     Some(nonce) => nonce,
                     None => self.get_nonce(
                         context,
-                        self.merged_steps[index]
-                            .as_single_step()
-                            .source_chain
-                            .clone(),
+                        &self.merged_steps[index].as_single_step().source_chain,
                     )?,
                 };
             self.merged_steps[index].set_nonce(nonce);
@@ -667,7 +664,7 @@ impl Task {
         Ok(())
     }
 
-    fn get_nonce(&self, context: &Context, chain: String) -> Result<u64, &'static str> {
+    fn get_nonce(&self, context: &Context, chain: &String) -> Result<u64, &'static str> {
         let chain: Chain = context.registry.get_chain(chain).ok_or("MissingChain")?;
         let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
         let account = match chain.chain_type {
@@ -682,7 +679,7 @@ impl Task {
     fn claim(&mut self, context: &Context) -> Result<Vec<u8>, &'static str> {
         let chain = context
             .registry
-            .get_chain(self.source.clone())
+            .get_chain(&self.source)
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
         let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
@@ -701,7 +698,7 @@ impl Task {
         let worker_account = AccountInfo::from(context.signer);
         let chain = context
             .registry
-            .get_chain(self.source.clone())
+            .get_chain(&self.source)
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
         let account = match chain.chain_type {
@@ -711,7 +708,7 @@ impl Task {
         let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
 
         // Check if already claimed success
-        let onchain_nonce = worker_account.get_nonce(self.source.clone(), context)?;
+        let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
         if onchain_nonce > claim_nonce {
             if tx::check_tx(&chain.tx_indexer, &account, claim_nonce)? {
                 return Ok(true);

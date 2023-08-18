@@ -101,16 +101,16 @@ impl Registry {
         }
     }
 
-    pub fn get_chain(&self, name: String) -> Option<Chain> {
+    pub fn get_chain(&self, name: &String) -> Option<Chain> {
         let chains = &self.chains;
         chains
             .iter()
-            .position(|c| c.name == name)
+            .position(|c| &c.name == name)
             .map(|idx| chains[idx].clone())
     }
 
-    pub fn create_actions(&self, chain: String) -> Vec<(String, Box<dyn CallBuilder>)> {
-        let chain = self.get_chain(String::from(chain)).expect("ChainNotFound");
+    pub fn create_actions(&self, chain: &String) -> Vec<(String, Box<dyn CallBuilder>)> {
+        let chain = self.get_chain(chain).expect("ChainNotFound");
 
         match chain.name.as_str() {
             "Acala" => crate::actions::acala::create_actions(&chain),
