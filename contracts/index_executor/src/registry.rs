@@ -49,25 +49,36 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("1e4ED6d37685D2FB254e47C5b58Cf95173326E4c")
+                    handler_contract: hex::decode("13B73D8D1Dce35Ba374940c929e319aFCd127A1d")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
                 Chain {
                     id: 2,
-                    name: "Astar".to_string(),
+                    name: "AstarEvm".to_string(),
                     endpoint: "https://astar.public.blastapi.io".to_string(),
                     chain_type: ChainType::Evm,
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
                     // FIXME: Handle contract on AStar
-                    handler_contract: hex::decode("0000000000000000000000000000000000000000")
+                    handler_contract: hex::decode("056C0E37d026f9639313C281250cA932C9dbe921")
                         .expect("InvalidLocation"),
-                    tx_indexer: "null".to_string(),
+                    tx_indexer: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
                 },
                 Chain {
                     id: 3,
+                    name: "Astar".to_string(),
+                    endpoint: "https://astar.public.blastapi.io".to_string(),
+                    chain_type: ChainType::Sub,
+                    native_asset: hex::decode("010100591f").expect("InvalidLocation"),
+                    foreign_asset: Some(ForeignAssetModule::PalletAsset),
+                    // FIXME: Handle contract on AStar Sub
+                    handler_contract: hex::decode("00").expect("InvalidLocation"),
+                    tx_indexer: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
+                },
+                Chain {
+                    id: 4,
                     name: "Khala".to_string(),
                     endpoint: "wss://khala-api.phala.network/ws".to_string(),
                     chain_type: ChainType::Sub,
@@ -77,7 +88,7 @@ impl Registry {
                     tx_indexer: "https://squid.subsquid.io/graph-khala/graphql".to_string(),
                 },
                 Chain {
-                    id: 4,
+                    id: 5,
                     name: "Phala".to_string(),
                     endpoint: "https://api.phala.network/rpc".to_string(),
                     chain_type: ChainType::Sub,
@@ -87,7 +98,7 @@ impl Registry {
                     tx_indexer: "https://squid.subsquid.io/graph-phala/graphql".to_string(),
                 },
                 Chain {
-                    id: 5,
+                    id: 6,
                     name: "Acala".to_string(),
                     endpoint: "https://acala-rpc.dwellir.com".to_string(),
                     chain_type: ChainType::Sub,
@@ -114,7 +125,8 @@ impl Registry {
 
         match chain.name.as_str() {
             "Acala" => crate::actions::acala::create_actions(&chain),
-            "Astar" => crate::actions::astar::create_actions(&chain),
+            "AstarEvm" => crate::actions::astar::evm_create_actions(&chain),
+            "AstarSub" => crate::actions::astar::sub_create_actions(&chain),
             "Ethereum" => crate::actions::ethereum::create_actions(&chain),
             "Moonbeam" => crate::actions::moonbeam::create_actions(&chain),
             "Phala" | "Khala" => crate::actions::phala::create_actions(&chain),

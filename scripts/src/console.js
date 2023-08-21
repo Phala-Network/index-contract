@@ -33,21 +33,21 @@ function useConfig() {
 }
 
 function useChainEndpoint(config, chainName) {
-    const chain = config.chains.find(chain => Object.keys(chain)[0] === chainName);
+    const chain = config.chains.find(chain => Object.keys(chain)[0].toLowerCase() === chainName);
     const endpoint = chain && Object.values(chain)[0];
     return endpoint;
 }
 
 function useChainHandler(config, chainName) {
-    const chain = config.handlers.find(chain => Object.keys(chain)[0] === chainName);
+    const chain = config.handlers.find(chain => Object.keys(chain)[0].toLowerCase() === chainName);
     const handler = chain && Object.values(chain)[0];
     return handler;
 }
 
 function useChainType(chain) {
-    if (['ethereum', 'goerli', 'moonbeam', 'astar'].includes(chain)) {
+    if (['ethereum', 'goerli', 'moonbeam', 'astarevm'].includes(chain)) {
         return 'Evm';
-    } else if (['poc3', 'poc5', 'khala', 'phala', 'acala'].includes(chain)) {
+    } else if (['astar', 'poc3', 'poc5', 'khala', 'phala', 'acala'].includes(chain)) {
         return 'Sub';
     } else {
         throw new Error(`Unrecognized chain type: ${chain}`);
@@ -267,7 +267,7 @@ handler
     .action(run(async (opt) => {
         let config = useConfig();
         if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
-            let handler = useEvmHandler(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(), opt.key)
+            let handler = useEvmHandler(config, opt.chain.toLowerCase(), opt.key)
             let tx = await handler.setWorker(
                 opt.worker,
                 {
@@ -295,7 +295,7 @@ handler
     .action(run(async (opt) => {
         let config = useConfig();
         if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
-            let handler = useEvmHandler(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(), opt.key)
+            let handler = useEvmHandler(config, opt.chain.toLowerCase(), opt.key)
             let tx = await handler.deposit(
                 opt.asset,
                 opt.amount,
@@ -304,7 +304,7 @@ handler
                 opt.id,
                 opt.data,
                 {
-                  gasLimit: 2000000,
+                //   gasLimit: 2000000,
                 }
             );
             console.log(`Deposited task on ${opt.chain}: ${tx.hash}`);
@@ -376,7 +376,7 @@ worker
         let queryRecipient = await executor.query.workerApprove(cert,
             {},
             opt.worker,
-            opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(),
+            opt.chain.toLowerCase(),
             opt.token,
             opt.spender,
             opt.amount,
@@ -393,7 +393,7 @@ worker
     .action(run (async (opt) => {
         if (opt.chain) {
             let config = useConfig();
-            let endpoint = useChainEndpoint(config, opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase());
+            let endpoint = useChainEndpoint(config, opt.chain.toLowerCase());
             if (useChainType(opt.chain.toLowerCase()) === 'Evm') {
                 let provider = useEtherProvider(endpoint);
                 if (opt.asset === null) {
