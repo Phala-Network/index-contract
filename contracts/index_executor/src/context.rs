@@ -16,9 +16,9 @@ impl<'a> Context<'a> {
             .map(|idx| self.worker_accounts[idx].clone())
     }
 
-    pub fn get_actions(&self, chain: &String, exe: &String) -> Option<Box<dyn CallBuilder>> {
+    pub fn get_actions(&self, chain: &String, exe: &str) -> Option<Box<dyn CallBuilder>> {
         pink_extension::debug!("Lookup actions on {:?}", &chain);
-        let actions: Vec<(String, Box<dyn CallBuilder>)> = self.registry.create_actions(&chain);
+        let actions: Vec<(String, Box<dyn CallBuilder>)> = self.registry.create_actions(chain);
         actions
             .iter()
             .position(|e| e.0.to_lowercase() == exe.to_lowercase())

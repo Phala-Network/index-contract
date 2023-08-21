@@ -1,8 +1,4 @@
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{vec, vec::Vec};
 use scale::{Decode, Encode};
 
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
@@ -15,19 +11,17 @@ use crate::account::AccountType;
 
 #[derive(Clone)]
 pub struct XTransferXcm {
-    rpc: String,
     dest_chain_id: u32,
     // dest chain account type
     account_type: AccountType,
 }
 
 impl XTransferXcm {
-    pub fn new(rpc: &str, dest_chain_id: u32, account_type: AccountType) -> Self
+    pub fn new(dest_chain_id: u32, account_type: AccountType) -> Self
     where
         Self: Sized,
     {
         Self {
-            rpc: rpc.to_string(),
             dest_chain_id,
             account_type,
         }

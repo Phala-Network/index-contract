@@ -24,7 +24,6 @@ primitive-types = { version = "0.12.1", default-features = false, features = ["c
 scale = { package = "parity-scale-codec", version = "3.6.4", default-features = false, features = ["derive"] }
 scale-info = { version = "2.9.0", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43", default-features = false }
-phala-pallet-common = { git = "https://github.com/Phala-Network/khala-parachain", branch = "main", default-features = false }
 pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4", default-features = false }
 pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
@@ -67,7 +66,6 @@ std = [
     "scale/std",
     "scale-info/std",
     "xcm/std",
-    "phala-pallet-common/std",
     "pink-extension/std",
     "pink-web3/std",
     "pink-json/std",

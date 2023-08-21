@@ -5,28 +5,20 @@ use super::asset::{AcalaAssetMap, CurrencyId, TokenType as AcalaTokenType};
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
-use alloc::{
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{vec, vec::Vec};
 use scale::{Compact, Decode, Encode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;
 
 #[derive(Clone)]
-pub struct AcalaTransactor {
-    rpc: String,
-}
+pub struct AcalaTransactor;
 
 impl AcalaTransactor {
-    pub fn new(rpc: &str) -> Self
+    pub fn new() -> Self
     where
         Self: Sized,
     {
-        Self {
-            rpc: rpc.to_string(),
-        }
+        Self {}
     }
 }
 

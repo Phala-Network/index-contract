@@ -88,8 +88,8 @@ impl Default for Task {
 impl sp_std::fmt::Debug for Task {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         f.debug_struct("Task")
-            .field("id", &hex::encode(&self.id))
-            .field("worker", &hex::encode(&self.worker))
+            .field("id", &hex::encode(self.id))
+            .field("worker", &hex::encode(self.worker))
             .field("status", &self.status)
             .field("source", &self.source)
             .field("amount", &self.amount)
@@ -474,12 +474,12 @@ impl Task {
         let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
         if onchain_nonce > claim_nonce {
             if tx::check_tx(&chain.tx_indexer, &account, claim_nonce)? {
-                return Ok(true);
+                Ok(true)
             } else {
-                return Err("ClaimFailed");
+                Err("ClaimFailed")
             }
         } else {
-            return Ok(false);
+            Ok(false)
         }
     }
 
@@ -954,12 +954,12 @@ mod tests {
             }
             .try_into()
             .unwrap(),
-            // astar_arthswap
+            // astar_bridge_to_astar_evm
             StepJson {
-                exe_type: String::from("swap"),
-                exe: String::from("astar_arthswap"),
+                exe_type: String::from("bridge"),
+                exe: String::from("astar_bridge_to_astar_evm"),
                 source_chain: String::from("Astar"),
-                dest_chain: String::from("Astar"),
+                dest_chain: String::from("AstarEvm"),
                 spend_asset: String::from("0x33333333"),
                 receive_asset: String::from("0x44444444"),
             }
@@ -969,10 +969,21 @@ mod tests {
             StepJson {
                 exe_type: String::from("swap"),
                 exe: String::from("astar_arthswap"),
-                source_chain: String::from("Astar"),
-                dest_chain: String::from("Astar"),
+                source_chain: String::from("AstarEvm"),
+                dest_chain: String::from("AstarEvm"),
                 spend_asset: String::from("0x44444444"),
                 receive_asset: String::from("0x55555555"),
+            }
+            .try_into()
+            .unwrap(),
+            // astar_arthswap
+            StepJson {
+                exe_type: String::from("swap"),
+                exe: String::from("astar_arthswap"),
+                source_chain: String::from("AstarEvm"),
+                dest_chain: String::from("AstarEvm"),
+                spend_asset: String::from("0x55555555"),
+                receive_asset: String::from("0x66666666"),
             }
             .try_into()
             .unwrap(),
@@ -1038,27 +1049,32 @@ mod tests {
         // phala_bridge_to_astar
         assert_eq!(
             task.steps[3].recipient,
+            Some(AccountInfo::from(worker_key).account32.to_vec())
+        );
+        // astar_bridge_to_astar_evm
+        assert_eq!(
+            task.steps[4].recipient,
             Some(
                 context
                     .registry
-                    .get_chain(&String::from("Astar"))
+                    .get_chain(&String::from("AstarEvm"))
                     .unwrap()
                     .handler_contract
             )
         );
         // astar_arthswap
         assert_eq!(
-            task.steps[4].recipient,
+            task.steps[5].recipient,
             Some(
                 context
                     .registry
-                    .get_chain(&String::from("Astar"))
+                    .get_chain(&String::from("AstarEvm"))
                     .unwrap()
                     .handler_contract
             )
         );
         // astar_arthswap
-        assert_eq!(task.steps[5].recipient, Some(task.recipient));
+        assert_eq!(task.steps[6].recipient, Some(task.recipient));
     }
 
     #[test]
@@ -1091,7 +1107,7 @@ mod tests {
         task.apply_recipient(&context).unwrap();
         task.merge_step(&context).unwrap();
 
-        assert_eq!(task.merged_steps.len(), 3);
+        assert_eq!(task.merged_steps.len(), 4);
         assert!(task.merged_steps[0].is_batch_step());
         match &task.merged_steps[0] {
             MultiStep::Batch(batch_steps) => {
@@ -1110,12 +1126,20 @@ mod tests {
             }
             _ => assert!(false),
         };
-        assert!(task.merged_steps[2].is_batch_step());
+        assert!(task.merged_steps[2].is_single_step());
         match &task.merged_steps[2] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Astar");
+                assert_eq!(step.dest_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[3].is_batch_step());
+        match &task.merged_steps[3] {
             MultiStep::Batch(batch_steps) => {
                 assert_eq!(batch_steps.len(), 2);
-                assert_eq!(batch_steps[0].source_chain, "Astar");
-                assert_eq!(batch_steps[1].source_chain, "Astar");
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
             }
             _ => assert!(false),
         };
@@ -1137,7 +1161,7 @@ mod tests {
 
         task1.apply_recipient(&context).unwrap();
         task1.merge_step(&context).unwrap();
-        assert_eq!(task1.merged_steps.len(), 2);
+        assert_eq!(task1.merged_steps.len(), 3);
         assert!(task1.merged_steps[0].is_single_step());
         match &task1.merged_steps[0] {
             MultiStep::Single(step) => {
@@ -1146,12 +1170,20 @@ mod tests {
             }
             _ => assert!(false),
         };
-        assert!(task1.merged_steps[1].is_batch_step());
+        assert!(task1.merged_steps[1].is_single_step());
         match &task1.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Astar");
+                assert_eq!(step.dest_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+        assert!(task1.merged_steps[2].is_batch_step());
+        match &task1.merged_steps[2] {
             MultiStep::Batch(batch_steps) => {
                 assert_eq!(batch_steps.len(), 2);
-                assert_eq!(batch_steps[0].source_chain, "Astar");
-                assert_eq!(batch_steps[1].source_chain, "Astar");
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
             }
             _ => assert!(false),
         };
@@ -1203,7 +1235,7 @@ mod tests {
             claim_nonce: None,
             steps: [
                 &steps.clone().as_slice()[..3],
-                &steps.clone().as_slice()[4..],
+                &steps.clone().as_slice()[5..],
             ]
             .concat()
             .to_vec(),
@@ -1232,8 +1264,8 @@ mod tests {
         match &task3.merged_steps[1] {
             MultiStep::Batch(batch_steps) => {
                 assert_eq!(batch_steps.len(), 2);
-                assert_eq!(batch_steps[0].source_chain, "Astar");
-                assert_eq!(batch_steps[1].source_chain, "Astar");
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
             }
             _ => assert!(false),
         };

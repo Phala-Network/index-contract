@@ -57,11 +57,8 @@ impl sp_std::fmt::Debug for Step {
             .field("dest_chain", &self.dest_chain)
             .field("spend_asset", &hex::encode(&self.spend_asset))
             .field("receive_asset", &hex::encode(&self.receive_asset))
-            .field("sender", &self.sender.as_ref().map(|v| hex::encode(v)))
-            .field(
-                "recipient",
-                &self.recipient.as_ref().map(|v| hex::encode(v)),
-            )
+            .field("sender", &self.sender.as_ref().map(hex::encode))
+            .field("recipient", &self.recipient.as_ref().map(hex::encode))
             .field("spend_amount", &self.spend_amount)
             .field("origin_balance", &self.origin_balance)
             .field("nonce", &self.nonce)
@@ -118,12 +115,6 @@ impl Step {
 }
 
 impl Step {
-    fn u128_from_string(&self, amount: &str) -> Result<u128, &'static str> {
-        use fixed::types::U128F0 as Fp;
-        let fixed_u128 = Fp::from_str(amount).or(Err("U128ConversionFailed"))?;
-        Ok(fixed_u128.to_num())
-    }
-
     fn decode_address(address: &str) -> Result<Vec<u8>, &'static str> {
         if address.len() < 2 && address.len() % 2 != 0 {
             return Err("InvalidAddress");
@@ -135,6 +126,8 @@ impl Step {
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+// TODO: consider box Step
+#[allow(clippy::large_enum_variant)]
 pub enum MultiStep {
     Single(Step),
     Batch(Vec<Step>),
@@ -182,23 +175,17 @@ impl MultiStep {
                 let last_step = batch_steps[batch_steps.len() - 1].clone();
                 first_step.receive_asset = last_step.receive_asset;
                 first_step.recipient = last_step.recipient;
-                first_step.clone()
+                first_step
             }
         }
     }
 
     pub fn is_single_step(&self) -> bool {
-        match self {
-            MultiStep::Single(_) => true,
-            _ => false,
-        }
+        matches!(self, MultiStep::Single(_))
     }
 
     pub fn is_batch_step(&self) -> bool {
-        match self {
-            MultiStep::Batch(_) => true,
-            _ => false,
-        }
+        matches!(self, MultiStep::Batch(_))
     }
 
     pub fn set_spend(&mut self, amount: u128) {
@@ -218,7 +205,7 @@ impl MultiStep {
         let dest_chain = step.dest_chain(context).ok_or("MissingDestChain")?;
         let origin_balance = step.origin_balance.ok_or("MissingBalance")?;
         let recipient = step.recipient.clone().ok_or("MissingRecipient")?;
-        let latest_balance = dest_chain.get_balance(step.receive_asset.clone(), recipient)?;
+        let latest_balance = dest_chain.get_balance(step.receive_asset, recipient)?;
         Ok(latest_balance.saturating_sub(origin_balance))
     }
 
@@ -331,7 +318,7 @@ impl Runner for MultiStep {
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(
                     "batchCall",
-                    calls.clone(),
+                    calls,
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));
@@ -357,9 +344,8 @@ impl Runner for MultiStep {
                     )
                     .map_err(|_| "InvalidSignature")?;
 
-                    let tx_id = send_transaction(&chain.endpoint, &signed_tx)
-                        .map_err(|_| "FailedToSubmitTransaction")?;
-                    tx_id
+                    send_transaction(&chain.endpoint, &signed_tx)
+                        .map_err(|_| "FailedToSubmitTransaction")?
                 }
                 _ => return Err("UnexpectedCallType"),
             },
@@ -367,10 +353,10 @@ impl Runner for MultiStep {
 
         pink_extension::info!(
             "Step execution details: sender,  {:?}, from {:?}, to {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
-            &hex::encode(&as_single_step.sender.clone().ok_or("MissingSender")?),
+            &hex::encode(as_single_step.sender.clone().ok_or("MissingSender")?),
             &as_single_step.source_chain,
             &as_single_step.dest_chain,
-            &hex::encode(&as_single_step.recipient.clone().ok_or("MissingRecipient")?),
+            &hex::encode(as_single_step.recipient.clone().ok_or("MissingRecipient")?),
             as_single_step.spend_amount,
             hex::encode(&tx_id)
         );

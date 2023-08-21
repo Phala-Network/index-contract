@@ -23,7 +23,7 @@ impl Assetid2Location {
                 vec![
                     // PHA
                     (
-                        18446744073709551622 as u128,
+                        18446744073709551622_u128,
                         MultiLocation::new(1, X1(Parachain(2035))),
                     ),
                 ],
@@ -38,7 +38,7 @@ impl Assetid2Location {
                 .1
                 .iter()
                 .position(|a| a.0 == asset_id)
-                .map(|idx1| self.assets[idx0].1[idx1].1.clone()),
+                .map(|idx1| self.assets[idx0].1[idx1].1),
             _ => None,
         }
     }
@@ -58,7 +58,7 @@ impl Location2Assetid {
                     // PHA
                     (
                         MultiLocation::new(1, X1(Parachain(2035))),
-                        18446744073709551622 as u128,
+                        18446744073709551622_u128,
                     ),
                 ],
             )],

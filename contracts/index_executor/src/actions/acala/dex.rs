@@ -1,10 +1,5 @@
 use super::asset::{AcalaAssetMap, AggregatedSwapPath, CurrencyId, TokenSymbol};
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
+use alloc::{format, vec, vec::Vec};
 use pink_extension::ResultExt;
 use scale::{Compact, Decode, Encode};
 use xcm::v3::prelude::*;
@@ -13,19 +8,15 @@ use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 #[derive(Clone)]
-pub struct AcalaSwap {
-    rpc: String,
-}
+pub struct AcalaSwap;
 
 #[allow(dead_code)]
 impl AcalaSwap {
-    pub fn new(rpc: &str) -> Self
+    pub fn new() -> Self
     where
         Self: Sized,
     {
-        Self {
-            rpc: rpc.to_string(),
-        }
+        Self {}
     }
 }
 

@@ -510,7 +510,6 @@ mod index_executor {
     mod tests {
         use super::*;
         // use dotenv::dotenv;
-        use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
         use xcm::v3::{prelude::*, MultiLocation};
 

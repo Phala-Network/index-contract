@@ -1,4 +1,4 @@
-name: Index regular tests
+name: inDEX regular tests
 
 on: [push, pull_request]
 
@@ -14,8 +14,6 @@ jobs:
         with:
           submodules: "true"
       - uses: ./.github/actions/install_toolchain
-      - name: Run cargo tests for index
-        run: cd index && cargo test -vv
       - name: Run cargo tests for contracts
         run: cargo test -vv
 

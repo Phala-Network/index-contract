@@ -64,7 +64,7 @@ impl CallBuilder for AstarTransactor {
         let recipient = MultiAddress::Id(AccountId::from(bytes));
         let amount = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
 
-        if &step.spend_asset == &self.native {
+        if step.spend_asset == self.native {
             Ok(vec![Call {
                 params: CallParams::Sub(SubCall {
                     calldata: SubExtrinsic {

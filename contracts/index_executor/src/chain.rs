@@ -239,7 +239,6 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use scale::Encode;
-    use sp_runtime::{traits::ConstU32, WeakBoundedVec};
     use xcm::v3::{prelude::*, MultiLocation};
 
     #[test]

@@ -40,7 +40,7 @@ impl Assetid2Location {
                             1,
                             MultiLocation::new(
                                 1,
-                                X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x80])),
+                                X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x80])),
                             ),
                         ),
                     ],
@@ -56,7 +56,7 @@ impl Assetid2Location {
                 .1
                 .iter()
                 .position(|a| a.0 == asset_id)
-                .map(|idx1| self.assets[idx0].1[idx1].1.clone()),
+                .map(|idx1| self.assets[idx0].1[idx1].1),
             _ => None,
         }
     }
@@ -90,7 +90,7 @@ impl Location2Assetid {
                         (
                             MultiLocation::new(
                                 1,
-                                X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x80])),
+                                X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x80])),
                             ),
                             1,
                         ),
