@@ -7,7 +7,7 @@ use alloc::{
 };
 use pink_extension::ResultExt;
 use scale::{Compact, Decode, Encode};
-use xcm::v2::prelude::*;
+use xcm::v3::prelude::*;
 
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;

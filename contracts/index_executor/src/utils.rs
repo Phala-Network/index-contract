@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use xcm::v3::prelude::*;
 
 pub trait ToArray<T, const N: usize> {
     fn to_array(&self) -> [T; N];
@@ -27,4 +28,17 @@ macro_rules! ensure {
             return ::core::result::Result::Err(::core::convert::Into::into($error));
         }
     }};
+}
+
+pub fn slice_to_generalkey(key: &[u8]) -> Junction {
+    let len = key.len();
+    assert!(len <= 32);
+    GeneralKey {
+        length: len as u8,
+        data: {
+            let mut data = [0u8; 32];
+            data[..len].copy_from_slice(key);
+            data
+        },
+    }
 }

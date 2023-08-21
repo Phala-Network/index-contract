@@ -7,7 +7,7 @@ use pink_web3::{
     types::{Address, U256},
 };
 use scale::{Decode, Encode};
-use xcm::v2::AssetId as XcmAssetId;
+use xcm::v3::AssetId as XcmAssetId;
 
 #[derive(Debug)]
 pub struct EvmDepositData {

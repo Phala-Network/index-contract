@@ -512,7 +512,7 @@ mod index_executor {
         // use dotenv::dotenv;
         use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
-        use xcm::v2::{prelude::*, MultiLocation};
+        use xcm::v3::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
             // Deploy Executor
@@ -540,7 +540,7 @@ mod index_executor {
                         1,
                         X2(
                             Parachain(2000),
-                            GeneralKey(WrapSlice(&hex_literal::hex!["0081"]).into())
+                            crate::utils::slice_to_generalkey(&hex_literal::hex!["0081"]),
                         )
                     )
                     .encode()

@@ -4,13 +4,12 @@ use alloc::{
     vec::Vec,
 };
 use scale::{Decode, Encode};
-use xcm::v2::prelude::*;
 
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 use crate::utils::ToArray;
-use xcm::v2::{AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
+use xcm::v3::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation};
 
 use crate::account::AccountType;
 
@@ -52,14 +51,14 @@ impl CallBuilder for XTransferXcm {
                     AccountType::Account20 => {
                         let recipient: [u8; 20] = recipient.to_array();
                         AccountKey20 {
-                            network: NetworkId::Any,
+                            network: None,
                             key: recipient,
                         }
                     }
                     AccountType::Account32 => {
                         let recipient: [u8; 32] = recipient.to_array();
                         AccountId32 {
-                            network: NetworkId::Any,
+                            network: None,
                             id: recipient,
                         }
                     }

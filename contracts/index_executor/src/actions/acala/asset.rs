@@ -1,9 +1,9 @@
+use crate::utils::slice_to_generalkey;
 use alloc::{vec, vec::Vec};
 
 use scale::Decode;
 use scale::Encode;
-use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v2::{prelude::*, MultiLocation};
+use xcm::v3::{prelude::*, MultiLocation};
 
 // Copy from https://github.com/AcalaNetwork/Acala/blob/master/primitives/src/currency.rs ,
 // with modification
@@ -118,34 +118,16 @@ impl AcalaAssetMap {
     pub fn get_map() -> Vec<TokenAttrs> {
         let lc_kar: MultiLocation = MultiLocation::new(
             1,
-            X2(
-                Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x80],
-                    None,
-                )),
-            ),
+            X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x80])),
         );
         let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
         let lc_aca: MultiLocation = MultiLocation::new(
             1,
-            X2(
-                Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x00],
-                    None,
-                )),
-            ),
+            X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x00])),
         );
         let lc_dot: MultiLocation = MultiLocation::new(
             1,
-            X2(
-                Parachain(2000),
-                GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                    vec![0x00, 0x02],
-                    None,
-                )),
-            ),
+            X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x02])),
         );
         vec![
             (lc_aca, TokenSymbol::ACA, TokenType::Utility, None),

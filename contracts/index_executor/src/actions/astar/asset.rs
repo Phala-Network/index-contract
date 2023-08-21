@@ -5,7 +5,7 @@ use alloc::{
     vec::Vec,
 };
 
-use xcm::v2::{prelude::*, MultiLocation};
+use xcm::v3::{prelude::*, MultiLocation};
 
 #[allow(dead_code)]
 #[derive(Default)]

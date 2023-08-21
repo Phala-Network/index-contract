@@ -1,5 +1,5 @@
 use pink_extension::AccountId;
-use xcm::v2::prelude::*;
+use xcm::v3::prelude::*;
 
 use super::asset::Location2Assetid;
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};

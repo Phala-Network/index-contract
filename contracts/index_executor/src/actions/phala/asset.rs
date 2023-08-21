@@ -1,3 +1,4 @@
+use crate::utils::slice_to_generalkey;
 // TODO: Remove sp-runtime to decline size of wasm blob
 use alloc::{
     string::{String, ToString},
@@ -5,8 +6,7 @@ use alloc::{
     vec::Vec,
 };
 
-use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-use xcm::v2::{prelude::*, MultiLocation};
+use xcm::v3::{prelude::*, MultiLocation};
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -40,13 +40,7 @@ impl Assetid2Location {
                             1,
                             MultiLocation::new(
                                 1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
-                                ),
+                                X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x80])),
                             ),
                         ),
                     ],
@@ -96,13 +90,7 @@ impl Location2Assetid {
                         (
                             MultiLocation::new(
                                 1,
-                                X2(
-                                    Parachain(2000),
-                                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                                        vec![0x00, 0x80],
-                                        None,
-                                    )),
-                                ),
+                                X2(Parachain(2000), slice_to_generalkey(&vec![0x00, 0x80])),
                             ),
                             1,
                         ),
