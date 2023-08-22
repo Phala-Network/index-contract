@@ -8,7 +8,7 @@ homepage = "https://phala.network/"
 repository = "https://github.com/Phala-Network/index-contract"
 
 [dependencies]
-serde = { version = "1.0.183", default-features = false, features = ["derive", "alloc"]}
+serde = { version = "=1.0.185", default-features = false, features = ["derive", "alloc"]}
 dyn-clone = "1.0.10"
 hex-literal = "0.4.1"
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
@@ -26,8 +26,8 @@ scale-info = { version = "2.9.0", default-features = false, features = ["derive"
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43", default-features = false }
 pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4", default-features = false }
-pink-web3 = { version = "0.20.1", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
-pink-json = { git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
+pink-web3 = { version = "0.20.2", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
+pink-json = { version = "0.4.0", git = "https://github.com/Phala-Network/pink-json.git", branch = "pink", default-features = false, features = ["custom-error-messages"] }
 pink-subrpc = { version = "0.4.4", git = "https://github.com/Phala-Network/phala-blockchain.git", branch = "subrpc-0.4.4", default-features = false }
 
 worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = ["ink-as-dependency"] }
@@ -48,12 +48,6 @@ lto = false                 # Enable full link-time optimization.
 [lib]
 name = "index_executor"
 path = "src/lib.rs"
-crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
-    # Used for ABI generation.
-    "rlib",
-]
 
 [features]
 default = ["std"]
@@ -78,4 +72,4 @@ std = [
 ink-as-dependency = []
 
 [patch.crates-io]
-serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "patched-v1.0.185" }

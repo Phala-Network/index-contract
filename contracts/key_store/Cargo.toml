@@ -28,12 +28,6 @@ lto = false
 [lib]
 name = "key_store"
 path = "src/lib.rs"
-crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib",
-    # Used for ABI generation.
-    "rlib",
-]
 
 [features]
 default = ["std"]

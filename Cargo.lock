@@ -2751,18 +2751,16 @@ checksum = "b0293b4b29daaf487284529cc2f5675b8e57c61f70167ba415a463651fd6a918"
 
 [[package]]
 name = "serde"
-version = "1.0.183"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32ac8da02677876d532745a130fc9d8e6edfa81a269b107c5b00829b91d8eb3c"
+version = "1.0.185"
+source = "git+https://github.com/kvinwang/serde.git?branch=patched-v1.0.185#92dc67b627b2c94628d815b074329c4f4a34a986"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.183"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aafe972d60b0b9bee71a91b92fee2d4fb3c9d7e8f6b179aa99f27203d99a4816"
+version = "1.0.185"
+source = "git+https://github.com/kvinwang/serde.git?branch=patched-v1.0.185#92dc67b627b2c94628d815b074329c4f4a34a986"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4410,8 +4408,3 @@ dependencies = [
  "quote",
  "syn 2.0.28",
 ]
-
-[[patch.unused]]
-name = "serde"
-version = "1.0.147"
-source = "git+https://github.com/kvinwang/serde.git?branch=pink#0d6920a81befce8e44b854dc67738b0c640247e6"
