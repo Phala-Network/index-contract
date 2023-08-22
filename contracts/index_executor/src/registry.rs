@@ -61,7 +61,6 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    // FIXME: Handle contract on AStar
                     handler_contract: hex::decode("056C0E37d026f9639313C281250cA932C9dbe921")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
@@ -80,7 +79,7 @@ impl Registry {
                 Chain {
                     id: 4,
                     name: "Khala".to_string(),
-                    endpoint: "wss://khala-api.phala.network/ws".to_string(),
+                    endpoint: "https://khala-api.phala.network/rpc".to_string(),
                     chain_type: ChainType::Sub,
                     native_asset: hex::decode("0000").expect("InvalidLocation"),
                     foreign_asset: Some(ForeignAssetModule::PalletAsset),
