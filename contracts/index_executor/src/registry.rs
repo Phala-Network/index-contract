@@ -125,7 +125,7 @@ impl Registry {
         match chain.name.as_str() {
             "Acala" => crate::actions::acala::create_actions(&chain),
             "AstarEvm" => crate::actions::astar::evm_create_actions(&chain),
-            "AstarSub" => crate::actions::astar::sub_create_actions(&chain),
+            "Astar" => crate::actions::astar::sub_create_actions(&chain),
             "Ethereum" => crate::actions::ethereum::create_actions(&chain),
             "Moonbeam" => crate::actions::moonbeam::create_actions(&chain),
             "Phala" | "Khala" => crate::actions::phala::create_actions(&chain),

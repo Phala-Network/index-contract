@@ -116,6 +116,11 @@ impl Task {
 
         if client.read_storage::<Task>(&self.id)?.is_some() {
             if !(self.has_claimed(context))? {
+                pink_extension::debug!(
+                    "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
+                    hex::encode(self.id),
+                    hex::encode(self.worker),
+                );
                 self.claim(context)?;
             }
             return Ok(());
@@ -916,8 +921,8 @@ mod tests {
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),
-                spend_asset: String::from("0x11111111"),
-                receive_asset: String::from("0x22222222"),
+                spend_asset: String::from("0xAcc15dC74880C9944775448304B263D191c6077F"),
+                receive_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
             }
             .try_into()
             .unwrap(),
@@ -927,8 +932,8 @@ mod tests {
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),
-                spend_asset: String::from("0x22222222"),
-                receive_asset: String::from("0x33333333"),
+                spend_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
+                receive_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
             }
             .try_into()
             .unwrap(),
@@ -938,8 +943,8 @@ mod tests {
                 exe: String::from("moonbeam_bridge_to_phala"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Phala"),
-                spend_asset: String::from("0x33333333"),
-                receive_asset: String::from("0x33333333"),
+                spend_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
+                receive_asset: String::from("0x0000"),
             }
             .try_into()
             .unwrap(),
@@ -949,8 +954,8 @@ mod tests {
                 exe: String::from("phala_bridge_to_astar"),
                 source_chain: String::from("Phala"),
                 dest_chain: String::from("Astar"),
-                spend_asset: String::from("0x33333333"),
-                receive_asset: String::from("0x33333333"),
+                spend_asset: String::from("0x0000"),
+                receive_asset: String::from("0x010100cd1f"),
             }
             .try_into()
             .unwrap(),
@@ -960,30 +965,30 @@ mod tests {
                 exe: String::from("astar_bridge_to_astar_evm"),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0x33333333"),
-                receive_asset: String::from("0x44444444"),
+                spend_asset: String::from("0x010100cd1f"),
+                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
             }
             .try_into()
             .unwrap(),
             // astar_arthswap
             StepJson {
                 exe_type: String::from("swap"),
-                exe: String::from("astar_arthswap"),
+                exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
                 dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0x44444444"),
-                receive_asset: String::from("0x55555555"),
+                spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
+                receive_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
             }
             .try_into()
             .unwrap(),
             // astar_arthswap
             StepJson {
                 exe_type: String::from("swap"),
-                exe: String::from("astar_arthswap"),
+                exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
                 dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0x55555555"),
-                receive_asset: String::from("0x66666666"),
+                spend_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
+                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
             }
             .try_into()
             .unwrap(),
@@ -1008,7 +1013,7 @@ mod tests {
             merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
-            recipient: vec![0x12, 0x34, 0x56],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
             retry_counter: 0,
         };
         let context = Context {
@@ -1095,7 +1100,7 @@ mod tests {
             merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
-            recipient: vec![0x12, 0x34, 0x56],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
             retry_counter: 0,
         };
         let context = Context {
@@ -1155,7 +1160,7 @@ mod tests {
             merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
-            recipient: vec![0x12, 0x34, 0x56],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
             retry_counter: 0,
         };
 
@@ -1199,7 +1204,7 @@ mod tests {
             merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
-            recipient: vec![0x12, 0x34, 0x56],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
             retry_counter: 0,
         };
 
@@ -1242,7 +1247,7 @@ mod tests {
             merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
-            recipient: vec![0x12, 0x34, 0x56],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
             retry_counter: 0,
         };
 
@@ -1269,5 +1274,77 @@ mod tests {
             }
             _ => assert!(false),
         };
+    }
+
+    #[test]
+    fn test_calldata_generation() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_key = [0x11; 32];
+        let steps = build_steps();
+        let mut task = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0xf0f1f2f3f4f5f6f7f8f9,
+            claim_nonce: None,
+            steps: steps.clone(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+        let context = Context {
+            signer: worker_key,
+            worker_accounts: vec![AccountInfo::from(worker_key)],
+            registry: &Registry::new(),
+        };
+
+        task.apply_recipient(&context).unwrap();
+        task.merge_step(&context).unwrap();
+
+        let mut calls = vec![];
+
+        for step in task.merged_steps.iter_mut() {
+            // Simulate settlement balance update
+            step.set_spend(0xf0f1f2f3f4f5f6f7f8f9);
+            calls.append(&mut step.derive_calls(&context).unwrap());
+            // println!("Derived calls: {:?}", step.derive_calls(&context));
+        }
+        assert_eq!(calls.len(), 2 * 3 + 1 + 1 + 2 * 2);
+
+        // Origin Step means Steps before merge
+
+        // ========== First Merged Step =============
+        // calls[0] and calls[1] build according to origin Step 0,
+        // and origin Step 0 don't relay any previous steps happened
+        // on the same chain
+        assert_eq!(calls[0].input_call, Some(0));
+        assert_eq!(calls[1].input_call, Some(0));
+        // calls[2] and calls[3] build according to origin Step 1,
+        // and origin Step 1 relay Step 0 as input, so take last call
+        // of Step 0 as input call
+        assert_eq!(calls[2].input_call, Some(1));
+        assert_eq!(calls[3].input_call, Some(1));
+        // calls[4] and calls[5] build according to origin Step 2,
+        // and origin Step 2 relay Step 1 as input, so take last call
+        // of Step 1 as input call
+        assert_eq!(calls[4].input_call, Some(3));
+        assert_eq!(calls[5].input_call, Some(3));
+
+        // ========== Second Merged Step =============
+        // calls[0] and calls[1] build according to origin Step 5,
+        // and origin Step 5 don't relay any previous steps heppened
+        // on the same chain
+        assert_eq!(calls[0].input_call, Some(0));
+        assert_eq!(calls[1].input_call, Some(0));
+        // calls[2] and calls[3] build according to origin Step 6,
+        // and origin Step 6 relay Step 5 as input, so take last call
+        // of Step 5 as input call
+        assert_eq!(calls[2].input_call, Some(1));
+        assert_eq!(calls[3].input_call, Some(1));
     }
 }

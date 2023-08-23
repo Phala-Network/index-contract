@@ -38,7 +38,8 @@ impl XTokenBridge {
 impl CallBuilder for XTokenBridge {
     fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
         let spend_asset = Address::from_slice(&step.spend_asset);
-        let receive_asset = Address::from_slice(&step.receive_asset);
+        // We don't use it
+        let receive_asset = Address::from_slice(&[0; 20]);
         let mut recipient = step.recipient.ok_or("MissingRecipient")?;
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
 

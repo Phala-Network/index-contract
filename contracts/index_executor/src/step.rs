@@ -152,7 +152,11 @@ impl MultiStep {
                     let mut new_calls = step.derive_calls(context)?;
                     for call in new_calls.iter_mut() {
                         call.call_index = Some(next_call_index);
-                        call.input_call = calls[origin_call_count - 1].call_index;
+                        call.input_call = if origin_call_count > 0 {
+                            calls[origin_call_count - 1].call_index
+                        } else {
+                            Some(0)
+                        };
                         next_call_index += 1;
                     }
                     calls.append(&mut new_calls);
