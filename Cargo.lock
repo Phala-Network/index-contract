@@ -554,6 +554,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dlmalloc"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "203540e710bfadb90e5e29930baf5d10270cec1f43ab34f46f78b147b2de715a"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2021,6 +2030,7 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "74333ed749dd52e97b091654bf5f56f47f0aa8cf62d6324693991988142cc59c"
 dependencies = [
+ "dlmalloc",
  "ink",
  "log",
  "num_enum",

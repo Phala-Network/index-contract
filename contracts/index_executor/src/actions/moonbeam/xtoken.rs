@@ -121,7 +121,9 @@ impl CallBuilder for XTokenBridge {
                     calldata: bridge_calldata,
                     value: U256::from(0),
 
-                    need_settle: true,
+                    // Bridge operation do not need do settlement on source chain, because it must be the
+                    // last step on source chain
+                    need_settle: false,
                     update_offset: U256::from(36),
                     update_len: U256::from(32),
                     spend_asset,
