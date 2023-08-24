@@ -37,6 +37,8 @@ mod index_executor {
     use scale::{Decode, Encode};
     use worker_key_store::KeyStoreRef;
 
+    use pink_web3::ethabi::Address;
+
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
@@ -123,6 +125,13 @@ mod index_executor {
             self.ensure_owner()?;
             self.admin = new_admin;
             Ok(())
+        }
+
+        /// Debug only, remove before release
+        #[ink(message)]
+        pub fn export_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
+            self.ensure_owner()?;
+            Ok(self.worker_prv_keys.clone())
         }
 
         /// FIXME: Pass the key implicitly
@@ -250,6 +259,34 @@ mod index_executor {
             )
             .log_err("failed to submit worker approve tx")
             .or(Err(Error::FailedToSendTransaction))?;
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn worker_drop_task(&self, worker: [u8; 32], chain: String, id: TaskId) -> Result<()> {
+            self.ensure_owner()?;
+            let _ = self.ensure_configured()?;
+
+            // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
+            self.ensure_paused()?;
+
+            let chain = self
+                .registry
+                .get_chain(&chain)
+                .ok_or(Error::ChainNotFound)?;
+
+            if chain.chain_type != ChainType::Evm {
+                return Err(Error::UnexpectedChainType);
+            }
+            WorkerGov::drop_task(
+                self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?,
+                chain.endpoint,
+                Address::from_slice(&chain.handler_contract),
+                id,
+            )
+            .log_err("failed to submit worker drop task tx")
+            .or(Err(Error::FailedToSendTransaction))?;
+
             Ok(())
         }
 
@@ -387,7 +424,14 @@ mod index_executor {
                         },
                         client,
                     )
-                    .map_err(|_| Error::FailedToInitTask)?;
+                    .map_err(|e| {
+                        pink_extension::info!(
+                            "Initial error {:?}, initialized task data: {:?}",
+                            &e,
+                            &actived_task
+                        );
+                        Error::FailedToInitTask
+                    })?;
                 pink_extension::info!(
                     "An actived task was found on {:?}, initialized task data: {:?}",
                     &source_chain,
@@ -438,10 +482,11 @@ mod index_executor {
                             task.destroy(client)
                                 .map_err(|_| Error::FailedToDestoryTask)?;
                         }
-                        Err(_) => {
+                        Err(err) => {
                             pink_extension::error!(
-                                "Failed to execute task on step {:?}, task data: {:?}",
+                                "Failed to execute task on step {:?} with error {}, task data: {:?}",
                                 task.execute_index,
+                                err,
                                 &task
                             );
 

@@ -316,8 +316,11 @@ impl Runner for MultiStep {
                     worker_account.account20.into(),
                     Options::default(),
                 ))
-                .map_err(|_| "FailedToEstimateGas")?;
-                pink_extension::debug!("Estimated step gas cost: {:?}", gas);
+                .map_err(|e| {
+                    pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
+                    "FailedToEstimateGas"
+                })?;
+                pink_extension::debug!("Estimated step gas error: {:?}", gas);
 
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(

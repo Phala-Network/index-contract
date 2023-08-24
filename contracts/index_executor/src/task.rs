@@ -13,11 +13,11 @@ use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 
 use pink_web3::{
     api::{Eth, Namespace},
-    contract::{Contract, Options},
+    contract::{tokens::Tokenize, Contract, Options},
     keys::pink::KeyPair,
     signing::Key,
     transports::{resolve_ready, PinkHttp},
-    types::H160,
+    types::{H160, U256},
 };
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -114,17 +114,21 @@ impl Task {
             .read_storage::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
-        if client.read_storage::<Task>(&self.id)?.is_some() {
-            if !(self.has_claimed(context))? {
-                pink_extension::debug!(
-                    "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
-                    hex::encode(self.id),
-                    hex::encode(self.worker),
-                );
-                self.claim(context)?;
-            }
-            return Ok(());
-        }
+        pink_extension::debug!(
+            "Trying to lookup storage for task {:?} before initializing.",
+            hex::encode(self.id),
+        );
+        // if client.read_storage::<Task>(&self.id)?.is_some() {
+        //     if !(self.has_claimed(context))? {
+        //         pink_extension::debug!(
+        //             "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
+        //             hex::encode(self.id),
+        //             hex::encode(self.worker),
+        //         );
+        //         self.claim(context)?;
+        //     }
+        //     return Ok(());
+        // }
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -171,7 +175,7 @@ impl Task {
             pending_tasks_doc,
         )?;
 
-        self.claim(context)?;
+        // self.claim(context)?;
 
         Ok(())
     }
@@ -181,6 +185,17 @@ impl Task {
         context: &Context,
         client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
+        // Check claim before executing
+        if !(self.has_claimed(context))? {
+            pink_extension::debug!(
+                "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
+                hex::encode(self.id),
+                hex::encode(self.worker),
+            );
+            self.claim(context)?;
+            return Ok(self.status.clone());
+        }
+
         let step_count = self.merged_steps.len();
         // To avoid unnecessary remote check, we check execute_index in advance
         if self.execute_index as usize == step_count {
@@ -506,21 +521,26 @@ impl Task {
         first_step.set_spend(self.amount);
         first_step.sync_origin_balance(context)?;
         let params = (task_id, first_step.derive_calls(context)?);
+        pink_extension::info!("claimAndBatchCall params {:?}", &params);
+
         // Estiamte gas before submission
-        let gas = resolve_ready(handler.estimate_gas(
-            "claimAndBatchCall",
-            params.clone(),
-            worker.address(),
-            Options::default(),
-        ))
-        .map_err(|_| "GasEstimateFailed")?;
+        // let gas = resolve_ready(handler.estimate_gas(
+        //     "claimAndBatchCall",
+        //     params.clone(),
+        //     worker.address(),
+        //     Options::default(),
+        // ))
+        // .map_err(|e| {
+        //     pink_extension::error!("claimAndBatchCall: failed to estimate gas cost with error {:?}", &e);
+        //     "GasEstimateFailed"
+        // })?;
 
         // Submit the claim transaction
         let tx_id = resolve_ready(handler.signed_call(
-            "claim",
-            params,
+            "batchCall",
+            first_step.derive_calls(context)?,
             Options::with(|opt| {
-                opt.gas = Some(gas);
+                opt.gas = None;
                 opt.nonce = Some(nonce.into());
             }),
             worker,
@@ -531,7 +551,7 @@ impl Task {
         first_step.set_nonce(self.claim_nonce.unwrap());
 
         pink_extension::info!(
-            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone().as_bytes())
@@ -581,6 +601,7 @@ impl Task {
 mod tests {
     use super::*;
     use crate::account::AccountInfo;
+    use crate::call::CallParams;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
     use crate::step::StepJson;
@@ -588,6 +609,7 @@ mod tests {
     use crate::utils::ToArray;
     use dotenv::dotenv;
     use hex_literal::hex;
+    use pink_web3::contract::tokens::Tokenize;
     use primitive_types::H160;
 
     #[test]
@@ -1312,7 +1334,6 @@ mod tests {
             // Simulate settlement balance update
             step.set_spend(0xf0f1f2f3f4f5f6f7f8f9);
             calls.append(&mut step.derive_calls(&context).unwrap());
-            // println!("Derived calls: {:?}", step.derive_calls(&context));
         }
         assert_eq!(calls.len(), 2 * 3 + 1 + 1 + 2 * 2);
 
@@ -1346,5 +1367,71 @@ mod tests {
         // of Step 5 as input call
         assert_eq!(calls[2].input_call, Some(1));
         assert_eq!(calls[3].input_call, Some(1));
+    }
+
+    #[test]
+    fn test_calldata() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        use crate::call::{Call, CallParams, EvmCall};
+        use pink_web3::types::{Address, U256};
+
+        let handler: H160 =
+            H160::from_slice(&hex::decode("B30A27eE79514614dc363CE0aABb0B939b9deAeD").unwrap());
+        let transport = Eth::new(PinkHttp::new("https://rpc.api.moonbeam.network"));
+        let handler =
+            Contract::from_json(transport, handler, include_bytes!("./abi/handler.json")).unwrap();
+        let task_id: [u8; 32] =
+            hex::decode("1125000000000000000000000000000000000000000000000000000000000000")
+                .unwrap()
+                .to_array();
+        // We call claimAndBatchCall so that first step will be executed along with the claim operation
+
+        let params = (task_id, vec![
+            Call {
+                params: CallParams::Evm(EvmCall {
+                    target: Address::from_slice(hex::decode("acc15dc74880c9944775448304b263d191c6077f").unwrap().as_slice()),
+                    calldata: hex::decode("095ea7b300000000000000000000000070085a09d30d6f8c4ecf6ee10120d1847383bb570000000000000000000000000000000000000000000000004563918244f40000").unwrap(),
+                    value: U256::from(0),
+
+                    need_settle: false,
+                    update_offset: U256::from(36),
+                    update_len: U256::from(32),
+                    spend_asset: Address::from_slice(hex::decode("acc15dc74880c9944775448304b263d191c6077f").unwrap().as_slice()),
+                    spend_amount: U256::from(5000000000000000000_u128),
+                    receive_asset: Address::from_slice(hex::decode("acc15dc74880c9944775448304b263d191c6077f").unwrap().as_slice()),
+                }),
+                input_call: Some(0),
+                call_index: Some(0),
+            },
+            Call {
+                params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(hex::decode("70085a09d30d6f8c4ecf6ee10120d1847383bb57").unwrap().as_slice()),
+                        calldata: hex::decode("38ed17390000000000000000000000000000000000000000000000004563918244f40000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000b30a27ee79514614dc363ce0aabb0b939b9deaed00000000000000000000000000000000000000000000000000000000650e495a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000acc15dc74880c9944775448304b263d191c6077f000000000000000000000000ffffffff1fcacbd218edc0eba20fc2308c778080").unwrap(),
+                        value: U256::from(0),
+
+                        need_settle: true,
+                        update_offset: U256::from(4),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(hex::decode("acc15dc74880c9944775448304b263d191c6077f").unwrap().as_slice()),
+                        spend_amount: U256::from(5000000000000000000_u128),
+                        receive_asset: Address::from_slice(hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080").unwrap().as_slice()),
+                }),
+                input_call: Some(0),
+                call_index: Some(1),
+            }
+        ]);
+
+        let claim_func = handler
+            .abi()
+            .function("claimAndBatchCall")
+            .map_err(|_| "NoFunctionFound")
+            .unwrap();
+        let calldata = claim_func
+            .encode_input(&params.into_tokens())
+            .map_err(|_| "EncodeParamError")
+            .unwrap();
+        println!("claim calldata: {:?}", hex::encode(calldata));
     }
 }

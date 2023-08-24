@@ -39,7 +39,8 @@ impl CallBuilder for UniswapV2 {
         let amount_out = U256::from(1);
         let amount_in = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
-        let deadline = U256::from(time + 60 * 30);
+        // 1 month
+        let deadline = U256::from(time + 60 * 60 * 24 * 30);
         let swap_params = (amount_in, amount_out, path, to, deadline);
         let swap_func = self
             .router
