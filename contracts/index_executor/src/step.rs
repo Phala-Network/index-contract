@@ -87,17 +87,20 @@ impl TryFrom<StepJson> for Step {
 }
 
 impl Step {
-    pub fn get_action(&mut self, context: &Context) -> Result<Box<dyn CallBuilder>, &'static str> {
+    pub fn get_action(&self, context: &Context) -> Result<Box<dyn CallBuilder>, &'static str> {
         let action = context
             .get_actions(&self.source_chain, &self.exe)
             .ok_or("NoActionFound")?;
+        pink_extension::debug!("Found action: {:?} on {:?}", &self.exe, &self.source_chain,);
         Ok(action)
     }
 
     pub fn derive_calls(&self, context: &Context) -> Result<Vec<Call>, &'static str> {
-        let action = context
-            .get_actions(&self.source_chain, &self.exe)
-            .ok_or("NoActionFound")?;
+        let action = self.get_action(context)?;
+        pink_extension::debug!(
+            "Trying to build calldata for according to step data: {:?}",
+            &self,
+        );
         action.build_call(self.clone())
     }
 
@@ -117,7 +120,7 @@ impl Step {
 impl Step {
     fn decode_address(address: &str) -> Result<Vec<u8>, &'static str> {
         if address.len() < 2 && address.len() % 2 != 0 {
-            return Err("InvalidAddress");
+            return Err("InvalidAddressInStep");
         }
 
         hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
@@ -177,6 +180,7 @@ impl MultiStep {
             MultiStep::Batch(batch_steps) => {
                 let mut first_step = batch_steps[0].clone();
                 let last_step = batch_steps[batch_steps.len() - 1].clone();
+                first_step.dest_chain = last_step.dest_chain;
                 first_step.receive_asset = last_step.receive_asset;
                 first_step.recipient = last_step.recipient;
                 first_step
@@ -209,7 +213,13 @@ impl MultiStep {
         let dest_chain = step.dest_chain(context).ok_or("MissingDestChain")?;
         let origin_balance = step.origin_balance.ok_or("MissingBalance")?;
         let recipient = step.recipient.clone().ok_or("MissingRecipient")?;
-        let latest_balance = dest_chain.get_balance(step.receive_asset, recipient)?;
+        let latest_balance = dest_chain.get_balance(step.receive_asset, recipient.clone())?;
+        pink_extension::debug!(
+            "Settle info of account {:?}: origin_balance is {:?}, latest_balance is {:?}",
+            &hex::encode(&recipient),
+            origin_balance,
+            latest_balance
+        );
         Ok(latest_balance.saturating_sub(origin_balance))
     }
 
@@ -373,23 +383,34 @@ impl Runner for MultiStep {
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        pink_extension::info!(
+            "Trying to check step execution result with nonce: {}",
+            nonce
+        );
         let as_single_step = self.as_single_step();
-        let chain = as_single_step
+        let source_chain = as_single_step
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
         let worker_account = AccountInfo::from(context.signer);
         let recipient = as_single_step.recipient.clone().ok_or("MissingRecipient")?;
 
         // Query off-chain indexer directly get the execution result
-        let account = match chain.chain_type {
+        let account = match source_chain.chain_type {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
         };
-        if tx::check_tx(&chain.tx_indexer, &account, nonce)? {
+        if tx::check_tx(&source_chain.tx_indexer, &account, nonce)? {
             // If is a bridge operation, check balance change on dest chain
-            if as_single_step.exe_type == "bridge" {
+            if as_single_step.is_bridge_step() {
+                pink_extension::info!(
+                    "Check balance change on destchain for bridge step {:?}",
+                    &as_single_step
+                );
+                let dest_chain = as_single_step
+                    .dest_chain(context)
+                    .ok_or("MissingSourceChain")?;
                 let latest_balance =
-                    chain.get_balance(as_single_step.receive_asset.clone(), recipient)?;
+                    dest_chain.get_balance(as_single_step.receive_asset.clone(), recipient)?;
                 let origin_balance = as_single_step
                     .origin_balance
                     .ok_or("MissingOriginReserve")?;

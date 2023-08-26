@@ -239,6 +239,10 @@ impl Task {
             // - Step failed to execute
             // - Step has been executed, but off-chain indexer hasn't caught up
             Ok(false) => {
+                pink_extension::debug!(
+                    "Current step has not been executed or failed to execute, retry step {:?}",
+                    (self.execute_index),
+                );
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
                 self.retry_counter += 1;
@@ -548,7 +552,10 @@ impl Task {
             }),
             worker,
         ))
-        .map_err(|_| "ClaimSubmitFailed")?;
+        .map_err(|e| {
+            pink_extension::error!("claimAndBatchCall: failed to submit tx with error {:?}", &e);
+            "ClaimSubmitFailed"
+        })?;
 
         // Merge nonce to let check for first step work properly
         first_step.set_nonce(self.claim_nonce.unwrap());
