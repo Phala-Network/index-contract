@@ -1,8 +1,8 @@
-use crate::actions::acala::asset::*;
 use crate::actions::base::account::{
     AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData,
 };
-use crate::actions::phala::asset::*;
+use crate::assets::get_assetid_by_location;
+
 use alloc::{string::String, vec, vec::Vec};
 
 use pink_extension::ResultExt;
@@ -19,7 +19,6 @@ use pink_web3::{
     types::{Address, U256},
     Web3,
 };
-use scale::Encode;
 use xcm::v3::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
@@ -172,14 +171,16 @@ impl BalanceFetcher for Chain {
                             .map_err(|_| "InvalidMultilocation")?;
                     match self.foreign_asset {
                         Some(ForeignAssetModule::PalletAsset) => {
-                            let asset_id = Location2Assetid::new()
-                                .get_assetid(self.name.clone(), &asset_location)
-                                .ok_or("AssetNotRecognized")?;
+                            let asset_id = get_assetid_by_location(&self.name, &asset_location);
+                            if asset_id.is_empty() {
+                                return Err("AssetNotRecognized");
+                            }
+
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
                                     &storage_prefix("Assets", "Account")[..],
-                                    &asset_id.to_le_bytes(),
+                                    &asset_id,
                                     &public_key,
                                 ),
                                 None,
@@ -199,15 +200,16 @@ impl BalanceFetcher for Chain {
                             }
                         }
                         Some(ForeignAssetModule::OrmlToken) => {
-                            let attrs = AcalaAssetMap::get_asset_attrs(&asset_location)
-                                .ok_or("AssetNotRecognized")?;
-                            let currency_id = CurrencyId::Token(attrs.0);
+                            let currency_id = get_assetid_by_location(&self.name, &asset_location);
+                            if currency_id.is_empty() {
+                                return Err("AssetNotRecognized");
+                            }
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Twox64Concat>(
                                     &storage_prefix("Tokens", "Accounts")[..],
                                     &public_key,
-                                    &currency_id.encode(),
+                                    &currency_id,
                                 ),
                                 None,
                             )

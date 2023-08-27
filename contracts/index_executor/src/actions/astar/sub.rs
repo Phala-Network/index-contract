@@ -1,7 +1,7 @@
 use pink_extension::AccountId;
 use xcm::v3::prelude::*;
 
-use super::asset::Location2Assetid;
+use super::asset::AstarAssets;
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
@@ -79,8 +79,8 @@ impl CallBuilder for AstarTransactor {
                 call_index: None,
             }])
         } else {
-            let asset_id = Location2Assetid::new()
-                .get_assetid(String::from("Astar"), &asset_location)
+            let asset_id = AstarAssets::new()
+                .get_assetid(&String::from("Astar"), &asset_location)
                 .ok_or("AssetNotFound")?;
             Ok(vec![Call {
                 params: CallParams::Sub(SubCall {

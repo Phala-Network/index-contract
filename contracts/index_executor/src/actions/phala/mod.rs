@@ -20,7 +20,7 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             String::from("phala_bridge_to_astar"),
             Box::new(xtransfer::XTransferXcm::new(
                 ASTAR_PARACHAIN_ID,
-                AccountType::Account20,
+                AccountType::Account32,
             )),
         ),
         (

@@ -1,3 +1,4 @@
+use crate::traits::AssetRegistry;
 use crate::utils::slice_to_generalkey;
 use alloc::{vec, vec::Vec};
 
@@ -112,10 +113,10 @@ pub type TokenAttrs = (
 );
 
 #[derive(Default)]
-pub struct AcalaAssetMap;
+pub struct AcalaAssets;
 
-impl AcalaAssetMap {
-    pub fn get_map() -> Vec<TokenAttrs> {
+impl AcalaAssets {
+    fn get_map() -> Vec<TokenAttrs> {
         let lc_kar: MultiLocation =
             MultiLocation::new(1, X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x80])));
         let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
@@ -134,7 +135,7 @@ impl AcalaAssetMap {
     pub fn get_asset_attrs(
         location: &MultiLocation,
     ) -> Option<(TokenSymbol, TokenType, Option<ForeignAssetId>)> {
-        let tokens = AcalaAssetMap::get_map();
+        let tokens = AcalaAssets::get_map();
         let token = tokens.iter().find(|s| s.0 == *location);
         if let Some(token) = token {
             return Some((token.1, token.2, token.3));
@@ -143,9 +144,19 @@ impl AcalaAssetMap {
     }
 
     pub fn get_currency_id(location: &MultiLocation) -> Option<CurrencyId> {
-        if let Some(attrs) = AcalaAssetMap::get_asset_attrs(location) {
+        if let Some(attrs) = AcalaAssets::get_asset_attrs(location) {
             return Some(CurrencyId::Token(attrs.0));
         }
+        None
+    }
+}
+
+impl AssetRegistry<CurrencyId> for AcalaAssets {
+    fn get_assetid(&self, _chain: &str, location: &MultiLocation) -> Option<CurrencyId> {
+        Self::get_currency_id(location)
+    }
+    fn get_location(&self, _chain: &str, _asset_id: CurrencyId) -> Option<MultiLocation> {
+        // TODO.implement
         None
     }
 }

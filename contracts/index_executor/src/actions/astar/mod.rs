@@ -1,4 +1,4 @@
-mod asset;
+pub mod asset;
 mod sub;
 
 use crate::actions::base::uniswapv2;
@@ -30,7 +30,7 @@ pub fn sub_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> 
             Box::new(sub::AstarTransactor::new(chain.native_asset.clone())),
         ),
         (
-            String::from("astar_bridge_to_astar_evm"),
+            String::from("astar_bridge_to_astarevm"),
             Box::new(sub::AstarSubToEvmTransactor::new(
                 chain.native_asset.clone(),
             )),

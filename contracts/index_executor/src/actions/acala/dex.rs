@@ -1,4 +1,4 @@
-use super::asset::{AcalaAssetMap, AggregatedSwapPath, CurrencyId, TokenSymbol};
+use super::asset::{AcalaAssets, AggregatedSwapPath, CurrencyId, TokenSymbol};
 use alloc::{format, vec, vec::Vec};
 use pink_extension::ResultExt;
 use scale::{Compact, Decode, Encode};
@@ -38,10 +38,8 @@ impl CallBuilder for AcalaSwap {
             ))
             .map_err(|_| "FailedToScaleDecode")?;
 
-        let token0 =
-            AcalaAssetMap::get_currency_id(&asset0_location).ok_or("AssetNotRecognized")?;
-        let token1 =
-            AcalaAssetMap::get_currency_id(&asset1_location).ok_or("AssetNotRecognized")?;
+        let token0 = AcalaAssets::get_currency_id(&asset0_location).ok_or("AssetNotRecognized")?;
+        let token1 = AcalaAssets::get_currency_id(&asset1_location).ok_or("AssetNotRecognized")?;
 
         // FIXME: hardcode for demo
         if token0 != CurrencyId::Token(TokenSymbol::DOT)

@@ -1,6 +1,7 @@
 use super::context::Context;
 use super::storage::StorageClient;
 use alloc::vec::Vec;
+use xcm::v3::MultiLocation;
 
 pub trait Runner {
     /// Check if a job can be executed.
@@ -22,4 +23,10 @@ pub trait Runner {
     ///
     /// Only when the transaction was successfully executed, it can return `true`
     fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str>;
+}
+
+pub trait AssetRegistry<T> {
+    fn get_assetid(&self, chain: &str, location: &MultiLocation) -> Option<T>;
+
+    fn get_location(&self, chain: &str, asset_id: T) -> Option<MultiLocation>;
 }

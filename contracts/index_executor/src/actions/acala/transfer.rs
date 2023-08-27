@@ -1,7 +1,7 @@
 use pink_extension::AccountId;
 use xcm::v3::prelude::*;
 
-use super::asset::{AcalaAssetMap, CurrencyId, TokenType as AcalaTokenType};
+use super::asset::{AcalaAssets, CurrencyId, TokenType as AcalaTokenType};
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
@@ -28,7 +28,7 @@ impl CallBuilder for AcalaTransactor {
             .map_err(|_| "FailedToScaleDecode")?;
         let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
         let recipient = MultiAddress::Id(AccountId::from(bytes));
-        let asset_attrs = AcalaAssetMap::get_asset_attrs(&asset_location).ok_or("BadAsset")?;
+        let asset_attrs = AcalaAssets::get_asset_attrs(&asset_location).ok_or("BadAsset")?;
         let currency_id = CurrencyId::Token(asset_attrs.0);
         let asset_type = asset_attrs.1;
         let amount = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
