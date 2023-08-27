@@ -4,6 +4,7 @@ extern crate alloc;
 
 mod account;
 mod actions;
+mod assets;
 mod call;
 mod chain;
 mod constants;

@@ -99,7 +99,7 @@ impl Step {
         let action = self.get_action(context)?;
         pink_extension::debug!(
             "Trying to build calldata for according to step data: {:?}",
-            &self,
+            self,
         );
         action.build_call(self.clone())
     }
@@ -342,7 +342,13 @@ impl Runner for MultiStep {
                     }),
                     KeyPair::from(signer),
                 ))
-                .map_err(|_| "FailedToSubmitTransaction")?;
+                .map_err(|e| {
+                    pink_extension::error!(
+                        "Failed to submit step execution tx with error: {:?}",
+                        e
+                    );
+                    "FailedToSubmitTransaction"
+                })?;
 
                 tx_id.as_bytes().to_owned()
             }
@@ -359,24 +365,27 @@ impl Runner for MultiStep {
                             era: None,
                         },
                     )
-                    .map_err(|_| "InvalidSignature")?;
+                    .map_err(|e| {
+                        pink_extension::error!(
+                            "Failed to construct substrate tx with error: {:?}",
+                            e
+                        );
+                        "FailedToCreateTransaction"
+                    })?;
 
-                    send_transaction(&chain.endpoint, &signed_tx)
-                        .map_err(|_| "FailedToSubmitTransaction")?
+                    send_transaction(&chain.endpoint, &signed_tx).map_err(|e| {
+                        pink_extension::error!(
+                            "Failed to submit step execution tx with error: {:?}",
+                            e
+                        );
+                        "FailedToSubmitTransaction"
+                    })?
                 }
                 _ => return Err("UnexpectedCallType"),
             },
         };
 
-        pink_extension::info!(
-            "Step execution details: sender,  {:?}, from {:?}, to {:?}, recipient: {:?}, amount: {:?}, tx id: {:?}",
-            &hex::encode(as_single_step.sender.clone().ok_or("MissingSender")?),
-            &as_single_step.source_chain,
-            &as_single_step.dest_chain,
-            &hex::encode(as_single_step.recipient.clone().ok_or("MissingRecipient")?),
-            as_single_step.spend_amount,
-            hex::encode(&tx_id)
-        );
+        pink_extension::info!("Submitted step execution tx: {:?}", hex::encode(&tx_id));
         Ok(tx_id)
     }
 
@@ -414,6 +423,11 @@ impl Runner for MultiStep {
                 let origin_balance = as_single_step
                     .origin_balance
                     .ok_or("MissingOriginReserve")?;
+                pink_extension::info!(
+                    "origin_balance: {:?}, latest_balance: {:?}",
+                    origin_balance,
+                    latest_balance
+                );
 
                 return Ok(latest_balance > origin_balance);
             }

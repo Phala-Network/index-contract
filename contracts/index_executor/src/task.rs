@@ -422,10 +422,12 @@ impl Task {
     ) -> Result<(), &'static str> {
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
 
-        // Apply nonce for claim operation
-        let claim_nonce = self.get_nonce(context, &self.source)?;
-        nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
-        self.claim_nonce = Some(claim_nonce);
+        // Apply claim nonce if hasn't claimed
+        if !self.has_claimed(context)? {
+            let claim_nonce = self.get_nonce(context, &self.source)?;
+            nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
+            self.claim_nonce = Some(claim_nonce);
+        }
 
         // Apply nonce for each step
         for index in start_index as usize..self.merged_steps.len() {
@@ -993,7 +995,7 @@ mod tests {
             // astar_bridge_to_astar_evm
             StepJson {
                 exe_type: String::from("bridge"),
-                exe: String::from("astar_bridge_to_astar_evm"),
+                exe: String::from("astar_bridge_to_astarevm"),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("AstarEvm"),
                 spend_asset: String::from("0x010100cd1f"),

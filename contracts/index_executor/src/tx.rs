@@ -95,6 +95,12 @@ fn get_tx(
 
 /// Return true if transaction is confirmed on chain
 pub fn check_tx(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, &'static str> {
+    pink_extension::debug!(
+        "check_tx: trying to fetch tx data for account {:?} from indexer {:?} with nonce {:?}",
+        hex::encode(account),
+        indexer,
+        nonce
+    );
     // nonce from storage is one larger than the last tx's nonce
     let tx = get_tx(indexer, account, nonce)?;
     pink_extension::debug!(
@@ -115,8 +121,9 @@ mod tests {
     #[ignore]
     fn should_work() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-        let account = hex_literal::hex!("9ccbdac25ecda4d817b3aa0e020bc65f841c80c3");
-        let tx = get_tx("http://127.0.0.1:4350", &account, 1)
+        let account =
+            hex_literal::hex!("04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276");
+        let tx = get_tx("https://squid.subsquid.io/graph-astar/graphql", &account, 0)
             .unwrap()
             .unwrap();
         dbg!(&tx);
