@@ -1,8 +1,8 @@
-use crate::actions::base::uniswapv2;
+use crate::actions::base::uniswapv3;
 
 pub mod xtoken;
 
-pub type MoonbeamStellaSwap = uniswapv2::UniswapV2;
+pub type MoonbeamStellaSwap = uniswapv3::UniswapV3;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
@@ -11,7 +11,7 @@ use crate::utils::ToArray;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
-    let stellaswap_router: [u8; 20] = hex::decode("70085a09D30D6f8C4ecF6eE10120d1847383BB57")
+    let stellaswap_routerv3: [u8; 20] = hex::decode("e6d0ED3759709b743707DcfeCAe39BC180C981fe")
         .unwrap()
         .to_array();
     let moonbeam_xtoken: [u8; 20] = hex_literal::hex!("0000000000000000000000000000000000000804");
@@ -21,7 +21,7 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             String::from("moonbeam_stellaswap"),
             Box::new(MoonbeamStellaSwap::new(
                 &chain.endpoint,
-                stellaswap_router.into(),
+                stellaswap_routerv3.into(),
             )),
         ),
         (

@@ -1,6 +1,8 @@
 use crate::actions::base::uniswapv2;
+use crate::actions::base::uniswapv3;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 pub type EthereumUniswapV2 = uniswapv2::UniswapV2;
+pub type EthereumUniswapV3 = uniswapv3::UniswapV3;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
@@ -10,12 +12,24 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
     let uniswapv2_router: [u8; 20] = hex::decode("7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
         .unwrap()
         .to_array();
+    let uniswapv3_router: [u8; 20] = hex::decode("E592427A0AEce92De3Edee1F18E0157C05861564")
+        .unwrap()
+        .to_array();
 
-    vec![(
-        String::from("ethereum_uniswapv2"),
-        Box::new(EthereumUniswapV2::new(
-            &chain.endpoint,
-            uniswapv2_router.into(),
-        )),
-    )]
+    vec![
+        (
+            String::from("ethereum_uniswapv2"),
+            Box::new(EthereumUniswapV2::new(
+                &chain.endpoint,
+                uniswapv2_router.into(),
+            )),
+        ),
+        (
+            String::from("ethereum_uniswapv3"),
+            Box::new(EthereumUniswapV3::new(
+                &chain.endpoint,
+                uniswapv3_router.into(),
+            )),
+        ),
+    ]
 }

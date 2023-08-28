@@ -79,9 +79,7 @@ impl Tokenizable for Call {
                 tokens.push(U256::from(input_call).into_token());
                 tokens.push(U256::from(call_index).into_token());
             }
-            _ => {
-                return Token::Tuple(vec![]);
-            }
+            _ => None.expect("Illegal Call"),
         }
         Token::Tuple(tokens)
     }
