@@ -359,14 +359,38 @@ mod index_executor {
 
         #[ink(message)]
         pub fn get_all_running_tasks(&self) -> Result<Vec<Task>> {
-            // TODO: read from remote storage
-            Ok(vec![])
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+
+            let mut tasks = Vec::new();
+            if let Some((ids, _)) = client
+                .read_storage::<Vec<[u8; 32]>>(b"pending_tasks")
+                .map_err(|_| Error::FailedToReadStorage)?
+            {
+                for id in ids.iter() {
+                    pink_extension::debug!(
+                        "Trying to read pending task data from remote storage, task id: {:?}",
+                        &hex::encode(id)
+                    );
+                    let (task, _) = client
+                        .read_storage::<Task>(id)
+                        .map_err(|_| Error::FailedToReadStorage)?
+                        .ok_or(Error::TaskNotFoundInStorage)?;
+
+                    tasks.push(task);
+                }
+            }
+            Ok(tasks)
         }
 
         #[ink(message)]
-        pub fn get_running_task(&self, _task_id: TaskId) -> Result<Option<Task>> {
-            // TODO: read from remote storage
-            Ok(None)
+        pub fn get_running_task(&self, id: TaskId) -> Result<Option<Task>> {
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            Ok(client
+                .read_storage::<Task>(&id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .map(|(task, _)| task))
         }
 
         /// Returs the interior registry, callable to all
