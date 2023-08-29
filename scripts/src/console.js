@@ -485,7 +485,7 @@ scheduler
             throw new Error("Executor not running")
         }
 
-        console.log(`Start query contract periodically...`)
+        console.log(`Start run interval tasks...`)
 
         async function runIntervalTasks() {
             return new Promise(async (_resolve, reject) => {
@@ -511,7 +511,7 @@ scheduler
                     console.log(`Task execute result: ${JSON.stringify(output, null, 2)}`)
                 }, Number(opt.executeInterval | 10000))
 
-                // Trigger gcloud access token update every 10 mins
+                // Trigger gcloud access token update
                 setInterval(async () => {
                     try {
                         const token = execSync('gcloud auth print-access-token').toString().trim();
