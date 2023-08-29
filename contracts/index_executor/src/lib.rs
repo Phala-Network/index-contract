@@ -428,12 +428,13 @@ mod index_executor {
             // Worker sr25519 public key
             worker: [u8; 32],
         ) -> Result<()> {
+            let signer = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
             // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
                 self.registry
                     .get_chain(source_chain)
                     .ok_or(Error::ChainNotFound)?,
-                AccountInfo::from(self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?),
+                AccountInfo::from(signer),
             )
             .fetch_task()
             .map_err(|_| Error::FailedToFetchTask)?;
@@ -442,8 +443,7 @@ mod index_executor {
                 actived_task
                     .init(
                         &Context {
-                            // Don't need signer here
-                            signer: [0; 32],
+                            signer,
                             registry: &self.registry,
                             worker_accounts: self.worker_accounts.clone(),
                         },

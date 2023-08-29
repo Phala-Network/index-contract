@@ -423,7 +423,7 @@ impl Task {
         let mut nonce_map: Mapping<String, u64> = Mapping::default();
 
         // Apply claim nonce if hasn't claimed
-        if !self.has_claimed(context)? {
+        if self.claim_nonce.is_none() || !self.has_claimed(context)? {
             let claim_nonce = self.get_nonce(context, &self.source)?;
             nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
             self.claim_nonce = Some(claim_nonce);
