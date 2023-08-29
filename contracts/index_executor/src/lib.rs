@@ -3,24 +3,25 @@
 extern crate alloc;
 
 mod account;
-mod cache;
 mod context;
 mod gov;
 mod graph;
 mod steps;
+mod storage;
 mod task;
 mod traits;
+mod tx;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
 mod index_executor {
     use crate::account::AccountInfo;
-    use crate::cache::*;
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::graph::Graph as RegistryGraph;
     use crate::steps::claimer::ActivedTaskFetcher;
-    use crate::task::{OnchainAccounts, OnchainTasks, Task, TaskId, TaskStatus};
+    use crate::storage::StorageClient;
+    use crate::task::{Task, TaskId, TaskStatus};
     use alloc::{boxed::Box, string::String, vec, vec::Vec};
     use index::prelude::*;
     use index::traits::executor::TransferExecutor;
@@ -31,9 +32,6 @@ mod index_executor {
     };
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
-    use phat_offchain_rollup::clients::substrate::{
-        claim_name, get_name_owner, SubstrateRollupClient,
-    };
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
     use worker_key_store::KeyStoreRef;
@@ -47,22 +45,15 @@ mod index_executor {
         ChainNotFound,
         ImportWorkerFailed,
         WorkerNotFound,
-        FailedToGetNameOwner,
-        RollupNotConfigured,
-        RollupConfiguredByAnotherAccount,
-        FailedToClaimName,
-        FailedToCreateClient,
-        FailedToCommitTx,
+        FailedToSetWorker,
         FailedToSendTransaction,
         FailedToFetchTask,
         FailedToInitTask,
-        ReadCacheFailed,
-        WriteCacheFailed,
-        DecodeCacheFailed,
+        FailedToDestoryTask,
+        FailedToUploadTask,
         DecodeGraphFailed,
         SetGraphFailed,
-        TaskNotFoundInCache,
-        TaskNotFoundOnChain,
+        TaskNotFoundInStorage,
         UnexpectedChainType,
         GraphNotSet,
         ExecutorPaused,
@@ -74,10 +65,10 @@ mod index_executor {
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
-        /// The rollup anchor pallet id on the target blockchain
-        rollup_pallet_id: u8,
-        /// The endpoint of rollup deployed chain
-        rollup_endpoint: String,
+        /// The URL of google firebase db
+        db_url: String,
+        /// The access token of google firebase db
+        db_token: String,
     }
 
     /// Event emitted when graph is set.
@@ -88,9 +79,9 @@ mod index_executor {
     #[ink(event)]
     pub struct Configured;
 
-    /// Event emitted when worker account is set to rollup.
+    /// Event emitted when worker account is set to storage.
     #[ink(event)]
-    pub struct WorkerSetToRollup;
+    pub struct WorkerSetToStorage;
 
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -100,8 +91,6 @@ mod index_executor {
         Execute,
     }
 
-    const SUB_ROLLUP_PREFIX: &[u8] = b"q/";
-
     #[ink(storage)]
     pub struct Executor {
         pub admin: AccountId,
@@ -109,7 +98,6 @@ mod index_executor {
         pub graph: Vec<u8>,
         pub worker_prv_keys: Vec<[u8; 32]>,
         pub worker_accounts: Vec<AccountInfo>,
-        pub executor_account: [u8; 32],
         pub is_paused: bool,
     }
 
@@ -129,8 +117,6 @@ mod index_executor {
                 graph: Vec::default(),
                 worker_prv_keys: vec![],
                 worker_accounts: vec![],
-                executor_account: pink_web3::keys::pink::KeyPair::derive_keypair(b"executor")
-                    .private_key(),
                 // Make sure we configured the executor before running
                 is_paused: true,
             }
@@ -146,20 +132,12 @@ mod index_executor {
         #[ink(message)]
         pub fn config(
             &mut self,
-            rollup_pallet_id: u8,
-            rollup_endpoint: String,
+            db_url: String,
+            db_token: String,
             keystore_account: AccountId,
         ) -> Result<()> {
             self.ensure_owner()?;
-            // Insert empty record in advance
-            let empty_tasks: Vec<TaskId> = vec![];
-            pink_extension::ext()
-                .cache_set(b"running_tasks", &empty_tasks.encode())
-                .unwrap();
-            self.config = Some(Config {
-                rollup_pallet_id,
-                rollup_endpoint,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             let key_store_contract = KeyStoreRef::from_account_id(keystore_account);
@@ -170,7 +148,7 @@ mod index_executor {
                 self.worker_accounts.push(AccountInfo::from(*key))
             }
             pink_extension::debug!(
-                "Configured rollup information as: {:?}, imported worker accounts: {:?}",
+                "Configured information as: {:?}, imported worker accounts: {:?}",
                 &self.config,
                 self.worker_accounts.clone()
             );
@@ -190,101 +168,28 @@ mod index_executor {
             Ok(())
         }
 
-        /// Claim rollup storage slot for this contract
-        ///
-        /// Note this is a query operation, an extrinsic would be sent to chain under the hood
+        /// Save worker account information to remote storage.
         #[ink(message)]
-        pub fn setup_rollup(&self) -> Result<()> {
-            self.ensure_owner()?;
-            let config = self.ensure_configured()?;
-
-            let contract_id = self.env().account_id();
-            // Check if the rollup is initialized properly
-            let actual_owner = get_name_owner(&config.rollup_endpoint, &contract_id)
-                .log_err("failed to get name owner")
-                .or(Err(Error::FailedToGetNameOwner))?;
-            if let Some(owner) = actual_owner {
-                let pubkey = pink_extension::ext().get_public_key(
-                    pink_extension::chain_extension::SigType::Sr25519,
-                    &self.executor_account,
-                );
-                if owner.encode() != pubkey {
-                    return Err(Error::RollupConfiguredByAnotherAccount);
-                }
-            } else {
-                // Not initialized. Let's claim the name.
-                pink_extension::debug!(
-                    "Start to claim rollup name for contract id: {:?}",
-                    &contract_id
-                );
-                claim_name(
-                    &config.rollup_endpoint,
-                    config.rollup_pallet_id,
-                    &contract_id,
-                    &self.executor_account,
-                )
-                .log_err("failed to claim name")
-                .map(|tx_hash| {
-                    pink_extension::debug!(
-                        "Send transaction to claim name: {:?}",
-                        hex::encode(tx_hash)
-                    );
-                    // Do nothing so far
-                })
-                .or(Err(Error::FailedToClaimName))?;
-            }
-
-            Ok(())
-        }
-
-        /// Save worker account information to rollup storage.
-        #[ink(message)]
-        pub fn setup_worker_on_rollup(&self) -> Result<()> {
+        pub fn setup_worker_on_storage(&self) -> Result<()> {
             self.ensure_owner()?;
 
             let config = self.ensure_configured()?;
-            let contract_id = self.env().account_id();
-            let mut client = SubstrateRollupClient::new(
-                &config.rollup_endpoint,
-                config.rollup_pallet_id,
-                &contract_id,
-                SUB_ROLLUP_PREFIX,
-            )
-            .log_err("failed to create rollup client")
-            .or(Err(Error::FailedToCreateClient))?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             // Setup worker accounts if it hasn't been set yet.
-            if OnchainAccounts::lookup_free_accounts(&mut client).is_none() {
-                pink_extension::debug!(
-                    "No onchain worker account exist, start setting throug rollup"
-                );
-                OnchainAccounts::set_worker_accounts(
-                    &mut client,
-                    self.worker_accounts
-                        .clone()
-                        .into_iter()
-                        .map(|account| account.account32)
-                        .collect(),
-                );
-                // Submit the transaction if it's not empty
-                let maybe_submittable = client
-                    .commit()
-                    .log_err("failed to commit")
-                    .or(Err(Error::FailedToCommitTx))?;
-
-                // Submit to blockchain
-                if let Some(submittable) = maybe_submittable {
-                    let tx_id = submittable
-                        .submit(&self.executor_account, 0)
-                        .log_err("failed to submit rollup tx")
-                        .or(Err(Error::FailedToSendTransaction))?;
-                    pink_extension::debug!(
-                        "Send transaction to set worker account: {:?}",
-                        hex::encode(tx_id)
-                    );
-                }
+            if client.lookup_free_accounts().is_none() {
+                pink_extension::debug!("No onchain worker account exist, start setting to storage");
+                client
+                    .set_worker_accounts(
+                        self.worker_accounts
+                            .clone()
+                            .into_iter()
+                            .map(|account| account.account32)
+                            .collect(),
+                    )
+                    .map_err(|_| Error::FailedToSetWorker)?;
             }
-            Self::env().emit_event(WorkerSetToRollup {});
+            Self::env().emit_event(WorkerSetToStorage {});
             Ok(())
         }
 
@@ -342,40 +247,15 @@ mod index_executor {
             self.ensure_graph_set()?;
 
             let config = self.ensure_configured()?;
-            let contract_id = self.env().account_id();
-            let mut client = SubstrateRollupClient::new(
-                &config.rollup_endpoint,
-                config.rollup_pallet_id,
-                &contract_id,
-                SUB_ROLLUP_PREFIX,
-            )
-            .log_err("failed to create rollup client")
-            .or(Err(Error::FailedToCreateClient))?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
-                    self.fetch_task(&mut client, source_chain, worker)?
+                    self.fetch_task(&client, source_chain, worker)?
                 }
-                RunningType::Execute => self.execute_task(&mut client)?,
+                RunningType::Execute => self.execute_task(&client)?,
             };
 
-            // Submit the transaction if it's not empty
-            let maybe_submittable = client
-                .commit()
-                .log_err("failed to commit")
-                .or(Err(Error::FailedToCommitTx))?;
-
-            // Submit to blockchain
-            if let Some(submittable) = maybe_submittable {
-                let tx_id = submittable
-                    .submit(&self.executor_account, 0)
-                    .log_err("failed to submit rollup tx")
-                    .or(Err(Error::FailedToSendTransaction))?;
-                pink_extension::debug!(
-                    "Send transaction to update rollup storage: {:?}",
-                    hex::encode(tx_id)
-                );
-            }
             Ok(())
         }
 
@@ -393,21 +273,14 @@ mod index_executor {
 
         #[ink(message)]
         pub fn get_all_running_tasks(&self) -> Result<Vec<Task>> {
-            let mut task_list: Vec<Task> = vec![];
-            let local_tasks = pink_extension::ext()
-                .cache_get(b"running_tasks")
-                .ok_or(Error::ReadCacheFailed)?;
-            let decoded_tasks: Vec<TaskId> = Decode::decode(&mut local_tasks.as_slice())
-                .map_err(|_| Error::DecodeCacheFailed)?;
-            for task_id in decoded_tasks {
-                task_list.push(TaskCache::get_task(&task_id).ok_or(Error::TaskNotFoundInCache)?);
-            }
-            Ok(task_list)
+            // TODO: read from remote storage
+            Ok(vec![])
         }
 
         #[ink(message)]
-        pub fn get_running_task(&self, task_id: TaskId) -> Result<Option<Task>> {
-            Ok(TaskCache::get_task(&task_id))
+        pub fn get_running_task(&self, _task_id: TaskId) -> Result<Option<Task>> {
+            // TODO: read from remote storage
+            Ok(None)
         }
 
         /// Returs the interior graph, callable to all
@@ -416,12 +289,6 @@ mod index_executor {
             let graph: Graph =
                 Decode::decode(&mut self.graph.as_slice()).map_err(|_| Error::DecodeGraphFailed)?;
             Ok(graph.into())
-        }
-
-        /// Return executor account information
-        #[ink(message)]
-        pub fn get_executor_account(&self) -> AccountInfo {
-            self.executor_account.into()
         }
 
         /// Return whole worker account information
@@ -434,22 +301,15 @@ mod index_executor {
         #[ink(message)]
         pub fn get_free_worker_account(&self) -> Result<Option<Vec<[u8; 32]>>> {
             let config = self.ensure_configured()?;
-            let contract_id = self.env().account_id();
-            let mut client = SubstrateRollupClient::new(
-                &config.rollup_endpoint,
-                config.rollup_pallet_id,
-                &contract_id,
-                SUB_ROLLUP_PREFIX,
-            )
-            .log_err("failed to create rollup client")
-            .or(Err(Error::FailedToCreateClient))?;
-            Ok(OnchainAccounts::lookup_free_accounts(&mut client))
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+
+            Ok(client.lookup_free_accounts())
         }
 
-        /// Search actived tasks from source chain and upload them to rollup storage
+        /// Search actived tasks from source chain and upload them to storage
         pub fn fetch_task(
             &self,
-            client: &mut SubstrateRollupClient,
+            client: &StorageClient,
             source_chain: String,
             // Worker sr25519 public key
             worker: [u8; 32],
@@ -496,49 +356,21 @@ mod index_executor {
 
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
-        pub fn execute_task(&self, client: &mut SubstrateRollupClient) -> Result<()> {
+        pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
             let bridge_executors = self.create_bridge_executors()?;
             let dex_executors = self.create_dex_executors()?;
             let transfer_executors = self.create_transfer_executors()?;
 
-            for id in OnchainTasks::lookup_pending_tasks(client).iter() {
+            for id in client.lookup_pending_tasks().iter() {
                 pink_extension::debug!(
-                    "Found one pending tasks exist in rollup storge, task id: {:?}",
+                    "Found one pending tasks exist in storge, task id: {:?}",
                     &hex::encode(id)
                 );
-                // Get task saved in local cache, if not exist in local, try recover from on-chain storage
-                // FIXME: First time execute the task, it would be treat as broken, then trying to recover
-                let mut task = TaskCache::get_task(id)
-                    .or_else(|| {
-                        pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &hex::encode(id));
-                        if let Some(mut onchain_task) = OnchainTasks::lookup_task(client, id) {
-                            // The state of task saved in rollup storage is `Initialized`, to understand
-                            // the current state we must sync state according to on-chain history
-                            onchain_task.sync(
-                                &Context {
-                                    signer: self.pub_to_prv(onchain_task.worker).unwrap(),
-                                    graph: {
-                                        let bytes = self.graph.clone();
-                                        let mut bytes = bytes.as_ref();
-                                        Graph::decode(&mut bytes).unwrap()
-                                    },
-                                    worker_accounts: self.worker_accounts.clone(),
-                                    bridge_executors: vec![],
-                                    dex_executors: vec![],
-                                    transfer_executors: vec![],
-                                },
-                                client,
-                            );
-                            // Add task to local cache
-                            let _ = TaskCache::add_task(&onchain_task);
-                            pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
-                            Some(onchain_task)
-                        } else {
-                            None
-                        }
-                    })
-                    .ok_or(Error::TaskNotFoundOnChain)?;
-
+                pink_extension::debug!(
+                    "Trying to read task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let mut task: Task = client.lookup_task(id).ok_or(Error::TaskNotFoundInStorage)?;
                 pink_extension::info!(
                     "Start execute next step of task, execute worker account: {:?}",
                     &hex::encode(task.worker)
@@ -560,20 +392,12 @@ mod index_executor {
                 ) {
                     Ok(TaskStatus::Completed) => {
                         pink_extension::info!(
-                            "Task execution completed, delete it from rollup storage: {:?}",
+                            "Task execution completed, delete it from storage: {:?}",
                             hex::encode(task.id)
                         );
                         // Remove task from blockchain and recycle worker account
                         task.destroy(client)
-                            .map_err(|_| Error::RollupNotConfigured)?;
-                        // If task already delete from rollup storage, delete it from local cache
-                        if OnchainTasks::lookup_task(client, id).is_none() {
-                            pink_extension::info!(
-                                "Task delete from rollup storage, remove it from local cache: {:?}",
-                                hex::encode(task.id)
-                            );
-                            TaskCache::remove_task(&task).map_err(|_| Error::WriteCacheFailed)?;
-                        }
+                            .map_err(|_| Error::FailedToDestoryTask)?;
                     }
                     Err(_) => {
                         pink_extension::error!(
@@ -592,10 +416,12 @@ mod index_executor {
                     }
                     _ => {
                         pink_extension::info!(
-                            "Task execution has not finished yet, update data to local cache: {:?}",
+                            "Task execution has not finished yet, update data to remote storage: {:?}",
                             hex::encode(task.id)
                         );
-                        TaskCache::update_task(&task).map_err(|_| Error::WriteCacheFailed)?;
+                        client
+                            .put(task.id.as_ref(), &task.encode())
+                            .map_err(|_| Error::FailedToUploadTask)?;
                         continue;
                     }
                 }
@@ -806,32 +632,25 @@ mod index_executor {
         use xcm::latest::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
-            // Insert empty record in advance
-            let empty_tasks: Vec<TaskId> = vec![];
-            pink_extension::ext()
-                .cache_set(b"running_tasks", &empty_tasks.encode())
-                .unwrap();
-
             // Deploy Executor
             Executor::default()
         }
 
         #[ignore]
         #[ink::test]
-        fn rollup_should_work() {
+        fn storage_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
             let mut executor = deploy_executor();
-            // Initial rollup
+            // Initial executor
             assert_eq!(
-                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
+                executor.config("url".to_string(), "key".to_string(), [0; 32].into()),
                 Ok(())
             );
-            assert_eq!(executor.setup_rollup(), Ok(()));
         }
 
         #[ignore]
         #[ink::test]
-        fn setup_worker_on_rollup_should_work() {
+        fn setup_worker_on_storage_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
             use crate::graph::Asset as RegistryAsset;
             use crate::graph::Chain as RegistryChain;
@@ -846,6 +665,7 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
+                        tx_indexer_url: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,
@@ -862,13 +682,12 @@ mod index_executor {
                     dex_indexers: vec![],
                 })
                 .unwrap();
-            // Initial rollup
+            // Initial executor
             assert_eq!(
-                executor.config(100, String::from("http://127.0.0.1:39933"), [0; 32].into()),
+                executor.config("url".to_string(), "key".to_string(), [0; 32].into()),
                 Ok(())
             );
-            assert_eq!(executor.setup_rollup(), Ok(()));
-            assert_eq!(executor.setup_worker_on_rollup(), Ok(()));
+            assert_eq!(executor.setup_worker_on_storage(), Ok(()));
             let onchain_free_accounts = executor.get_free_worker_account().unwrap().unwrap();
             let local_worker_accounts: Vec<[u8; 32]> = executor
                 .worker_accounts
