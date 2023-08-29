@@ -514,7 +514,7 @@ scheduler
                 // Trigger gcloud access token update every 10 mins
                 setInterval(async () => {
                     try {
-                        const token = execSync('gcloud auth print-access-token').toString();
+                        const token = execSync('gcloud auth print-access-token').toString().trim();
                         console.log(`Generate new token: ${token}`);
 
                         let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
