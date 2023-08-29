@@ -417,5 +417,39 @@ worker
         }
     }));
 
+    worker
+    .command('drop-task')
+    .description('drop a task that has not been claimed from handler')
+    .requiredOption('--worker <worker>', 'worker sr25519 public key', null)
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--id <task_id>', 'task id', null)
+
+    .action(
+      run(async (opt) => {
+        let { uri } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(
+          api,
+          config.pruntine_endpoint,
+          config.executor_contract_id
+        );
+        let cert = await useCert(uri, api);
+
+        console.log(
+          `Call Executor::worker_drop_task...`
+        );
+        let queryRecipient = await executor.query.workerDropTask(
+          cert,
+          {},
+          opt.worker,
+          opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(),
+          opt.id
+        );
+        console.log(
+          `Query recipient: ${JSON.stringify(queryRecipient, null, 2)}`
+        );
+      })
+    );
 
 program.parse(process.argv);
