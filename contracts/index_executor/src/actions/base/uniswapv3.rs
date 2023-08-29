@@ -51,8 +51,6 @@ impl CallBuilder for UniswapV3 {
             .encode_input(&[Token::Tuple(swap_params.into_tokens())])
             .map_err(|_| "EncodeParamError")?;
 
-        println!("swap_calldata: {:?}", &hex::encode(&swap_calldata));
-
         let token = Contract::from_json(
             self.eth.clone(),
             asset0,
