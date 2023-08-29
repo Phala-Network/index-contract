@@ -42,7 +42,6 @@ mod index_executor {
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub enum Error {
         BadOrigin,
-        CallIndexerFailed,
         NotConfigured,
         MissingPalletId,
         ChainNotFound,
@@ -157,7 +156,6 @@ mod index_executor {
             pink_extension::ext()
                 .cache_set(b"running_tasks", &empty_tasks.encode())
                 .unwrap();
-            pink_extension::debug!("done setting empty running_tasks in cache");
             self.config = Some(Config {
                 rollup_pallet_id,
                 rollup_endpoint,
@@ -295,7 +293,6 @@ mod index_executor {
             self.ensure_owner()?;
             self.ensure_running()?;
             self.is_paused = true;
-            pink_extension::debug!("pausing executor...");
             Ok(())
         }
 
@@ -304,7 +301,6 @@ mod index_executor {
             self.ensure_owner()?;
             self.ensure_paused()?;
             self.is_paused = false;
-            pink_extension::debug!("resuming executor...");
             Ok(())
         }
 
@@ -376,7 +372,7 @@ mod index_executor {
                     .log_err("failed to submit rollup tx")
                     .or(Err(Error::FailedToSendTransaction))?;
                 pink_extension::debug!(
-                    "run: Send transaction to update rollup storage: {:?}",
+                    "Send transaction to update rollup storage: {:?}",
                     hex::encode(tx_id)
                 );
             }
@@ -487,15 +483,12 @@ mod index_executor {
                     )
                     .map_err(|_| Error::FailedToInitTask)?;
                 pink_extension::info!(
-                    "fetch_task: An actived task was found on {:?}, initialized task data: {:?}",
+                    "An actived task was found on {:?}, initialized task data: {:?}",
                     &source_chain,
                     &actived_task
                 );
             } else {
-                pink_extension::debug!(
-                    "fetch_task: No actived task found from {:?}",
-                    &source_chain
-                );
+                pink_extension::debug!("No actived task found from {:?}", &source_chain);
             }
 
             Ok(())
@@ -510,12 +503,11 @@ mod index_executor {
 
             for id in OnchainTasks::lookup_pending_tasks(client).iter() {
                 pink_extension::debug!(
-                    "execute_task: Found one pending tasks exist in rollup storge, task id: {:?}",
+                    "Found one pending tasks exist in rollup storge, task id: {:?}",
                     &hex::encode(id)
                 );
                 // Get task saved in local cache, if not exist in local, try recover from on-chain storage
                 // FIXME: First time execute the task, it would be treat as broken, then trying to recover
-                pink_extension::debug!("executing_task: getting task with id = {:?}", id);
                 let mut task = TaskCache::get_task(id)
                     .or_else(|| {
                         pink_extension::warn!("Task data lost in local cache unexpectedly, try recover from rollup storage, task id: {:?}", &hex::encode(id));
@@ -537,15 +529,9 @@ mod index_executor {
                                 },
                                 client,
                             );
-                            pink_extension::debug!("now task is synced!");
                             // Add task to local cache
-                            match TaskCache::add_task(&onchain_task) {
-                                Ok(_) => pink_extension::debug!("successfully add task to cache"),
-                                Err(e) => {
-                                    pink_extension::debug!("failed to add task! {:?}, reason: {}", &onchain_task, e);
-                                    return None;
-                                }
-                            }
+                            let _ = TaskCache::add_task(&onchain_task);
+                            pink_extension::info!("Task has been recovered successfully, recovered task data: {:?}", &onchain_task);
                             Some(onchain_task)
                         } else {
                             None
@@ -656,11 +642,6 @@ mod index_executor {
                 return Err(Error::ExecutorPaused);
             }
             Ok(())
-        }
-
-        #[ink(message)]
-        pub fn echo(&self, words: String) {
-            pink_extension::debug!("You were saying: {}", words);
         }
 
         fn pub_to_prv(&self, pub_key: [u8; 32]) -> Option<[u8; 32]> {
@@ -865,7 +846,6 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
-                        tx_indexer: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,
@@ -879,6 +859,7 @@ mod index_executor {
                     bridges: vec![],
                     dex_pairs: vec![],
                     bridge_pairs: vec![],
+                    dex_indexers: vec![],
                 })
                 .unwrap();
             // Initial rollup

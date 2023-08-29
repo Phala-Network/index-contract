@@ -44,7 +44,7 @@ impl WorkerGov {
         ))
         .or(Err("ERC20ApproveSubmitFailed"))?;
         pink_extension::info!(
-            "Submit transaction to do ERC20 approve, token {:?} , spender {:?}, amount: {:?}, tx id: {:?}",
+            "Submit transaction to do ERC20 approve, token {:?} , spender ${:?}, amount: {:?}, tx id: {:?}",
             hex::encode(token),
             hex::encode(spender),
             amount,

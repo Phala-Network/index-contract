@@ -126,22 +126,20 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
         let recipient =
-            hex::decode("8119850bdfdf9792ec2f26a940b58fe43bfb083298ac8035d33a30ea4e5695fe")
+            hex::decode("cee6b60451fe18916873a0775b8ab8535843b90b1d92ccc1b75925c375790623")
                 .unwrap();
-        let tx = exec
-            .transfer(
-                signer,
-                // https://moonbeam.moonscan.io/token/0xffffffff1fcacbd218edc0eba20fc2308c778080
-                hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap(),
-                recipient,
-                // 0.1 xcdot
-                // too small an amount will cause transaction failure: https://moonbeam.subscan.io/xcm_message/polkadot-270774e1bdb5eb294b2e04bb62b1e2c0d639dcf7
-                // polkadot said too expensive
-                1_000_000_000,
-                ExtraParam::default(),
-            )
-            .unwrap();
-        dbg!(hex::encode(tx));
+        exec.transfer(
+            signer,
+            // https://moonbeam.moonscan.io/token/0xffffffff1fcacbd218edc0eba20fc2308c778080
+            hex::decode("FfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080").unwrap(),
+            recipient,
+            // 0.1 xcdot
+            // too small an amount will cause transaction failure: https://moonbeam.subscan.io/xcm_message/polkadot-270774e1bdb5eb294b2e04bb62b1e2c0d639dcf7
+            // polkadot said too expensive
+            1_000_000_000,
+            ExtraParam::default(),
+        )
+        .unwrap();
         // test txn:
         // - https://moonbeam.subscan.io/xcm_message/polkadot-16d178dd10eb67113379520279b7cd5a8547999a
     }

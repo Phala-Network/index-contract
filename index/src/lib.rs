@@ -9,7 +9,6 @@ pub mod graph;
 pub mod prelude;
 pub mod traits;
 mod transactors;
-pub mod tx;
 pub mod utils;
 
 #[derive(Clone)]

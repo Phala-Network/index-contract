@@ -3,15 +3,13 @@
 Suppose we are playing on poc5, after deployed executor and keystore contract, add the owner account mnemonic to the .env file
 
 ```sh
-URI="<your mnemonic>"
+URI="<your mnemonic"
 ```
 then update `executor_contract_id` and `key_store_contract_id` in `scripts/src/config.poc5.json` with the proper contract id
 
 Now we are ready to start config executor and keystore contract
 
 ## Whitelist executor id on keystore contract
-
-Add contract id to keystore contract's whitelist.
 
 Only whitelisted executor id can get private keys of worker account from keystore contract, `cd scripts` and execute
 
@@ -35,11 +33,7 @@ with `--balance` will get balance returned
 ### 2. Setup executor
 
 We need to config executor contract after deployed, stuff contains:
-
-1) import worker key from KeyStore contract (call executor.config), with
-    - rollup_pallet_id: 100
-    - rollup_endpoint: https://poc5.phala.network/rpc
-    - keystore_account: keystore contract's account, eg.: 0xccb96fbcbea761409c60a8002dc81c203533cf951db8e758005139f2b2f2e199
+1) import worker key from KeyStore contract (call executor.config);
 2) claim rollup storage (call executor.setup_rollup);
 3) setup worker account in rollup storage (call executor.setup_worker_on_rollup);
 4) resume executor (call executor.resume_executor);
@@ -61,14 +55,6 @@ rm db.sqlite && ./bin/dev parse -c dotflow.yaml
 ./bin/dev contract -n wss://poc5.phala.network/ws -r https://poc5.phala.network/tee-api-1 -a <executor contract id> -s "<mnemonic>" --set
 ```
 
-### Approve handlers to use your assets
-
-eg.: approve handler to spend 0.1 xcdot
-
-```sh
-node src/console.js --uri <your uri> erc20 approve --rpc https://1rpc.io/glmr --token 0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080 --spender 0x3a62a4980b952C92f4d4243c4A009336Ee0a26eB --amount 1000000000
-```
-
 ## Run scheduler
 
 - get worker account info
@@ -86,7 +72,7 @@ node src/console.js --config src/config.poc5.json worker list
 
 - You may need to let worker approve the handler contract
 
-For example you want to approve `Moonbeam bridge contract: 0x70085a09D30D6f8C4ecF6eE10120d1847383BB57` spend your  asset:
+For example you want to approve `Moonbeam bridge contract: 0x70085a09D30D6f8C4ecF6eE10120d1847383BB57` sepnd your  asset:
 
 ```sh
 node src/console.js --config src/config.poc5.json worker approve \
@@ -119,4 +105,4 @@ node src/console.js --config src/config.poc5.json handler deposit --chain Moonbe
 --data  $SOLUTION_DATA \
 --key <sender private key>
 ```
-Note `--id` specifies the task id, you can generate it in your way
+Note `--id` specifies the task id, you can generate it on your way

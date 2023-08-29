@@ -1,6 +1,5 @@
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType};
-use index::tx;
+use index::graph::{Chain, ChainType, NonceFetcher};
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -34,8 +33,6 @@ use phat_offchain_rollup::clients::substrate::SubstrateRollupClient;
 use pink_extension::ResultExt;
 use serde::Deserialize;
 
-use super::ExtraResult;
-
 /// Call method `claim` of contract/pallet through RPC to claim the actived tasks
 /// For example, call RPC method defined here:
 ///     https://github.com/Phala-Network/index-solidity/blob/0a1efe4b228185a37635dd872e1130eb3564ef6a/contracts/Handler.sol#L108
@@ -50,6 +47,8 @@ pub struct ClaimStep {
     pub id: TaskId,
     /// Asset that will transfer to worker account during claim
     pub asset: Vec<u8>,
+    /// Original worker account balance of received asset
+    pub b0: Option<u128>,
 }
 
 impl Runner for ClaimStep {
@@ -60,21 +59,15 @@ impl Runner for ClaimStep {
         client: Option<&mut SubstrateRollupClient>,
     ) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
-        let chain = &context
-            .graph
-            .get_chain(self.chain.clone())
-            .ok_or("MissingChain")?;
-        let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-        };
-        // if ok then not runnable
-        if tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))? {
+
+        // TODO. query off-chain indexer directly get the execution result
+
+        // 1. Check nonce
+        let onchain_nonce = worker_account.get_nonce(self.chain.clone(), context)?;
+        if onchain_nonce > nonce {
             Ok(false)
         } else {
-            // check if task exists in rollup storage
-            // if so, claim it, and regard it as runnable: Ok(true)
-            // if no task exists in rollup storage, then this is step is not runnable
+            // If task already exist in rollup storage, it is ready to be claimed
             Ok(OnchainTasks::lookup_task(client.ok_or("MissingClient")?, &self.id).is_some())
         }
     }
@@ -93,29 +86,25 @@ impl Runner for ClaimStep {
         }
     }
 
-    fn check(&self, nonce: u64, context: &Context) -> Result<(bool, ExtraResult), &'static str> {
-        let worker_account = AccountInfo::from(context.signer);
+    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+        let worker = KeyPair::from(context.signer);
+
+        // TODO. query off-chain indexer directly get the execution result
+
+        // Check if the transaction has been executed
         let chain = context
             .graph
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-        let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
-        };
+        let onchain_nonce = chain
+            .get_nonce(worker.address().as_bytes().into())
+            .map_err(|_| "FetchNonceFailed")?;
+        Ok((onchain_nonce - nonce) == 1)
 
-        Ok((
-            tx::is_tx_ok(&chain.tx_indexer, &account, nonce).or(Err("Indexer failure"))?,
-            ExtraResult::None,
-        ))
+        // TODO: Check if the transaction is successed or not
     }
 
-    fn sync_check(
-        &self,
-        nonce: u64,
-        context: &Context,
-    ) -> Result<(bool, ExtraResult), &'static str> {
-        pink_extension::debug!("Claim step sync checking: {:?}", self);
+    fn sync_check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         self.check(nonce, context)
     }
 }
@@ -159,7 +148,7 @@ impl ClaimStep {
         ))
         .map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
-            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone().as_bytes())
@@ -196,7 +185,7 @@ impl ClaimStep {
         let tx_id =
             send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
         pink_extension::info!(
-            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
             hex::encode(tx_id.clone())
@@ -232,11 +221,14 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
-        let handler: H160 = H160::from_slice(&chain.handler_contract);
+        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
-        let handler =
-            Contract::from_json(transport, handler, include_bytes!("../abi/handler.json"))
-                .map_err(|_| "ConstructContractFailed")?;
+        let handler = Contract::from_json(
+            transport,
+            handler_on_goerli,
+            include_bytes!("../abi/handler.json"),
+        )
+        .map_err(|_| "ConstructContractFailed")?;
 
         let worker_address: Address = worker.account20.into();
         pink_extension::debug!(
@@ -271,7 +263,6 @@ impl ActivedTaskFetcher {
         );
         let deposit_data: DepositData = evm_deposit_data.into();
         let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
-
         Ok(Some(task))
     }
 
@@ -460,6 +451,7 @@ impl DepositData {
                 chain: source_chain.into(),
                 id,
                 asset: self.decode_address(&task_data_json[0].spend_asset)?,
+                b0: None,
             }),
             chain: source_chain.into(),
             nonce: None,
@@ -473,11 +465,14 @@ impl DepositData {
                         spend_asset: self.decode_address(&op.spend_asset)?,
                         receive_asset: self.decode_address(&op.receive_asset)?,
                         chain: op.source_chain.clone(),
-                        name: op.tag.clone(),
+                        dex: op.dex.clone(),
+                        cap: self.u128_from_string(&op.cap)?,
+                        flow: self.u128_from_string(&op.flow)?,
+                        impact: self.u128_from_string(&op.impact)?,
+                        b0: None,
+                        b1: None,
                         spend: self.u128_from_string(&op.spend)?,
-                        receive_max: self.u128_from_string(&op.receive_max)?,
-                        receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: Default::default(),
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -485,17 +480,17 @@ impl DepositData {
             } else if op.op_type == *"bridge" {
                 uninitialized_task.steps.push(Step {
                     meta: StepMeta::Bridge(BridgeStep {
-                        name: op.tag.clone(),
                         from: self.decode_address(&op.spend_asset)?,
                         source_chain: op.source_chain.clone(),
                         to: self.decode_address(&op.receive_asset)?,
                         dest_chain: op.dest_chain.clone(),
-                        spend: self.u128_from_string(&op.spend)?,
-                        receive_max: self.u128_from_string(&op.receive_max)?,
-                        receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: Default::default(),
-                        block_number: 0,
-                        index_in_block: 0,
+                        fee: self.u128_from_string(&op.fee)?,
+                        cap: self.u128_from_string(&op.cap)?,
+                        flow: self.u128_from_string(&op.flow)?,
+                        b0: None,
+                        b1: None,
+                        amount: self.u128_from_string(&op.spend)?,
+                        recipient: None,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -506,10 +501,10 @@ impl DepositData {
                         asset: self.decode_address(&op.spend_asset)?,
                         amount: self.u128_from_string(&op.spend)?,
                         chain: op.source_chain.clone(),
-                        spend: self.u128_from_string(&op.spend)?,
-                        receive_max: self.u128_from_string(&op.receive_max)?,
-                        receive_min: self.u128_from_string(&op.receive_min)?,
-                        recipient: Default::default(),
+                        b0: None,
+                        b1: None,
+                        recipient: None,
+                        flow: self.u128_from_string(&op.flow)?,
                     }),
                     chain: op.source_chain.clone(),
                     nonce: None,
@@ -539,18 +534,19 @@ impl DepositData {
 
 type TaskDataJson = Vec<OperationJson>;
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Deserialize)]
 struct OperationJson {
     op_type: String,
-    tag: String,
     source_chain: String,
     dest_chain: String,
     spend_asset: String,
     receive_asset: String,
+    dex: String,
+    fee: String,
+    cap: String,
+    flow: String,
+    impact: String,
     spend: String,
-    receive_min: String,
-    receive_max: String,
 }
 
 #[cfg(test)]
@@ -567,32 +563,7 @@ mod tests {
 
     #[test]
     fn test_json_parse() {
-        let request = r#"
-        [
-            {
-              "tag": "AcalaDex",
-              "spend": "9577071932307798",
-              "sourceChain": "Acala",
-              "destChain": "Acala",
-              "spendAsset": "ACA",
-              "receiveAsset": "AUSD",
-              "receiveMin": "1970478348022065",
-              "receiveMax": "2092363606662605",
-              "opType": "dex"
-            },
-            {
-              "tag": "Acala",
-              "spend": "2031420977342335",
-              "sourceChain": "Acala",
-              "destChain": "Acala",
-              "spendAsset": "AUSD",
-              "receiveAsset": "AUSD",
-              "receiveMin": "1970275743439996",
-              "receiveMax": "2092148469838346",
-              "opType": "transfer"
-            }
-        ]
-        "#;
+        let request = "[{\"op_type\":\"swap\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Moonbeam\",\"spend_asset\":\"0xAcc15dC74880C9944775448304B263D191c6077F\",\"receive_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"dex\":\"BeamSwap\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"1000000000000000000\",\"impact\":\"0\",\"spend\":\"1000000000000000000\"},{\"op_type\":\"bridge\",\"source_chain\":\"Moonbeam\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080\",\"receive_asset\":\"0x010200411f06080002\",\"dex\":\"null\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"},{\"op_type\":\"swap\",\"source_chain\":\"Acala\",\"dest_chain\":\"Acala\",\"spend_asset\":\"0x010200411f06080002\",\"receive_asset\":\"0x010200411f06080000\",\"dex\":\"AcalaDex\",\"fee\":\"0\",\"cap\":\"0\",\"flow\":\"700000000\",\"impact\":\"0\",\"spend\":\"700000000\"}]";
         let _request_data_json: TaskDataJson = pink_json::from_str(&request).unwrap();
     }
 
@@ -616,7 +587,6 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -639,7 +609,7 @@ mod tests {
             ) => {
                 assert_eq!(claim_step.chain, String::from("Ethereum"));
                 assert_eq!(swap_meta.spend, 100_000_000_000_000_000_000 as u128);
-                assert_eq!(bridge_meta.spend, 12_000_000);
+                assert_eq!(bridge_meta.amount, 12_000_000);
             }
             _ => assert!(false),
         }
@@ -668,7 +638,6 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {
@@ -677,6 +646,7 @@ mod tests {
                 .unwrap()
                 .to_array(),
             asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
+            b0: None,
         };
         let context = Context {
             signer: mock_worker_key,
@@ -687,6 +657,7 @@ mod tests {
                 bridges: vec![],
                 dex_pairs: vec![],
                 bridge_pairs: vec![],
+                dex_indexers: vec![],
             },
             worker_accounts: vec![],
             bridge_executors: vec![],
@@ -704,7 +675,7 @@ mod tests {
         // Wait 60 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(60000));
 
-        assert_eq!(claim_step.check(nonce, &context).unwrap().0, true);
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
     }
 
     #[test]
@@ -726,7 +697,6 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("00").into(),
-                tx_indexer: Default::default(),
             },
             worker: AccountInfo {
                 account20: [0; 20],
@@ -748,7 +718,7 @@ mod tests {
                 StepMeta::Swap(swap_meta),
             ) => {
                 assert_eq!(claim_step.chain, String::from("Khala"));
-                assert_eq!(bridge_meta.spend, 301_000_000_000_000);
+                assert_eq!(bridge_meta.amount, 301_000_000_000_000);
                 assert_eq!(swap_meta.spend, 1_000_000_000_000_000_000 as u128);
             }
             _ => assert!(false),
@@ -778,7 +748,6 @@ mod tests {
             native_asset: pha.clone(),
             foreign_asset: None,
             handler_contract: hex!("79").into(),
-            tx_indexer: Default::default(),
         };
 
         let claim_step = ClaimStep {
@@ -787,6 +756,7 @@ mod tests {
                 .unwrap()
                 .to_array(),
             asset: pha.clone(),
+            b0: None,
         };
         let context = Context {
             signer: mock_worker_prv_key,
@@ -805,7 +775,7 @@ mod tests {
         // Wait 30 seconds to let transaction confirmed
         std::thread::sleep(std::time::Duration::from_millis(30000));
 
-        assert_eq!(claim_step.check(nonce, &context).unwrap().0, true);
+        assert_eq!(claim_step.check(nonce, &context).unwrap(), true);
         // After claim, asset sent from pallet-index account to worker account
         assert_eq!(
             khala.get_balance(pha, mock_worker_pub_key.into()).unwrap() - 301_000_000_000_000u128

@@ -13,7 +13,7 @@ pub use self::{
     asset::Asset,
     bridge::{Bridge, BridgePair},
     chain::{BalanceFetcher, Chain, ChainType, ForeignAssetModule, NonceFetcher},
-    dex::{Dex, DexPair},
+    dex::{Dex, DexIndexer, DexPair},
 };
 
 #[derive(Clone, Default, Encode, Decode, Debug)]
@@ -22,6 +22,7 @@ pub struct Graph {
     pub assets: Vec<Asset>,
     pub dexs: Vec<Dex>,
     pub dex_pairs: Vec<DexPair>,
+    pub dex_indexers: Vec<DexIndexer>,
     pub bridges: Vec<Bridge>,
     pub bridge_pairs: Vec<BridgePair>,
 }

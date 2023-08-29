@@ -1,15 +1,7 @@
 //#[allow(clippy::large_enum_variant)]
 use crate::alloc::string::ToString;
 use alloc::{string::String, vec::Vec};
-use index::graph::Asset as SDKAsset;
-use index::graph::Bridge as SDKBridge;
-use index::graph::BridgePair as SDKBridgePair;
-use index::graph::Chain as SDKChain;
-use index::graph::ChainType as SDKChainType;
-use index::graph::Dex as SDKDex;
-use index::graph::DexPair as SDKDexPair;
-use index::graph::ForeignAssetModule as SDKForeignAssetModule;
-use index::graph::Graph as SDKGraph;
+use index::graph as index_graph;
 use ink::storage::traits::StorageLayout;
 
 #[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
@@ -22,7 +14,6 @@ pub struct Chain {
     pub native_asset: u32,
     pub foreign_asset_type: u32,
     pub handler_contract: String,
-    pub tx_indexer: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
@@ -42,7 +33,14 @@ pub struct Dex {
     pub id: u32,
     pub name: String,
     pub chain_id: u32,
-    pub indexer: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
+pub struct DexIndexer {
+    pub id: u32,
+    pub url: String,
+    pub dex_id: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
@@ -79,27 +77,28 @@ pub struct Graph {
     pub assets: Vec<Asset>,
     pub dexs: Vec<Dex>,
     pub dex_pairs: Vec<DexPair>,
+    pub dex_indexers: Vec<DexIndexer>,
     pub bridges: Vec<Bridge>,
     pub bridge_pairs: Vec<BridgePair>,
 }
 
-impl TryInto<SDKGraph> for Graph {
+impl TryInto<index_graph::Graph> for Graph {
     type Error = &'static str;
-    fn try_into(self) -> core::result::Result<SDKGraph, Self::Error> {
-        let mut local_graph: SDKGraph = SDKGraph::default();
+    fn try_into(self) -> core::result::Result<index_graph::Graph, Self::Error> {
+        let mut local_graph: index_graph::Graph = index_graph::Graph::default();
 
         {
-            let mut arr: Vec<SDKChain> = Vec::new();
+            let mut arr: Vec<index_graph::Chain> = Vec::new();
             for chain in &self.chains {
-                let item: SDKChain = SDKChain {
+                let item: index_graph::Chain = index_graph::Chain {
                     id: chain.id,
                     name: chain.name.clone(),
                     endpoint: chain.endpoint.clone(),
                     chain_type: {
                         match chain.chain_type {
-                            // 0 => SDKChainType::Unknown,
-                            1 => SDKChainType::Evm,
-                            2 => SDKChainType::Sub,
+                            // 0 => index_graph::ChainType::Unknown,
+                            1 => index_graph::ChainType::Evm,
+                            2 => index_graph::ChainType::Sub,
                             _ => return Err("Unsupported chain!"),
                         }
                     },
@@ -110,14 +109,13 @@ impl TryInto<SDKGraph> for Graph {
                     },
                     foreign_asset: {
                         match chain.foreign_asset_type {
-                            1 => Some(SDKForeignAssetModule::PalletAsset),
-                            2 => Some(SDKForeignAssetModule::OrmlToken),
+                            1 => Some(index_graph::ForeignAssetModule::PalletAsset),
+                            2 => Some(index_graph::ForeignAssetModule::OrmlToken),
                             _ => return Err("Unsupported chain!"),
                         }
                     },
                     handler_contract: hexified_to_vec_u8(&chain.handler_contract)
                         .or(Err("InvalidInput"))?,
-                    tx_indexer: chain.tx_indexer.clone(),
                 };
                 arr.push(item);
             }
@@ -125,9 +123,9 @@ impl TryInto<SDKGraph> for Graph {
         }
 
         {
-            let mut arr: Vec<SDKAsset> = Vec::new();
+            let mut arr: Vec<index_graph::Asset> = Vec::new();
             for asset in &self.assets {
-                let item = SDKAsset {
+                let item = index_graph::Asset {
                     id: asset.id,
                     symbol: asset.symbol.clone(),
                     name: asset.name.clone(),
@@ -143,11 +141,10 @@ impl TryInto<SDKGraph> for Graph {
         {
             let mut arr = Vec::new();
             for dex in &self.dexs {
-                let item = SDKDex {
+                let item = index_graph::Dex {
                     id: dex.id,
                     name: dex.name.clone(),
                     chain_id: dex.chain_id,
-                    indexer: dex.indexer.clone(),
                 };
                 arr.push(item);
             }
@@ -156,8 +153,21 @@ impl TryInto<SDKGraph> for Graph {
 
         {
             let mut arr = Vec::new();
+            for indexer in &self.dex_indexers {
+                let item = index_graph::DexIndexer {
+                    id: indexer.id,
+                    url: indexer.url.clone(),
+                    dex_id: indexer.dex_id,
+                };
+                arr.push(item);
+            }
+            local_graph.dex_indexers = arr;
+        }
+
+        {
+            let mut arr = Vec::new();
             for pair in &self.dex_pairs {
-                let item = SDKDexPair {
+                let item = index_graph::DexPair {
                     id: pair.id,
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
@@ -172,7 +182,7 @@ impl TryInto<SDKGraph> for Graph {
         {
             let mut arr = Vec::new();
             for bridge in &self.bridges {
-                let item = SDKBridge {
+                let item = index_graph::Bridge {
                     id: bridge.id,
                     name: bridge.name.clone(),
                     location: hexified_to_vec_u8(&bridge.location).or(Err("InvalidInput"))?,
@@ -185,7 +195,7 @@ impl TryInto<SDKGraph> for Graph {
         {
             let mut arr = Vec::new();
             for pair in &self.bridge_pairs {
-                let item = SDKBridgePair {
+                let item = index_graph::BridgePair {
                     id: pair.id,
                     asset0_id: pair.asset0_id,
                     asset1_id: pair.asset1_id,
@@ -200,8 +210,8 @@ impl TryInto<SDKGraph> for Graph {
     }
 }
 
-impl From<SDKGraph> for Graph {
-    fn from(graph: SDKGraph) -> Graph {
+impl From<index_graph::Graph> for Graph {
+    fn from(graph: index_graph::Graph) -> Graph {
         let mut local_graph: Graph = Graph::default();
 
         {
@@ -213,8 +223,8 @@ impl From<SDKGraph> for Graph {
                     endpoint: chain.endpoint.clone(),
                     chain_type: {
                         match chain.chain_type {
-                            SDKChainType::Evm => 1,
-                            SDKChainType::Sub => 2,
+                            index_graph::ChainType::Evm => 1,
+                            index_graph::ChainType::Sub => 2,
                         }
                     },
                     native_asset: {
@@ -228,14 +238,13 @@ impl From<SDKGraph> for Graph {
                     },
                     foreign_asset_type: {
                         match chain.foreign_asset {
-                            Some(SDKForeignAssetModule::PalletAsset) => 1,
-                            Some(SDKForeignAssetModule::OrmlToken) => 2,
+                            Some(index_graph::ForeignAssetModule::PalletAsset) => 1,
+                            Some(index_graph::ForeignAssetModule::OrmlToken) => 2,
                             // FIXME: Is is reasonable here
                             None => 3,
                         }
                     },
                     handler_contract: vec_u8_to_hexified(&chain.handler_contract),
-                    tx_indexer: chain.tx_indexer.clone(),
                 };
                 arr.push(item);
             }
@@ -265,11 +274,23 @@ impl From<SDKGraph> for Graph {
                     id: dex.id,
                     name: dex.name.clone(),
                     chain_id: dex.chain_id,
-                    indexer: dex.indexer.clone(),
                 };
                 arr.push(item);
             }
             local_graph.dexs = arr;
+        }
+
+        {
+            let mut arr = Vec::new();
+            for indexer in &graph.dex_indexers {
+                let item = DexIndexer {
+                    id: indexer.id,
+                    url: indexer.url.clone(),
+                    dex_id: indexer.dex_id,
+                };
+                arr.push(item);
+            }
+            local_graph.dex_indexers = arr;
         }
 
         {
@@ -405,7 +426,6 @@ mod tests {
             native_asset: 3,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x12"),
-            tx_indexer: Default::default(),
         };
         let phala = Chain {
             id: 2,
@@ -415,7 +435,6 @@ mod tests {
             native_asset: 2,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x23"),
-            tx_indexer: Default::default(),
         };
         let pha_on_ethereum = Asset {
             id: 1,
@@ -483,7 +502,13 @@ mod tests {
             id: 1,
             name: "UniSwapV2".to_string(),
             chain_id: 1,
-            indexer: Default::default(),
+        };
+
+        // should have a jonction table but this structure suffices
+        let dex_indexer = DexIndexer {
+            id: 1,
+            url: "https://some-graph.network".to_string(),
+            dex_id: 1,
         };
 
         let graph = Graph {
@@ -502,9 +527,10 @@ mod tests {
                 ethereum2phala_weth_pair,
                 phala2ethereum_pha_pair,
             ],
+            dex_indexers: vec![dex_indexer],
         };
 
-        let index_graph: SDKGraph = graph.clone().try_into().unwrap();
+        let index_graph: index_graph::Graph = graph.clone().try_into().unwrap();
         let decoded_graph: Graph = index_graph.into();
         assert_eq!(decoded_graph, graph)
     }
