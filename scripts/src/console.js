@@ -2,20 +2,25 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path')
+const { execSync } = require('child_process')
 const { program } = require('commander');
 const { Decimal } = require('decimal.js');
 const BN = require('bn.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const { stringToHex } = require('@polkadot/util');
-const ethers = require('ethers')
-const PhalaSdk = require('@phala/sdk')
-const PhalaSDKTypes = PhalaSdk.types
+const ethers = require('ethers');
+const PhalaSdk = require('@phala/sdk');
+const PhalaSDKTypes = PhalaSdk.types;
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const { loadContractFile, createContract, delay } = require('./utils');
 
-const ERC20ABI = require('./ERC20ABI.json')
-const HandlerABI = require('./HandlerABI.json')
+const ERC20ABI = require('./ERC20ABI.json');
+const HandlerABI = require('./HandlerABI.json');
+
+// TODO: load from config file
+const SOURCE_CHAINS = ['Moonbeam', 'AstarEvm'];
+const EXE_WORKER = '0x04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276';
 
 function run(afn) {
     function runner(...args) {
@@ -417,7 +422,7 @@ worker
         }
     }));
 
-    worker
+worker
     .command('drop-task')
     .description('drop a task that has not been claimed from handler')
     .requiredOption('--worker <worker>', 'worker sr25519 public key', null)
@@ -449,6 +454,95 @@ worker
         console.log(
           `Query recipient: ${JSON.stringify(queryRecipient, null, 2)}`
         );
+      })
+    );
+
+const scheduler = program
+    .command('scheduler')
+    .description('inDEX scheduler');
+
+scheduler
+    .command('run')
+    .description('Run scheduled tasks periodically [this command never return]')
+    .option('--fetch-interval <fetch-interval>', 'Interval of fetch task from all source chains in millisecond', null)
+    .option('--execute-interval <execute-interval>', 'Interval of execute task in millisecond', null)
+    .option('--token-update-interval <token-update-interval>', 'Interval of update google firbase access token in millisecond', null)
+
+    .action(
+      run(async (opt) => {
+        let { uri, storageUrl } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(
+          api,
+          config.pruntine_endpoint,
+          config.executor_contract_id
+        );
+        let cert = await useCert(uri, api);
+        let pair = await usePair(uri);
+
+        if ((await executor.query.isRunning(cert, {})).asOk === false) {
+            throw new Error("Executor not running")
+        }
+
+        console.log(`Start query contract periodically...`)
+
+        async function runIntervalTasks() {
+            return new Promise(async (_resolve, reject) => {
+                // Trigger task lookup
+                setInterval(async () => {
+                    for (const source of SOURCE_CHAINS) {
+                        console.log(`🔍Trigger actived task search from ${source} for worker ${EXE_WORKER}`)
+                        let { output } = await executor.query.run(cert,
+                            {},
+                            {'Fetch': [source, EXE_WORKER]}
+                        )
+                        console.log(`Task lookup result: ${JSON.stringify(output, null, 2)}`)
+                    }
+                }, Number(opt.fetchInterval | 30000))
+
+                // Trigger task execution
+                setInterval(async () => {
+                    console.log(`🐌Trigger task executing`)
+                    let {output} = await executor.query.run(cert,
+                        {},
+                        'Execute'
+                    )
+                    console.log(`Task execute result: ${JSON.stringify(output, null, 2)}`)
+                }, Number(opt.executeInterval | 10000))
+
+                // Trigger gcloud access token update every 10 mins
+                setInterval(async () => {
+                    try {
+                        const token = execSync('gcloud auth print-access-token').toString();
+                        console.log(`Generate new token: ${token}`);
+
+                        let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
+                            storageUrl,
+                            token,
+                            config.key_store_contract_id,
+                            false,
+                        );
+                        // transaction / extrinct
+                        let options = {
+                            gasLimit: gasRequired.refTime,
+                            storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+                        };
+                        await executor.tx.configEngine(options,
+                            storageUrl,
+                            token,
+                            config.key_store_contract_id,
+                            false,
+                        ).signAndSend(pair, { nonce: -1 });
+                        console.log(`✅ Access token updated successfully`);
+                    } catch (error) {
+                        throw new Error(`Failed to generate access token due to error: ${error}`)
+                    }
+                }, Number(opt.tokenUpdateInterval | 60000))
+            })
+        }
+
+        await runIntervalTasks();
       })
     );
 
