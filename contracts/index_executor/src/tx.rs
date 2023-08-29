@@ -19,7 +19,7 @@ pub struct Transaction {
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[serde(rename_all = "camelCase")]
-struct Tx {
+struct TxResonpse {
     pub id: String,
     pub account: String,
     pub nonce: u64,
@@ -32,7 +32,7 @@ struct Tx {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[serde(rename_all = "camelCase")]
 struct QueryResult {
-    transactions: Vec<Tx>,
+    transactions: Vec<TxResonpse>,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
@@ -42,13 +42,13 @@ struct ResponseData {
     data: QueryResult,
 }
 
-fn send_request(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, &'static str> {
+fn send_request(indexer_url: &str, query: &str) -> core::result::Result<Vec<u8>, &'static str> {
     let content_length = format!("{}", query.len());
     let headers: Vec<(String, String)> = vec![
         ("Content-Type".into(), "application/json".into()),
         ("Content-Length".into(), content_length),
     ];
-    let response = http_req!("POST", indexer, query.into(), headers);
+    let response = http_req!("POST", indexer_url, query.into(), headers);
 
     if response.status_code != 200 {
         return Err("CallIndexerFailed");
@@ -58,7 +58,7 @@ fn send_request(indexer: &str, query: &str) -> core::result::Result<Vec<u8>, &'s
 }
 
 fn get_tx(
-    indexer: &str,
+    indexer_url: &str,
     account: &[u8],
     nonce: u64,
 ) -> core::result::Result<Option<Transaction>, &'static str> {
@@ -71,7 +71,7 @@ fn get_tx(
             "operationName": "Query"
         }}"#
     );
-    let body = send_request(indexer, &query)?;
+    let body = send_request(indexer_url, &query)?;
     let response: ResponseData = pink_json::from_slice(&body).or(Err("InvalidBody"))?;
     let transactions = &response.data.transactions;
 
@@ -94,11 +94,11 @@ fn get_tx(
 }
 
 /// Return true if transaction is confirmed on chain
-pub fn check_tx(indexer: &str, account: &[u8], nonce: u64) -> Result<bool, &'static str> {
+pub fn check_tx(indexer_url: &str, account: &[u8], nonce: u64) -> Result<bool, &'static str> {
     // nonce from storage is one larger than the last tx's nonce
-    let tx = get_tx(indexer, account, nonce)?;
+    let tx = get_tx(indexer_url, account, nonce)?;
     pink_extension::debug!(
-        "check_tx: tx record returned from off-chain indexer: {:?}",
+        "check_tx: tx record returned from off-chain indexer_url: {:?}",
         tx
     );
     if let Some(tx) = tx {

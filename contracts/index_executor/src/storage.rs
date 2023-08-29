@@ -98,10 +98,7 @@ impl StorageClient {
 
     /// Return (encoded_data, document_id) if success
     fn read_storage(&self, key: &[u8]) -> Result<Option<(Vec<u8>, String)>, &'static str> {
-        let key = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let key = hex::encode(key);
         pink_extension::debug!("read_storage: id: {}", key);
 
         let cmd = format!(
@@ -127,45 +124,38 @@ impl StorageClient {
         );
 
         let response_body: Vec<u8> = self.send_request("POST", "documents:runQuery", &cmd)?;
+
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
-            Ok(if !response.is_empty() {
-                let data_str = response[0].document.fields.data.string_value.clone();
-                let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
-                let document_id = response[0]
-                    .document
-                    .name
-                    .split('/')
-                    .last()
-                    .ok_or("ParseDocumentFailed")?
-                    .to_string();
-                Some((data, document_id))
-            } else {
-                None
-            })
+            if response.is_empty() {
+                return Ok(None);
+            }
+
+            let data_str = response[0].document.fields.data.string_value.clone();
+            let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
+            let document_id = response[0]
+                .document
+                .name
+                .split('/')
+                .last()
+                .ok_or("ParseDocumentFailed")?
+                .to_string();
+            Ok(Some((data, document_id)))
         } else {
             // Trying decode from EmptyData, this is highly related to the response format of the storage service
-            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
-                pink_extension::debug!("read_storage: no storage item found: {}", key);
-                Ok(None)
-            } else {
+            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_err() {
                 // Here we can make sure we got unexpected data
-                Err("DecodedDataFailed")
+                return Err("DecodedDataFailed");
             }
+            pink_extension::debug!("read_storage: no storage item found: {}", key);
+            Ok(None)
         }
     }
 
     /// Update storage data if necessary, will create a new record if storage item does not exist
     fn write_storage(&self, key: &[u8], data: &Vec<u8>) -> Result<(), &'static str> {
         let storage_data: Option<(Vec<u8>, String)> = self.read_storage(key)?;
-        let key = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        let data_str = data
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        let api: String;
+        let key = hex::encode(key);
+        let data_str = hex::encode(data);
 
         pink_extension::debug!("write_storage: id: {}", &key);
 
@@ -187,14 +177,14 @@ impl StorageClient {
                 pink_extension::debug!("write_storage: same storage data, ignore");
                 return Ok(());
             }
-            api = format!("documents/index-storage/{}", storage_data.unwrap().1);
-            let _ = self.send_request("PATCH", &api[..], &cmd)?;
+            let api = format!("documents/index-storage/{}", storage_data.unwrap().1);
+            let _ = self.send_request("PATCH", api.as_ref(), &cmd)?;
         } else {
             pink_extension::debug!(
                 "write_storage: storage item doesn't exist in storage, trying to create one"
             );
-            api = "documents/index-storage".to_string();
-            let _ = self.send_request("POST", &api[..], &cmd)?;
+            let api = "documents/index-storage";
+            let _ = self.send_request("POST", api, &cmd)?;
         }
 
         Ok(())

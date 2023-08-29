@@ -14,7 +14,7 @@ pub struct Chain {
     pub native_asset: u32,
     pub foreign_asset_type: u32,
     pub handler_contract: String,
-    pub tx_indexer: String,
+    pub tx_indexer_url: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, scale::Encode, scale::Decode)]
@@ -117,7 +117,7 @@ impl TryInto<index_graph::Graph> for Graph {
                     },
                     handler_contract: hexified_to_vec_u8(&chain.handler_contract)
                         .or(Err("InvalidInput"))?,
-                    tx_indexer: chain.tx_indexer.clone(),
+                    tx_indexer_url: chain.tx_indexer_url.clone(),
                 };
                 arr.push(item);
             }
@@ -247,7 +247,7 @@ impl From<index_graph::Graph> for Graph {
                         }
                     },
                     handler_contract: vec_u8_to_hexified(&chain.handler_contract),
-                    tx_indexer: chain.tx_indexer.clone(),
+                    tx_indexer_url: chain.tx_indexer_url.clone(),
                 };
                 arr.push(item);
             }
@@ -429,7 +429,7 @@ mod tests {
             native_asset: 3,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x12"),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         let phala = Chain {
             id: 2,
@@ -439,7 +439,7 @@ mod tests {
             native_asset: 2,
             foreign_asset_type: 1,
             handler_contract: string_to_hexified("0x23"),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         let pha_on_ethereum = Asset {
             id: 1,

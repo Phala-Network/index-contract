@@ -1,4 +1,4 @@
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std, no_main)]
 
 extern crate alloc;
 
@@ -65,10 +65,10 @@ mod index_executor {
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
-        /// The storage provider url
-        storage_url: String,
-        /// Secret key of storage provider
-        storage_key: String,
+        /// The URL of google firebase db
+        db_url: String,
+        /// The access token of google firebase db
+        db_token: String,
     }
 
     /// Event emitted when graph is set.
@@ -132,15 +132,12 @@ mod index_executor {
         #[ink(message)]
         pub fn config(
             &mut self,
-            storage_url: String,
-            storage_key: String,
+            db_url: String,
+            db_token: String,
             keystore_account: AccountId,
         ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                storage_url,
-                storage_key,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             let key_store_contract = KeyStoreRef::from_account_id(keystore_account);
@@ -177,7 +174,7 @@ mod index_executor {
             self.ensure_owner()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             // Setup worker accounts if it hasn't been set yet.
             if client.lookup_free_accounts().is_none() {
@@ -250,7 +247,7 @@ mod index_executor {
             self.ensure_graph_set()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
@@ -304,7 +301,7 @@ mod index_executor {
         #[ink(message)]
         pub fn get_free_worker_account(&self) -> Result<Option<Vec<[u8; 32]>>> {
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             Ok(client.lookup_free_accounts())
         }
@@ -668,7 +665,7 @@ mod index_executor {
                         native_asset: 1,
                         foreign_asset_type: 1,
                         handler_contract: String::default(),
-                        tx_indexer: Default::default(),
+                        tx_indexer_url: Default::default(),
                     }],
                     assets: vec![RegistryAsset {
                         id: 1,

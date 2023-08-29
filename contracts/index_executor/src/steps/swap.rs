@@ -119,6 +119,6 @@ impl Runner for SwapStep {
             index::graph::ChainType::Evm => worker_account.account20.to_vec(),
             index::graph::ChainType::Sub => worker_account.account32.to_vec(),
         };
-        tx::check_tx(&chain.tx_indexer, &account, nonce)
+        tx::check_tx(&chain.tx_indexer_url, &account, nonce)
     }
 }
