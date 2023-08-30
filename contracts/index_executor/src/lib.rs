@@ -127,10 +127,7 @@ mod index_executor {
             import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                db_url,
-                db_token,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             if import_key {
@@ -157,7 +154,7 @@ mod index_executor {
             self.ensure_owner()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             pink_extension::debug!("Start to config storage");
             let accounts: Vec<[u8; 32]> = self
