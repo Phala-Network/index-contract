@@ -126,10 +126,7 @@ mod index_executor {
             import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                db_url,
-                db_token,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             if import_key {
@@ -162,7 +159,7 @@ mod index_executor {
             if let Some(index) = self.registry.chains.iter().position(|x| x.name == chain) {
                 // Update the value at the found index
                 self.registry.chains[index].endpoint = endpoint;
-                self.registry.chains[index].tx_indexer = indexer;
+                self.registry.chains[index].tx_indexer_url = indexer;
             }
             Ok(())
         }
