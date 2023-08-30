@@ -5,7 +5,6 @@ use crate::storage::StorageClient;
 use crate::traits::Runner;
 use crate::tx;
 use alloc::{string::String, vec::Vec};
-
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
@@ -91,7 +90,6 @@ impl Runner for TransferStep {
             .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
-
         let account = match chain.chain_type {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
