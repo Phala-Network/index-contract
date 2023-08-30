@@ -1,9 +1,11 @@
 use crate::account::AccountInfo;
+use crate::chain::ChainType;
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
 use crate::tx;
 use alloc::{string::String, vec::Vec};
+
 use pink_subrpc::ExtraParam;
 use scale::{Decode, Encode};
 
@@ -86,12 +88,13 @@ impl Runner for TransferStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
-            .graph
+            .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
+
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
         tx::check_tx(&chain.tx_indexer_url, &account, nonce)
     }

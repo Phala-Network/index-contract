@@ -37,6 +37,8 @@ pink-extension-runtime = "0.4.0"
 dotenv = "0.15.0"
 hex = "0.4.3"
 
+sp-runtime = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.29", default-features = false }
+
 [profile.release]
 overflow-checks = false     # Disable integer overflow checks.
 lto = false                 # Enable full link-time optimization.
@@ -70,6 +72,7 @@ std = [
     "index/std",
     "worker_key_store/std",
     "sp-std/std",
+    "sp-runtime/std",
 ]
 ink-as-dependency = []
 

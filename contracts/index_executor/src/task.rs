@@ -1,10 +1,10 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
+use crate::chain::{ChainType, NonceFetcher};
 use crate::steps::{Step, StepMeta};
 use crate::storage::StorageClient;
 use alloc::{string::String, vec, vec::Vec};
-use index::graph::{ChainType, NonceFetcher};
 use ink::storage::Mapping;
 use scale::{Decode, Encode};
 
@@ -68,7 +68,7 @@ impl Task {
         context: &Context,
         client: &StorageClient,
     ) -> Result<(), &'static str> {
-        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut free_accounts = client.lookup_free_accounts();
         let mut pending_tasks = client.lookup_pending_tasks();
 
         if client.lookup_task(&self.id).is_some() {
@@ -191,7 +191,7 @@ impl Task {
 
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
-        let mut free_accounts = client.lookup_free_accounts().ok_or("WorkerAccountNotSet")?;
+        let mut free_accounts = client.lookup_free_accounts();
         let mut pending_tasks = client.lookup_pending_tasks();
 
         if client.lookup_task(&self.id).is_some() {
@@ -223,7 +223,7 @@ impl Task {
                 Some(nonce) => nonce,
                 None => {
                     let chain = context
-                        .graph
+                        .registry
                         .get_chain(step.chain.clone())
                         .ok_or("MissingChain")?;
                     let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
@@ -252,7 +252,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(swap_step.chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -269,7 +269,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(bridge_step.dest_chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -286,7 +286,7 @@ impl Task {
                         Some(self.recipient.clone())
                     } else {
                         let chain = context
-                            .graph
+                            .registry
                             .get_chain(transfer_step.chain.clone())
                             .ok_or("MissingChain")?;
                         let account_info =
@@ -421,10 +421,11 @@ impl Task {
 mod tests {
     use super::*;
     use crate::account::AccountInfo;
+    use crate::chain::{Chain, ChainType};
+    use crate::registry::Registry;
     use crate::steps::claimer::ActivedTaskFetcher;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::graph::{Chain, ChainType, Graph};
     use pink_extension::chain_extension::AccountId;
     use primitive_types::H160;
 
@@ -526,7 +527,7 @@ mod tests {
         assert_eq!(task.init_and_submit(
             &Context {
                 signer: [0; 32],
-                graph: Graph {
+                registry: &Registry {
                     chains: vec![
                         Chain {
                             id: 1,
@@ -549,17 +550,8 @@ mod tests {
                             tx_indexer_url: Default::default(),
                         }
                     ],
-                    assets: vec![],
-                    dexs: vec![],
-                    dex_pairs: vec![],
-                    dex_indexers: vec![],
-                    bridges: vec![],
-                    bridge_pairs: vec![],
                 },
                 worker_accounts: worker_accounts.clone(),
-                bridge_executors: vec![],
-                dex_executors: vec![],
-                transfer_executors: vec![],
             },
             &client,
         ), Ok(()));

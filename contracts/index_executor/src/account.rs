@@ -1,14 +1,10 @@
 use super::context::Context;
+use crate::chain::{BalanceFetcher, ChainType, NonceFetcher};
 use alloc::{format, string::String, vec::Vec};
-use index::{
-    graph::{BalanceFetcher, ChainType, NonceFetcher},
-    utils::ToArray,
-};
+use index::utils::ToArray;
 use ink::storage::traits::StorageLayout;
-use pink_extension::{
-    chain_extension::{signing, SigType},
-    ResultExt,
-};
+use pink_extension::chain_extension::{signing, SigType};
+use pink_extension::ResultExt;
 use scale::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
@@ -25,7 +21,10 @@ impl AccountInfo {
         chain_name: String,
         context: &Context,
     ) -> Result<Vec<u8>, &'static str> {
-        let chain = context.graph.get_chain(chain_name).ok_or("MissingChain")?;
+        let chain = context
+            .registry
+            .get_chain(chain_name)
+            .ok_or("MissingChain")?;
         Ok(match chain.chain_type {
             ChainType::Evm => self.account20.into(),
             ChainType::Sub => self.account32.into(),
@@ -38,7 +37,10 @@ impl AccountInfo {
         asset: Vec<u8>,
         context: &Context,
     ) -> Result<u128, &'static str> {
-        let chain = context.graph.get_chain(chain_name).ok_or("MissingChain")?;
+        let chain = context
+            .registry
+            .get_chain(chain_name)
+            .ok_or("MissingChain")?;
         let account: Vec<u8> = match chain.chain_type {
             ChainType::Evm => self.account20.into(),
             ChainType::Sub => self.account32.into(),
@@ -50,7 +52,7 @@ impl AccountInfo {
 
     pub fn get_nonce(&self, chain_name: String, context: &Context) -> Result<u64, &'static str> {
         let chain = context
-            .graph
+            .registry
             .get_chain(chain_name.clone())
             .ok_or("MissingChain")?;
         let account: Vec<u8> = match chain.chain_type {

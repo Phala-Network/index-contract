@@ -1,8 +1,8 @@
-use super::{AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData};
-use crate::assets::*;
-use crate::prelude::Error;
-use alloc::string::String;
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
+use index::account::{
+    AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData,
+};
+use index::assets::*;
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
@@ -64,24 +64,24 @@ impl Chain {
 
 /// Query on-chain `account` nonce
 pub trait NonceFetcher {
-    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, Error>;
+    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, &'static str>;
 }
 impl NonceFetcher for Chain {
-    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, Error> {
+    fn get_nonce(&self, account: Vec<u8>) -> core::result::Result<u64, &'static str> {
         Ok(match self.chain_type {
             ChainType::Evm => {
-                let account20: [u8; 20] = account.try_into().map_err(|_| Error::InvalidAddress)?;
+                let account20: [u8; 20] = account.try_into().map_err(|_| "InvalidAddress")?;
                 let evm_account: Address = account20.into();
                 let eth = Eth::new(PinkHttp::new(self.endpoint.clone()));
                 let nonce = resolve_ready(eth.transaction_count(evm_account, None))
-                    .map_err(|_| Error::FetchDataFailed)?;
+                    .map_err(|_| "FetchDataFailed")?;
                 nonce.try_into().expect("Nonce onverflow")
             }
             ChainType::Sub => {
-                let version = get_ss58addr_version(&self.name).map_err(|_| Error::Ss58)?;
-                let public_key: [u8; 32] = account.try_into().map_err(|_| Error::InvalidAddress)?;
+                let version = get_ss58addr_version(&self.name).map_err(|_| "Ss58")?;
+                let public_key: [u8; 32] = account.try_into().map_err(|_| "InvalidAddress")?;
                 let addr = public_key.to_ss58check_with_version(version.prefix());
-                get_next_nonce(&self.endpoint, &addr).map_err(|_| Error::FetchDataFailed)?
+                get_next_nonce(&self.endpoint, &addr).map_err(|_| "FetchDataFailed")?
             }
         })
     }
@@ -89,34 +89,39 @@ impl NonceFetcher for Chain {
 
 /// Query on-chain account balance of an asset
 pub trait BalanceFetcher {
-    fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error>;
+    fn get_balance(
+        &self,
+        asset: Vec<u8>,
+        account: Vec<u8>,
+    ) -> core::result::Result<u128, &'static str>;
 }
 
 impl BalanceFetcher for Chain {
-    fn get_balance(&self, asset: Vec<u8>, account: Vec<u8>) -> core::result::Result<u128, Error> {
+    fn get_balance(
+        &self,
+        asset: Vec<u8>,
+        account: Vec<u8>,
+    ) -> core::result::Result<u128, &'static str> {
         match self.chain_type {
             ChainType::Evm => {
                 let transport = PinkHttp::new(&self.endpoint);
-                let account20: [u8; 20] = account.try_into().map_err(|_| Error::InvalidAddress)?;
+                let account20: [u8; 20] = account.try_into().map_err(|_| "InvalidAddress")?;
                 let evm_account: Address = account20.into();
 
                 if self.is_native(&asset) {
                     let web3 = Web3::new(transport);
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
                         .log_err("Fetch data [evm native balance] failed")
-                        .map_err(|_| Error::FetchDataFailed)?;
-                    balance.try_into().map_err(|_| Error::BalanceOverflow)
+                        .map_err(|_| "FetchDataFailed")?;
+                    balance.try_into().map_err(|_| "BalanceOverflow")
                 } else {
                     let eth = Eth::new(transport);
                     let asset_account20: [u8; 20] =
-                        asset.try_into().map_err(|_| Error::InvalidAddress)?;
+                        asset.try_into().map_err(|_| "InvalidAddress")?;
                     let token_address: Address = asset_account20.into();
-                    let token = Contract::from_json(
-                        eth,
-                        token_address,
-                        include_bytes!("../abis/erc20-abi.json"),
-                    )
-                    .expect("Bad abi data");
+                    let token =
+                        Contract::from_json(eth, token_address, include_bytes!("./abi/erc20.json"))
+                            .expect("Bad abi data");
                     let balance: U256 = resolve_ready(token.query(
                         "balanceOf",
                         evm_account,
@@ -125,12 +130,12 @@ impl BalanceFetcher for Chain {
                         None,
                     ))
                     .log_err("Fetch data [evm erc20 balance] failed")
-                    .map_err(|_| Error::FetchDataFailed)?;
-                    balance.try_into().map_err(|_| Error::BalanceOverflow)
+                    .map_err(|_| "FetchDataFailed")?;
+                    balance.try_into().map_err(|_| "BalanceOverflow")
                 }
             }
             ChainType::Sub => {
-                let public_key: [u8; 32] = account.try_into().map_err(|_| Error::InvalidAddress)?;
+                let public_key: [u8; 32] = account.try_into().map_err(|_| "InvalidAddress")?;
                 if self.is_native(&asset) {
                     if let Some(raw_storage) = get_storage(
                         &self.endpoint,
@@ -141,12 +146,12 @@ impl BalanceFetcher for Chain {
                         None,
                     )
                     .log_err("Read storage [sub native balance] failed")
-                    .map_err(|_| Error::FetchDataFailed)?
+                    .map_err(|_| "FetchDataFailed")?
                     {
                         let account_info: AccountInfo<Index, AccountData<Balance>> =
                             scale::Decode::decode(&mut raw_storage.as_slice())
                                 .log_err("Decode storage [sub native balance] failed")
-                                .map_err(|_| Error::DecodeStorageFailed)?;
+                                .map_err(|_| "DecodeStorageFailed")?;
                         Ok(account_info.data.free)
                     } else {
                         Ok(0u128)
@@ -154,12 +159,12 @@ impl BalanceFetcher for Chain {
                 } else {
                     let asset_location: MultiLocation =
                         scale::Decode::decode(&mut asset.as_slice())
-                            .map_err(|_| Error::InvalidMultilocation)?;
+                            .map_err(|_| "InvalidMultilocation")?;
                     match self.foreign_asset {
                         Some(ForeignAssetModule::PalletAsset) => {
                             let asset_id = Location2Assetid::new()
                                 .get_assetid(self.name.clone(), &asset_location)
-                                .ok_or(Error::AssetNotRecognized)?;
+                                .ok_or("AssetNotRecognized")?;
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
@@ -172,12 +177,12 @@ impl BalanceFetcher for Chain {
                             .log_err(
                                 "Read storage [sub foreign asset balance] from pallet-asset failed",
                             )
-                            .map_err(|_| Error::FetchDataFailed)?
+                            .map_err(|_| "FetchDataFailed")?
                             {
                                 let account_info: AssetAccount<Balance, Balance, ()> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
                                     .log_err("Decode storage [sub foreign asset balance] from pallet-asset failed")
-                                        .map_err(|_| Error::DecodeStorageFailed)?;
+                                        .map_err(|_| "DecodeStorageFailed")?;
                                 Ok(account_info.balance)
                             } else {
                                 Ok(0u128)
@@ -185,7 +190,7 @@ impl BalanceFetcher for Chain {
                         }
                         Some(ForeignAssetModule::OrmlToken) => {
                             let attrs = AcalaAssetMap::get_asset_attrs(&asset_location)
-                                .ok_or(Error::AssetNotRecognized)?;
+                                .ok_or("AssetNotRecognized")?;
                             let currency_id = CurrencyId::Token(attrs.0);
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
@@ -199,18 +204,18 @@ impl BalanceFetcher for Chain {
                             .log_err(
                                 "Read storage [sub foreign asset balance] from orml-token failed",
                             )
-                            .map_err(|_| Error::FetchDataFailed)?
+                            .map_err(|_| "FetchDataFailed")?
                             {
                                 let account_info: OrmlTokenAccountData<Balance> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
                                     .log_err("Decode storage [sub foreign asset balance] from orml-token failed")
-                                        .map_err(|_| Error::DecodeStorageFailed)?;
+                                        .map_err(|_| "DecodeStorageFailed")?;
                                 Ok(account_info.free)
                             } else {
                                 Ok(0u128)
                             }
                         }
-                        None => Err(Error::Unimplemented),
+                        None => Err("Unimplemented"),
                     }
                 }
             }

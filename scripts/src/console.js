@@ -126,6 +126,9 @@ async function useKeystore(api, pruntime_endpoint, contract_id) {
 program
     .option('--config <path>', 'config that contains contract and node informations', process.env.CONFIG || 'config.json')
     .option('--uri <URI>', 'the account URI use to sign cert', process.env.URI || '//Alice')
+    .option('--storage-url <storage-url>', 'base url of firebase', process.env.STORAGE_URL)
+    .option('--storage-key <storage-key>', 'access token of firebase', process.env.STORAGE_KEY)
+
 
 const keystore = program
 .command('keystore')
@@ -156,32 +159,15 @@ const executor = program
 .description('inDEX executor');
 
 executor
-    .command('account')
-    .description('show executor account information')
-    .option('--balance', 'executor account sr25519 public key', false)
-    .action(run(async (opt) => {
-        let { uri } = program.opts();
-        let config = useConfig();
-        let api = await useApi(config.node_wss_endpoint);
-        let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
-        let cert = await useCert(uri, api);
-        let {output} = (await executor.query.getExecutorAccount(cert,
-            {},
-        ));
-        let executor_account = output.toJSON().ok;
-        if (opt.balance !== false) {
-            console.log(`account: ${JSON.stringify(executor_account, null, 2)}, balance: ${(await api.query.system.account(executor_account.account32)).data.free}`);
-        } else {
-            console.log(`account: ${JSON.stringify(executor_account, null, 2)}`);
-        }
-    }));
-
-executor
     .command('setup')
-    .description('setup executor, stuff contains 1) import worker key from KeyStore contract; 2) claim rollup storage; 3) setup worker account in rollup storage')
+    .description('setup executor, stuff contains 1) call config; 3) setup worker account in remote storage')
     .option('--resume', 'resume executor', false)
+    .option('--import-key', 'import worker keys from keystore contract', true)
     .action(run(async (opt) => {
-        let { uri } = program.opts();
+        let { uri, storageUrl, storageKey } = program.opts();
+        if (storageUrl === undefined || storageKey === undefined) {
+            throw new Error("Storage URL and Key must be provided");
+        }
         let config = useConfig();
         let api = await useApi(config.node_wss_endpoint);
         let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
@@ -191,9 +177,10 @@ executor
         {
             // costs estimation
             let { gasRequired, storageDeposit } = await executor.query.config(cert, {},
-                100,
-                config.node_rpc_endpoint,
+                storageUrl,
+                storageKey,
                 config.key_store_contract_id,
+                opt.resume,
             );
             // transaction / extrinct
             let options = {
@@ -201,23 +188,18 @@ executor
                 storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
             };
             await executor.tx.config(options,
-                100,
-                config.node_rpc_endpoint,
-                config.executor_contract_id,
+                storageUrl,
+                storageKey,
+                config.key_store_contract_id,
+                opt.resume
             ).signAndSend(pair, { nonce: -1 });
-            console.log(`1) Config done`)
+            console.log(`✅ Config done`)
         }
 
         await delay(10*1000);   // 10 seconds
         {
-            await executor.query.setupRollup(cert, {});
-            console.log(`2) Claim rollup storage done`)
-        }
-
-        await delay(10*1000);   // 10 seconds
-        {
-            await executor.query.setupWorkerOnRollup(cert, {});
-            console.log(`3) Setup worker on rollup done`)
+            await executor.query.setupWorkerOnStorage(cert, {});
+            console.log(`✅ Setup worker on remote storage done`)
         }
 
         if (opt.resume !== false) {
@@ -229,9 +211,9 @@ executor
                 storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
             };
             await executor.tx.resumeExecutor(options).signAndSend(pair, { nonce: -1 });
-            console.log(`4) Resume executor done`);
+            console.log(`✅ Resume executor done`);
         }
-        console.log(`Finished executor configuration!`);
+        console.log(`🎉 Finished executor configuration!`);
     }));
 
 executor

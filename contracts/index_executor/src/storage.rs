@@ -98,7 +98,10 @@ impl StorageClient {
 
     /// Return (encoded_data, document_id) if success
     fn read_storage(&self, key: &[u8]) -> Result<Option<(Vec<u8>, String)>, &'static str> {
-        let key = hex::encode(key);
+        let key = key
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
         pink_extension::debug!("read_storage: id: {}", key);
 
         let cmd = format!(
@@ -124,38 +127,45 @@ impl StorageClient {
         );
 
         let response_body: Vec<u8> = self.send_request("POST", "documents:runQuery", &cmd)?;
-
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
-            if response.is_empty() {
-                return Ok(None);
-            }
-
-            let data_str = response[0].document.fields.data.string_value.clone();
-            let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
-            let document_id = response[0]
-                .document
-                .name
-                .split('/')
-                .last()
-                .ok_or("ParseDocumentFailed")?
-                .to_string();
-            Ok(Some((data, document_id)))
+            Ok(if !response.is_empty() {
+                let data_str = response[0].document.fields.data.string_value.clone();
+                let data = hex::decode(data_str).map_err(|_| "DecodedDataFailed")?;
+                let document_id = response[0]
+                    .document
+                    .name
+                    .split('/')
+                    .last()
+                    .ok_or("ParseDocumentFailed")?
+                    .to_string();
+                Some((data, document_id))
+            } else {
+                None
+            })
         } else {
             // Trying decode from EmptyData, this is highly related to the response format of the storage service
-            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_err() {
+            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
+                pink_extension::debug!("read_storage: no storage item found: {}", key);
+                Ok(None)
+            } else {
                 // Here we can make sure we got unexpected data
-                return Err("DecodedDataFailed");
+                Err("DecodedDataFailed")
             }
-            pink_extension::debug!("read_storage: no storage item found: {}", key);
-            Ok(None)
         }
     }
 
     /// Update storage data if necessary, will create a new record if storage item does not exist
     fn write_storage(&self, key: &[u8], data: &Vec<u8>) -> Result<(), &'static str> {
         let storage_data: Option<(Vec<u8>, String)> = self.read_storage(key)?;
-        let key = hex::encode(key);
-        let data_str = hex::encode(data);
+        let key = key
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let data_str = data
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let api: String;
 
         pink_extension::debug!("write_storage: id: {}", &key);
 
@@ -177,14 +187,14 @@ impl StorageClient {
                 pink_extension::debug!("write_storage: same storage data, ignore");
                 return Ok(());
             }
-            let api = format!("documents/index-storage/{}", storage_data.unwrap().1);
-            let _ = self.send_request("PATCH", api.as_ref(), &cmd)?;
+            api = format!("documents/index-storage/{}", storage_data.unwrap().1);
+            let _ = self.send_request("PATCH", &api[..], &cmd)?;
         } else {
             pink_extension::debug!(
                 "write_storage: storage item doesn't exist in storage, trying to create one"
             );
-            let api = "documents/index-storage";
-            let _ = self.send_request("POST", api, &cmd)?;
+            api = "documents/index-storage".to_string();
+            let _ = self.send_request("POST", &api[..], &cmd)?;
         }
 
         Ok(())
@@ -246,19 +256,19 @@ impl StorageClient {
     }
 
     /// Return None if worker account has not been setup
-    pub fn lookup_free_accounts(&self) -> Option<Vec<[u8; 32]>> {
-        if let Ok(Some((storage_data, _))) = self.read_storage(b"worker-accounts") {
+    pub fn lookup_free_accounts(&self) -> Vec<[u8; 32]> {
+        if let Ok(Some((storage_data, _))) = self.read_storage(b"free_accounts") {
             return match Decode::decode(&mut storage_data.as_slice()) {
                 Ok(worker_accounts) => worker_accounts,
-                _ => None,
+                _ => vec![],
             };
         }
-        None
+        vec![]
     }
 
     /// Setup worker account to remote storage
     pub fn set_worker_accounts(&self, accounts: Vec<[u8; 32]>) -> Result<(), &'static str> {
-        self.write_storage(b"worker-accounts", &accounts.encode())
+        self.write_storage(b"free_accounts", &accounts.encode())
     }
 }
 
@@ -275,7 +285,7 @@ mod tests {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
         let base_url = "https://firestore.googleapis.com/v1/projects/plexiform-leaf-391708/databases/(default)/".to_string();
-        let access_token = "put access token here".to_string();
+        let access_token = "put your access token here".to_string();
 
         let client = StorageClient::new(base_url, access_token);
 

@@ -1,5 +1,5 @@
+use crate::chain::{Chain, ChainType};
 use alloc::{string::String, vec::Vec};
-use index::graph::{Chain, ChainType};
 use scale::{Decode, Encode};
 
 use crate::account::AccountInfo;
@@ -77,7 +77,7 @@ impl Runner for ClaimStep {
     fn run(&self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let signer = context.signer;
         let chain = context
-            .graph
+            .registry
             .get_chain(self.chain.clone())
             .map(Ok)
             .unwrap_or(Err("MissingChain"))?;
@@ -93,12 +93,13 @@ impl Runner for ClaimStep {
 
         // Query off-chain indexer directly get the execution result
         let chain = &context
-            .graph
+            .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
+
         let account = match chain.chain_type {
-            index::graph::ChainType::Evm => worker_account.account20.to_vec(),
-            index::graph::ChainType::Sub => worker_account.account32.to_vec(),
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
         };
         tx::check_tx(&chain.tx_indexer_url, &account, nonce)
     }
@@ -547,14 +548,13 @@ struct OperationJson {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::context::Context;
+    use crate::registry::Registry;
     use alloc::vec;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::{
-        graph::{BalanceFetcher, Chain, ChainType, Graph},
-        utils::ToArray,
-    };
+    use index::utils::ToArray;
 
     #[test]
     fn test_json_parse() {
@@ -647,19 +647,10 @@ mod tests {
         };
         let context = Context {
             signer: mock_worker_key,
-            graph: Graph {
+            registry: &Registry {
                 chains: vec![goerli],
-                assets: vec![],
-                dexs: vec![],
-                bridges: vec![],
-                dex_pairs: vec![],
-                bridge_pairs: vec![],
-                dex_indexers: vec![],
             },
             worker_accounts: vec![],
-            bridge_executors: vec![],
-            dex_executors: vec![],
-            transfer_executors: vec![],
         };
         // Send claim transaction
         // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
@@ -759,14 +750,10 @@ mod tests {
         };
         let context = Context {
             signer: mock_worker_prv_key,
-            graph: Graph {
+            registry: &Registry {
                 chains: vec![khala.clone()],
-                ..Default::default()
             },
             worker_accounts: vec![],
-            bridge_executors: vec![],
-            dex_executors: vec![],
-            transfer_executors: vec![],
         };
         // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
         assert_eq!(claim_step.run(nonce, &context).is_ok(), true);
