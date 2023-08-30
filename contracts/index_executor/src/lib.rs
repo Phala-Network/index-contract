@@ -354,66 +354,67 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            if let Some((ids, _)) = client
+            let Some((ids, _)) = client
                 .read::<Vec<[u8; 32]>>(b"pending_tasks")
-                .map_err(|_| Error::FailedToReadStorage)?
-            {
-                for id in ids.iter() {
-                    pink_extension::debug!(
-                        "Trying to read pending task data from remote storage, task id: {:?}",
-                        &hex::encode(id)
-                    );
-                    let (mut task, task_doc) = client
-                        .read::<Task>(id)
-                        .map_err(|_| Error::FailedToReadStorage)?
-                        .ok_or(Error::TaskNotFoundInStorage)?;
+                .map_err(|_| Error::FailedToReadStorage)? else {
+                    return Ok(());
+                };
 
-                    pink_extension::info!(
-                        "Start execute next step of task, execute worker account: {:?}",
-                        &hex::encode(task.worker)
-                    );
-                    match task.execute(
-                        &Context {
-                            signer: self.pub_to_prv(task.worker).unwrap(),
-                            worker_accounts: self.worker_accounts.clone(),
-                            registry: &self.registry,
-                        },
-                        client,
-                    ) {
-                        Ok(TaskStatus::Completed) => {
-                            pink_extension::info!(
-                                "Task execution completed, delete it from storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                            // Remove task from blockchain and recycle worker account
-                            task.destroy(client)
-                                .map_err(|_| Error::FailedToDestoryTask)?;
-                        }
-                        Err(_) => {
-                            pink_extension::error!(
-                                "Failed to execute task on step {:?}, task data: {:?}",
-                                task.execute_index,
-                                &task
-                            );
+            for id in ids.iter() {
+                pink_extension::debug!(
+                    "Trying to read pending task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let (mut task, task_doc) = client
+                    .read::<Task>(id)
+                    .map_err(|_| Error::FailedToReadStorage)?
+                    .ok_or(Error::TaskNotFoundInStorage)?;
 
-                            // Execution failed, prepare necessary informations that DAO can handle later.
-                            // Informatios should contains:
-                            // 1. Sender on source chain
-                            // 2. Current step
-                            // 3. The allocated worker account
-                            // 4. Current asset that worker account hold
-                            //
-                        }
-                        _ => {
-                            pink_extension::info!(
-                                "Task execution has not finished yet, update data to remote storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                            client
-                                .update(task.id.as_ref(), &task.encode(), task_doc)
-                                .map_err(|_| Error::FailedToUploadTask)?;
-                            continue;
-                        }
+                pink_extension::info!(
+                    "Start execute next step of task, execute worker account: {:?}",
+                    &hex::encode(task.worker)
+                );
+                match task.execute(
+                    &Context {
+                        signer: self.pub_to_prv(task.worker).unwrap(),
+                        worker_accounts: self.worker_accounts.clone(),
+                        registry: &self.registry,
+                    },
+                    client,
+                ) {
+                    Ok(TaskStatus::Completed) => {
+                        pink_extension::info!(
+                            "Task execution completed, delete it from storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                        // Remove task from blockchain and recycle worker account
+                        task.destroy(client)
+                            .map_err(|_| Error::FailedToDestoryTask)?;
+                    }
+                    Err(_) => {
+                        pink_extension::error!(
+                            "Failed to execute task on step {:?}, task data: {:?}",
+                            task.execute_index,
+                            &task
+                        );
+
+                        // Execution failed, prepare necessary informations that DAO can handle later.
+                        // Informatios should contains:
+                        // 1. Sender on source chain
+                        // 2. Current step
+                        // 3. The allocated worker account
+                        // 4. Current asset that worker account hold
+                        //
+                    }
+                    _ => {
+                        pink_extension::info!(
+                            "Task execution has not finished yet, update data to remote storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                        client
+                            .update(task.id.as_ref(), &task.encode(), task_doc)
+                            .map_err(|_| Error::FailedToUploadTask)?;
+                        continue;
                     }
                 }
             }
