@@ -95,12 +95,12 @@ impl StorageClient {
     }
 
     /// Return (data, document_id) if success
-    pub fn read_storage<T: Decode>(&self, key: &[u8]) -> Result<Option<(T, String)>, &'static str> {
+    pub fn read<T: Decode>(&self, key: &[u8]) -> Result<Option<(T, String)>, &'static str> {
         let key = key
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        pink_extension::debug!("read_storage: trying to read storage item, key: {}", key);
+        pink_extension::debug!("read: trying to read storage item, key: {}", key);
 
         let cmd = format!(
             r#"{{
@@ -145,7 +145,7 @@ impl StorageClient {
         } else {
             // Trying decode from EmptyData, this is highly related to the response format of the storage service
             if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
-                pink_extension::debug!("read_storage: no storage item found: {}", key);
+                pink_extension::debug!("read: no storage item found: {}", key);
                 Ok(None)
             } else {
                 // Here we can make sure we got unexpected data
@@ -155,15 +155,12 @@ impl StorageClient {
     }
 
     /// Create a new storage item
-    pub fn alloc_storage(&self, key: &[u8], data: &[u8]) -> Result<(), &'static str> {
+    pub fn insert(&self, key: &[u8], data: &[u8]) -> Result<(), &'static str> {
         let key: String = key
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        pink_extension::debug!(
-            "alloc_storage: trying to create storage item, key: {:?}",
-            key
-        );
+        pink_extension::debug!("insert: trying to create storage item, key: {:?}", key);
         let data_str = data
             .iter()
             .map(|byte| format!("{byte:02x}"))
@@ -187,20 +184,12 @@ impl StorageClient {
     }
 
     /// Update storage data
-    pub fn update_storage(
-        &self,
-        key: &[u8],
-        data: &[u8],
-        document: String,
-    ) -> Result<(), &'static str> {
+    pub fn update(&self, key: &[u8], data: &[u8], document: String) -> Result<(), &'static str> {
         let key: String = key
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
-        pink_extension::debug!(
-            "update_storage: trying to update storage item, key: {}",
-            &key
-        );
+        pink_extension::debug!("update: trying to update storage item, key: {}", &key);
         let data_str = data
             .iter()
             .map(|byte| format!("{byte:02x}"))
@@ -225,7 +214,7 @@ impl StorageClient {
     }
 
     /// Remove a document from remote storage
-    pub fn remove_storage(&self, _key: &[u8], document: String) -> Result<(), &'static str> {
+    pub fn delete(&self, _key: &[u8], document: String) -> Result<(), &'static str> {
         let api = format!("documents/index-storage/{document}");
         let _ = self.send_request("DELETE", &api[..], "")?;
         Ok(())
@@ -261,33 +250,26 @@ mod tests {
             recipient: vec![],
         };
 
-        assert_eq!(client.read_storage::<Task>(&task.id).unwrap(), None);
+        assert_eq!(client.read::<Task>(&task.id).unwrap(), None);
         // Save task to remote storage
         assert_eq!(
-            client.alloc_storage(b"pending_tasks", &vec![task.id].encode()),
+            client.insert(b"pending_tasks", &vec![task.id].encode()),
             Ok(())
         );
-        assert_eq!(client.alloc_storage(&task.id, &task.encode()), Ok(()));
+        assert_eq!(client.insert(&task.id, &task.encode()), Ok(()));
         // Query storage for tasks
-        let (storage_task, document_id) = client.read_storage::<Task>(&task.id).unwrap().unwrap();
+        let (storage_task, document_id) = client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(storage_task.encode(), task.encode());
         // Modify task status
         task.status = TaskStatus::Completed;
         // Update task data on remote storage
-        assert_eq!(
-            client.update_storage(&task.id, &task.encode(), document_id),
-            Ok(())
-        );
+        assert_eq!(client.update(&task.id, &task.encode(), document_id), Ok(()));
         // Read again
-        let (updated_storage_task, document_id) =
-            client.read_storage::<Task>(&task.id).unwrap().unwrap();
+        let (updated_storage_task, document_id) = client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(updated_storage_task.status, TaskStatus::Completed);
         // Delete task data from remote storage
-        assert_eq!(
-            client.remove_storage(&updated_storage_task.id, document_id),
-            Ok(())
-        );
+        assert_eq!(client.delete(&updated_storage_task.id, document_id), Ok(()));
         // Veify task existence
-        assert_eq!(client.read_storage::<Task>(&task.id).unwrap(), None);
+        assert_eq!(client.read::<Task>(&task.id).unwrap(), None);
     }
 }

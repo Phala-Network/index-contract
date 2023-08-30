@@ -164,12 +164,12 @@ mod index_executor {
                 .map(|account| account.account32)
                 .collect();
             client
-                .alloc_storage(b"free_accounts", &accounts.encode())
+                .insert(b"free_accounts", &accounts.encode())
                 .map_err(|_| Error::FailedToSetupStorage)?;
 
             let empty_tasks: Vec<TaskId> = vec![];
             client
-                .alloc_storage(b"pending_tasks", &empty_tasks.encode())
+                .insert(b"pending_tasks", &empty_tasks.encode())
                 .map_err(|_| Error::FailedToSetupStorage)?;
             Self::env().emit_event(WorkerSetToStorage {});
             Ok(())
@@ -300,7 +300,7 @@ mod index_executor {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             if let Some((accounts, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"free_accounts")
+                .read::<Vec<[u8; 32]>>(b"free_accounts")
                 .map_err(|_| Error::FailedToReadStorage)?
             {
                 Ok(accounts)
@@ -355,7 +355,7 @@ mod index_executor {
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
             if let Some((ids, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"pending_tasks")
+                .read::<Vec<[u8; 32]>>(b"pending_tasks")
                 .map_err(|_| Error::FailedToReadStorage)?
             {
                 for id in ids.iter() {
@@ -364,7 +364,7 @@ mod index_executor {
                         &hex::encode(id)
                     );
                     let (mut task, task_doc) = client
-                        .read_storage::<Task>(id)
+                        .read::<Task>(id)
                         .map_err(|_| Error::FailedToReadStorage)?
                         .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -410,7 +410,7 @@ mod index_executor {
                                 hex::encode(task.id)
                             );
                             client
-                                .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                                .update(task.id.as_ref(), &task.encode(), task_doc)
                                 .map_err(|_| Error::FailedToUploadTask)?;
                             continue;
                         }
