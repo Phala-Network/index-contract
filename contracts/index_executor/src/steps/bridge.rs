@@ -119,7 +119,7 @@ impl Runner for BridgeStep {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
         };
-        if tx::check_tx(&chain.tx_indexer, &account, nonce)? {
+        if tx::check_tx(&chain.tx_indexer_url, &account, nonce)? {
             // Check balance change on source chain and dest chain
             let latest_b0 = worker_account.get_balance(
                 self.source_chain.clone(),

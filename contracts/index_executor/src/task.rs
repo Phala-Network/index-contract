@@ -72,13 +72,13 @@ impl Task {
         client: &StorageClient,
     ) -> Result<(), &'static str> {
         let (mut free_accounts, free_accounts_doc) = client
-            .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
+            .read::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
         let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
+            .read::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
-        if client.read_storage::<Task>(&self.id)?.is_some() {
+        if client.read::<Task>(&self.id)?.is_some() {
             // Task already saved, return
             return Ok(());
         }
@@ -110,14 +110,14 @@ impl Task {
         // Push to pending tasks queue
         pending_tasks.push(self.id);
         // Save task data
-        client.alloc_storage(self.id.as_ref(), &self.encode())?;
+        client.insert(self.id.as_ref(), &self.encode())?;
 
-        client.update_storage(
+        client.update(
             b"free_accounts".as_ref(),
             &free_accounts.encode(),
             free_accounts_doc,
         )?;
-        client.update_storage(
+        client.update(
             b"pending_tasks".as_ref(),
             &pending_tasks.encode(),
             pending_tasks_doc,
@@ -227,27 +227,27 @@ impl Task {
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
         let (mut free_accounts, free_accounts_doc) = client
-            .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
+            .read::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
         let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
+            .read::<Vec<TaskId>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
 
-        if let Some((_, task_doc)) = client.read_storage::<Task>(&self.id)? {
+        if let Some((_, task_doc)) = client.read::<Task>(&self.id)? {
             if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
                 // Remove from pending tasks queue
                 pending_tasks.remove(idx);
                 // Recycle worker account
                 free_accounts.push(self.worker);
                 // Delete task data
-                client.remove_storage(self.id.as_ref(), task_doc)?;
+                client.delete(self.id.as_ref(), task_doc)?;
             }
-            client.update_storage(
+            client.update(
                 b"free_accounts".as_ref(),
                 &free_accounts.encode(),
                 free_accounts_doc,
             )?;
-            client.update_storage(
+            client.update(
                 b"pending_tasks".as_ref(),
                 &pending_tasks.encode(),
                 pending_tasks_doc,
@@ -503,7 +503,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             goerli
@@ -550,9 +550,7 @@ mod tests {
             .into_iter()
             .map(|account| account.account32.clone())
             .collect();
-        client
-            .alloc_storage(b"free_accounts", &accounts.encode())
-            .unwrap();
+        client.insert(b"free_accounts", &accounts.encode()).unwrap();
 
         // Fetch actived task from chain
         let pre_mock_executor_address: H160 =
@@ -568,7 +566,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: pre_mock_executor_address.into(),
@@ -594,7 +592,7 @@ mod tests {
                             native_asset: vec![0],
                             foreign_asset: None,
                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                            tx_indexer: Default::default(),
+                            tx_indexer_url: Default::default(),
                         },
                         Chain {
                             id: 2,
@@ -604,7 +602,7 @@ mod tests {
                             native_asset: vec![0],
                             foreign_asset: None,
                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                            tx_indexer: Default::default(),
+                            tx_indexer_url: Default::default(),
                         }
                     ],
                 },
@@ -613,16 +611,9 @@ mod tests {
             &client,
         ), Ok(()));
 
-        // Wait 3 seconds
-        std::thread::sleep(std::time::Duration::from_millis(3000));
-
         // Now let's query if the task is exist in rollup storage with another rollup client
         let another_client = StorageClient::new("another url".to_string(), "key".to_string());
-        let onchain_task = another_client
-            .read_storage::<Task>(&task.id)
-            .unwrap()
-            .unwrap()
-            .0;
+        let onchain_task = another_client.read::<Task>(&task.id).unwrap().unwrap().0;
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(
             onchain_task.worker,

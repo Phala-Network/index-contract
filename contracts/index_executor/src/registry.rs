@@ -40,7 +40,7 @@ impl Registry {
                     foreign_asset: None,
                     handler_contract: hex::decode("F9eaE3Ec6BFE94F510eb3a5de8Ac9dEB9E74DF39")
                         .expect("InvalidLocation"),
-                    tx_indexer: "null".to_string(),
+                    tx_indexer_url: "null".to_string(),
                 },
                 Chain {
                     id: 1,
@@ -52,7 +52,7 @@ impl Registry {
                     foreign_asset: None,
                     handler_contract: hex::decode("1e4ED6d37685D2FB254e47C5b58Cf95173326E4c")
                         .expect("InvalidLocation"),
-                    tx_indexer: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
                 Chain {
                     id: 2,
@@ -64,8 +64,8 @@ impl Registry {
                     foreign_asset: None,
                     // FIXME: Handle contract on AStar
                     handler_contract: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
-                    tx_indexer: "null".to_string(),
+                        .expect("InvalidLocation")
+                    tx_indexer_url: "null".to_string(),
                 },
                 Chain {
                     id: 3,
@@ -75,7 +75,7 @@ impl Registry {
                     native_asset: hex::decode("0000").expect("InvalidLocation"),
                     foreign_asset: Some(ForeignAssetModule::PalletAsset),
                     handler_contract: hex::decode("79").expect("InvalidLocation"),
-                    tx_indexer: "https://squid.subsquid.io/graph-khala/graphql".to_string(),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-khala/graphql".to_string(),
                 },
                 Chain {
                     id: 4,
@@ -85,7 +85,7 @@ impl Registry {
                     native_asset: hex::decode("0000").expect("InvalidLocation"),
                     foreign_asset: Some(ForeignAssetModule::PalletAsset),
                     handler_contract: hex::decode("79").expect("InvalidLocation"),
-                    tx_indexer: "https://squid.subsquid.io/graph-phala/graphql".to_string(),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-phala/graphql".to_string(),
                 },
                 Chain {
                     id: 5,
@@ -96,7 +96,7 @@ impl Registry {
                     foreign_asset: Some(ForeignAssetModule::OrmlToken),
                     // FIXME: No Handler pallet in Acala
                     handler_contract: hex::decode("00").expect("InvalidLocation"),
-                    tx_indexer: "https://squid.subsquid.io/graph-acala/graphql".to_string(),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-acala/graphql".to_string(),
                 },
             ],
         }

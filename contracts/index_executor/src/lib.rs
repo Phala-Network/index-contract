@@ -59,10 +59,10 @@ mod index_executor {
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
-        /// The storage provider url
-        storage_url: String,
-        /// Secret key of storage provider
-        storage_key: String,
+        /// The URL of google firebase db
+        db_url: String,
+        /// The access token of google firebase db
+        db_token: String,
     }
 
     /// Event emitted when executor is configured.
@@ -123,16 +123,13 @@ mod index_executor {
         #[ink(message)]
         pub fn config_engine(
             &mut self,
-            storage_url: String,
-            storage_key: String,
+            db_url: String,
+            db_token: String,
             keystore_account: AccountId,
             import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                storage_url,
-                storage_key,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             if import_key {
@@ -159,7 +156,7 @@ mod index_executor {
             self.ensure_owner()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             pink_extension::debug!("Start to config storage");
             let accounts: Vec<[u8; 32]> = self
@@ -169,12 +166,12 @@ mod index_executor {
                 .map(|account| account.account32)
                 .collect();
             client
-                .alloc_storage(b"free_accounts", &accounts.encode())
+                .insert(b"free_accounts", &accounts.encode())
                 .map_err(|_| Error::FailedToSetupStorage)?;
 
             let empty_tasks: Vec<TaskId> = vec![];
             client
-                .alloc_storage(b"pending_tasks", &empty_tasks.encode())
+                .insert(b"pending_tasks", &empty_tasks.encode())
                 .map_err(|_| Error::FailedToSetupStorage)?;
             Self::env().emit_event(WorkerSetToStorage {});
             Ok(())
@@ -192,9 +189,11 @@ mod index_executor {
             if let Some(index) = self.registry.chains.iter().position(|x| x.name == chain) {
                 // Update the value at the found index
                 self.registry.chains[index].endpoint = endpoint;
-                self.registry.chains[index].tx_indexer = indexer;
+                self.registry.chains[index].tx_indexer_url = indexer;
+                Ok(())
+            } else {
+                Err(Error::ChainNotFound)
             }
-            Ok(())
         }
 
         #[ink(message)]
@@ -249,7 +248,7 @@ mod index_executor {
             self.ensure_running()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
@@ -295,6 +294,7 @@ mod index_executor {
                     .update_storage(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
+
             Ok(())
         }
 
@@ -338,9 +338,9 @@ mod index_executor {
         #[ink(message)]
         pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             if let Some((accounts, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"free_accounts")
+                .read::<Vec<[u8; 32]>>(b"free_accounts")
                 .map_err(|_| Error::FailedToReadStorage)?
             {
                 Ok(accounts)
@@ -394,66 +394,67 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            if let Some((ids, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"pending_tasks")
-                .map_err(|_| Error::FailedToReadStorage)?
-            {
-                for id in ids.iter() {
-                    pink_extension::debug!(
-                        "Trying to read pending task data from remote storage, task id: {:?}",
-                        &hex::encode(id)
-                    );
-                    let (mut task, task_doc) = client
-                        .read_storage::<Task>(id)
-                        .map_err(|_| Error::FailedToReadStorage)?
-                        .ok_or(Error::TaskNotFoundInStorage)?;
+            let Some((ids, _)) = client
+                .read::<Vec<[u8; 32]>>(b"pending_tasks")
+                .map_err(|_| Error::FailedToReadStorage)? else {
+                    return Ok(());
+                };
 
-                    pink_extension::info!(
-                        "Start execute task, execute worker account: {:?}",
-                        &hex::encode(task.worker)
-                    );
-                    match task.execute(
-                        &Context {
-                            signer: self.pub_to_prv(task.worker).unwrap(),
-                            worker_accounts: self.worker_accounts.clone(),
-                            registry: &self.registry,
-                        },
-                        client,
-                    ) {
-                        Ok(TaskStatus::Completed) => {
-                            pink_extension::info!(
-                                "Task execution completed, delete it from storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                            // Remove task from blockchain and recycle worker account
-                            task.destroy(client)
-                                .map_err(|_| Error::FailedToDestoryTask)?;
-                        }
-                        Err(_) => {
-                            pink_extension::error!(
-                                "Failed to execute task on step {:?}, task data: {:?}",
-                                task.execute_index,
-                                &task
-                            );
+            for id in ids.iter() {
+                pink_extension::debug!(
+                    "Trying to read pending task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let (mut task, task_doc) = client
+                    .read::<Task>(id)
+                    .map_err(|_| Error::FailedToReadStorage)?
+                    .ok_or(Error::TaskNotFoundInStorage)?;
 
-                            // Execution failed, prepare necessary informations that DAO can handle later.
-                            // Informatios should contains:
-                            // 1. Sender on source chain
-                            // 2. Current step
-                            // 3. The allocated worker account
-                            // 4. Current asset that worker account hold
-                            //
-                        }
-                        _ => {
-                            pink_extension::info!(
-                                "Task execution has not finished yet, update data to remote storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                            client
-                                .update_storage(task.id.as_ref(), &task.encode(), task_doc)
-                                .map_err(|_| Error::FailedToUploadTask)?;
-                            continue;
-                        }
+                pink_extension::info!(
+                    "Start execute next step of task, execute worker account: {:?}",
+                    &hex::encode(task.worker)
+                );
+                match task.execute(
+                    &Context {
+                        signer: self.pub_to_prv(task.worker).unwrap(),
+                        worker_accounts: self.worker_accounts.clone(),
+                        registry: &self.registry,
+                    },
+                    client,
+                ) {
+                    Ok(TaskStatus::Completed) => {
+                        pink_extension::info!(
+                            "Task execution completed, delete it from storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                        // Remove task from blockchain and recycle worker account
+                        task.destroy(client)
+                            .map_err(|_| Error::FailedToDestoryTask)?;
+                    }
+                    Err(_) => {
+                        pink_extension::error!(
+                            "Failed to execute task on step {:?}, task data: {:?}",
+                            task.execute_index,
+                            &task
+                        );
+
+                        // Execution failed, prepare necessary informations that DAO can handle later.
+                        // Informatios should contains:
+                        // 1. Sender on source chain
+                        // 2. Current step
+                        // 3. The allocated worker account
+                        // 4. Current asset that worker account hold
+                        //
+                    }
+                    _ => {
+                        pink_extension::info!(
+                            "Task execution has not finished yet, update data to remote storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                        client
+                            .update(task.id.as_ref(), &task.encode(), task_doc)
+                            .map_err(|_| Error::FailedToUploadTask)?;
+                        continue;
                     }
                 }
             }

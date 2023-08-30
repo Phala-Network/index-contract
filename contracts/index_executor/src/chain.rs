@@ -47,7 +47,7 @@ pub struct Chain {
     pub native_asset: Vec<u8>,
     pub foreign_asset: Option<ForeignAssetModule>,
     pub handler_contract: Vec<u8>,
-    pub tx_indexer: String,
+    pub tx_indexer_url: String,
 }
 
 impl Chain {
@@ -247,7 +247,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             goerli
@@ -270,7 +270,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             khala
@@ -297,7 +297,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         // Get native asset balance
         assert_eq!(
@@ -335,7 +335,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         let karura = Chain {
             id: 2,
@@ -355,7 +355,7 @@ mod tests {
             .encode(),
             foreign_asset: Some(ForeignAssetModule::OrmlToken),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         // Get native asset (PHA on Khala)
         assert_eq!(

@@ -70,7 +70,7 @@ impl Runner for ClaimStep {
         } else {
             // If task already exist in storage, it is ready to be claimed
             let client = client.ok_or("MissingClient")?;
-            let task_item = client.read_storage::<Task>(&self.id)?;
+            let task_item = client.read::<Task>(&self.id)?;
             Ok(task_item.is_some())
         }
     }
@@ -97,11 +97,12 @@ impl Runner for ClaimStep {
             .registry
             .get_chain(self.chain.clone())
             .ok_or("MissingChain")?;
+
         let account = match chain.chain_type {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
         };
-        tx::check_tx(&chain.tx_indexer, &account, nonce)
+        tx::check_tx(&chain.tx_indexer_url, &account, nonce)
     }
 }
 
@@ -582,7 +583,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -634,7 +635,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
 
         let claim_step = ClaimStep {
@@ -685,7 +686,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("00").into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: [0; 20],
@@ -737,7 +738,7 @@ mod tests {
             native_asset: pha.clone(),
             foreign_asset: None,
             handler_contract: hex!("79").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
 
         let claim_step = ClaimStep {
