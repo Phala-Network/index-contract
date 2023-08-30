@@ -202,7 +202,7 @@ impl Task {
             return Ok(TaskStatus::Completed);
         }
 
-        match self.merged_steps[self.execute_index as usize].check(
+        match self.merged_steps[self.execute_index as usize].has_finished(
             // An executing task must have nonce applied
             self.merged_steps[self.execute_index as usize]
                 .get_nonce()
@@ -272,7 +272,7 @@ impl Task {
             .get_nonce()
             .unwrap();
 
-        if self.merged_steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+        if self.merged_steps[self.execute_index as usize].can_run(nonce, context, Some(client))
             == Ok(true)
         {
             pink_extension::debug!(
@@ -499,7 +499,7 @@ impl Task {
         // Check if already claimed success
         let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
         if onchain_nonce > claim_nonce {
-            if tx::check_tx(&chain.tx_indexer_url, &account, claim_nonce)? {
+            if tx::has_confirmed(&chain.tx_indexer_url, &account, claim_nonce)? {
                 Ok(true)
             } else {
                 Err("ClaimFailed")

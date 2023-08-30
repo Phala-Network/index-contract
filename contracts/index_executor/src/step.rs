@@ -286,7 +286,7 @@ impl MultiStep {
 impl Runner for MultiStep {
     // By checking the nonce of the worker account on the chain source chain we can indicate whether
     // the transaction revalant to the step has been executed.
-    fn runnable(
+    fn can_run(
         &self,
         nonce: u64,
         context: &Context,
@@ -391,7 +391,7 @@ impl Runner for MultiStep {
 
     // By checking the nonce we can known whether the transaction has been executed or not,
     // and with help of off-chain indexer, we can get the relevant transaction's execution result.
-    fn check(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
+    fn has_finished(&self, nonce: u64, context: &Context) -> Result<bool, &'static str> {
         pink_extension::info!(
             "Trying to check step execution result with nonce: {}",
             nonce
@@ -408,7 +408,7 @@ impl Runner for MultiStep {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
         };
-        if tx::check_tx(&source_chain.tx_indexer_url, &account, nonce)? {
+        if tx::has_confirmed(&source_chain.tx_indexer_url, &account, nonce)? {
             // If is a bridge operation, check balance change on dest chain
             if as_single_step.is_bridge_step() {
                 pink_extension::info!(

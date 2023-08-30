@@ -75,8 +75,6 @@ fn get_tx(
     let response: ResponseData = pink_json::from_slice(&body).or(Err("InvalidBody"))?;
     let transactions = &response.data.transactions;
 
-    pink_extension::debug!("get_tx: got transaction: {:?}", transactions);
-
     if transactions.len() != 1 {
         return Ok(None);
     }
@@ -94,19 +92,16 @@ fn get_tx(
 }
 
 /// Return true if transaction is confirmed on chain
-pub fn check_tx(indexer_url: &str, account: &[u8], nonce: u64) -> Result<bool, &'static str> {
+pub fn has_confirmed(indexer_url: &str, account: &[u8], nonce: u64) -> Result<bool, &'static str> {
     pink_extension::debug!(
-        "check_tx: trying to fetch tx data for account {:?} from indexer {:?} with nonce {:?}",
+        "Trying to fetch tx data for account {:?} from indexer {:?} with nonce {:?}",
         hex::encode(account),
         indexer_url,
         nonce
     );
     // nonce from storage is one larger than the last tx's nonce
     let tx = get_tx(indexer_url, account, nonce)?;
-    pink_extension::debug!(
-        "check_tx: tx record returned from off-chain indexer: {:?}",
-        tx
-    );
+    pink_extension::debug!("Tx record returned from off-chain indexer: {:?}", tx);
     if let Some(tx) = tx {
         return Ok(tx.result);
     }
