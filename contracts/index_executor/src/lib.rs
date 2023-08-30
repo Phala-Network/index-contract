@@ -160,8 +160,10 @@ mod index_executor {
                 // Update the value at the found index
                 self.registry.chains[index].endpoint = endpoint;
                 self.registry.chains[index].tx_indexer_url = indexer;
+                Ok(())
+            } else {
+                Err(Error::ChainNotFound)
             }
-            Ok(())
         }
 
         /// Save worker account information to remote storage.
