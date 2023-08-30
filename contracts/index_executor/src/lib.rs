@@ -267,9 +267,9 @@ mod index_executor {
         pub fn retry(&self, id: TaskId) -> Result<()> {
             self.ensure_running()?;
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             let (mut task, task_doc) = client
-                .read_storage::<Task>(&id)
+                .read::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -291,7 +291,7 @@ mod index_executor {
                     .map_err(|_| Error::FailedToReRunTask)?;
                 // Upload task data to storage
                 client
-                    .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                    .update(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
 

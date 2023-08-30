@@ -248,6 +248,7 @@ mod tests {
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
+            retry_counter: 0,
         };
 
         assert_eq!(client.read::<Task>(&task.id).unwrap(), None);

@@ -64,7 +64,7 @@ impl Registry {
                     foreign_asset: None,
                     // FIXME: Handle contract on AStar
                     handler_contract: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation")
+                        .expect("InvalidLocation"),
                     tx_indexer_url: "null".to_string(),
                 },
                 Chain {
