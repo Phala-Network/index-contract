@@ -176,7 +176,7 @@ executor
 
         {
             // costs estimation
-            let { gasRequired, storageDeposit } = await executor.query.config(cert, {},
+            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
@@ -187,19 +187,19 @@ executor
                 gasLimit: gasRequired.refTime,
                 storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
             };
-            await executor.tx.config(options,
+            await executor.tx.configEngine(options,
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
                 opt.resume
             ).signAndSend(pair, { nonce: -1 });
-            console.log(`✅ Config done`)
+            console.log(`✅ Config executor`)
         }
 
         await delay(10*1000);   // 10 seconds
         {
-            await executor.query.setupWorkerOnStorage(cert, {});
-            console.log(`✅ Setup worker on remote storage done`)
+            await executor.query.configStorage(cert, {});
+            console.log(`✅ Config storage`)
         }
 
         if (opt.resume !== false) {
@@ -211,7 +211,7 @@ executor
                 storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
             };
             await executor.tx.resumeExecutor(options).signAndSend(pair, { nonce: -1 });
-            console.log(`✅ Resume executor done`);
+            console.log(`✅ Resume executor`);
         }
         console.log(`🎉 Finished executor configuration!`);
     }));

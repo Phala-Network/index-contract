@@ -46,6 +46,8 @@ mod index_executor {
         FailedToInitTask,
         FailedToDestoryTask,
         FailedToUploadTask,
+        FailedToReApplyNonce,
+        FailedToReRunTask,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
@@ -254,6 +256,44 @@ mod index_executor {
                 }
                 RunningType::Execute => self.execute_task(&client)?,
             };
+
+            Ok(())
+        }
+
+        /// Re-apply nonce for task steps from current execution index, then re-run the failed step
+        ///
+        /// This is used to retry task when it failed to execute in current step indicated by `execute_index`
+        #[ink(message)]
+        pub fn retry(&self, id: TaskId) -> Result<()> {
+            self.ensure_running()?;
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+            let (mut task, task_doc) = client
+                .read::<Task>(&id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .ok_or(Error::TaskNotFoundInStorage)?;
+
+            if let TaskStatus::Executing(execute_index, _) = task.status {
+                let context = Context {
+                    signer: self.pub_to_prv(task.worker).unwrap(),
+                    worker_accounts: self.worker_accounts.clone(),
+                    registry: &self.registry,
+                };
+                task.reapply_nonce(execute_index as u64, &context, &client)
+                    .map_err(|_| Error::FailedToReApplyNonce)?;
+                pink_extension::info!(
+                    "Step nonce re-applied from execution index: {:?}",
+                    &execute_index
+                );
+                // Now re-run the step
+                let _ = task
+                    .execute_step(&context, &client)
+                    .map_err(|_| Error::FailedToReRunTask)?;
+                // Upload task data to storage
+                client
+                    .update(task.id.as_ref(), &task.encode(), task_doc)
+                    .map_err(|_| Error::FailedToUploadTask)?;
+            }
 
             Ok(())
         }
