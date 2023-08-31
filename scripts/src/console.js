@@ -149,7 +149,7 @@ keystore
         let pair = await usePair(uri);
         let keystore = await useKeystore(api, config.pruntine_endpoint, config.key_store_contract_id);
         // costs estimation
-        let { gasRequired, storageDeposit } = await keystore.query.setExecutor({cert}, config.executor_contract_id);
+        let { gasRequired, storageDeposit } = await keystore.query.setExecutor(cert.address, {cert}, config.executor_contract_id);
         // transaction / extrinct
         let options = {
             gasLimit: gasRequired.refTime,
@@ -180,7 +180,7 @@ executor
 
         {
             // costs estimation
-            let { gasRequired, storageDeposit } = await executor.query.configEngine({cert},
+            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address, {cert},
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
@@ -202,13 +202,13 @@ executor
 
         await delay(10*1000);   // 10 seconds
         {
-            await executor.query.configStorage({cert});
+            await executor.query.configStorage(cert.address, {cert});
             console.log(`✅ Config storage`)
         }
 
         if (opt.resume !== false) {
             // costs estimation
-            let { gasRequired, storageDeposit } = await executor.query.resumeExecutor({cert});
+            let { gasRequired, storageDeposit } = await executor.query.resumeExecutor(cert.address, {cert});
             // transaction / extrinct
             let options = {
                 gasLimit: gasRequired.refTime,
@@ -349,7 +349,7 @@ worker
         let api = await useApi(config.node_wss_endpoint);
         let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
         let cert = await useCert(uri, api);
-        let ret = (await executor.query.getWorkerAccounts(
+        let ret = (await executor.query.getWorkerAccounts(cert.address,
             {cert},
         ));
         let workers = ret.output.asOk.toJSON().ok;
@@ -377,7 +377,7 @@ worker
         let cert = await useCert(uri, api);
 
         console.log(`Call Executor::worker_approve to approve ERC20 for specific asset`);
-        let queryRecipient = await executor.query.workerApprove(
+        let queryRecipient = await executor.query.workerApprove(cert.address,
             {cert},
             opt.worker,
             opt.chain.toLowerCase(),
@@ -443,7 +443,7 @@ worker
         console.log(
           `Call Executor::worker_drop_task...`
         );
-        let queryRecipient = await executor.query.workerDropTask(
+        let queryRecipient = await executor.query.workerDropTask(cert.address,
           {cert},
           opt.worker,
           opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(),
@@ -479,7 +479,7 @@ scheduler
         let cert = await useCert(uri, api);
         let pair = await usePair(uri);
 
-        if ((await executor.query.isRunning({cert})).asOk === false) {
+        if ((await executor.query.isRunning(cert.address, {cert})).asOk === false) {
             throw new Error("Executor not running")
         }
 
@@ -491,7 +491,7 @@ scheduler
                 setInterval(async () => {
                     for (const source of SOURCE_CHAINS) {
                         console.log(`🔍Trigger actived task search from ${source} for worker ${EXE_WORKER}`)
-                        let { output } = await executor.query.run(
+                        let { output } = await executor.query.run(cert.address,
                             {cert},
                             {'Fetch': [source, EXE_WORKER]}
                         )
@@ -502,7 +502,7 @@ scheduler
                 // Trigger task execution
                 setInterval(async () => {
                     console.log(`🐌Trigger task executing`)
-                    let {output} = await executor.query.run(
+                    let {output} = await executor.query.run(cert.address,
                         {cert},
                         'Execute'
                     )
@@ -515,7 +515,8 @@ scheduler
                         const token = execSync('gcloud auth print-access-token').toString().trim();
                         console.log(`Generate new token: ${token}`);
 
-                        let { gasRequired, storageDeposit } = await executor.query.configEngine({cert},
+                        let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address,
+                            {cert},
                             storageUrl,
                             token,
                             config.key_store_contract_id,
