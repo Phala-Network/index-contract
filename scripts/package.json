@@ -8,7 +8,7 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "@phala/sdk": "^0.5.0",
+    "@phala/sdk": "^0.5.1-nightly-20230824-1",
     "@phala/typedefs": "^0.2.33",
     "@polkadot/api": "^10.9.1",
     "@polkadot/api-contract": "^10.9.1",

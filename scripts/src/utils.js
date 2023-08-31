@@ -1,8 +1,6 @@
 const fs = require('fs')
-const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api')
-const { ContractPromise } = require('@polkadot/api-contract')
+const { OnChainRegistry, PinkContractPromise } = require('@phala/sdk')
 const PhalaSdk = require('@phala/sdk')
-const PhalaSDKTypes = PhalaSdk.types
 
 function loadContractFile(contractFile) {
     const metadata = JSON.parse(fs.readFileSync(contractFile, 'utf8'))
@@ -14,19 +12,16 @@ function loadContractFile(contractFile) {
     return { wasm, metadata, constructor, name }
 }
 
-async function createContract(api, pruntimeUrl, contract, contractID) {
-    const { api: workerApi } = await PhalaSdk.create({
+async function createContract(api, _pruntimeUrl, contract, contractID) {
+    const phatRegistry = await OnChainRegistry.create(api);
+    const contractKey = await phatRegistry.getContractKey(contractID)
+    return new PinkContractPromise(
       api,
-      baseURL: pruntimeUrl,
-      contractId: contractID,
-      autoDeposit: true,
-    })
-    const contractApi = new ContractPromise(
-      workerApi,
+      phatRegistry,
       contract.metadata,
       contractID,
-    )
-    return contractApi
+      contractKey,
+    );
 }
 
 async function delay(ms) {
