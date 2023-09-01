@@ -297,26 +297,22 @@ impl Task {
             .read_storage::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
-        if let Some((_, task_doc)) = client.read_storage::<Task>(&self.id)? {
-            if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
-                // Remove from pending tasks queue
-                pending_tasks.remove(idx);
-                // Recycle worker account
-                free_accounts.push(self.worker);
-                // Delete task data
-                client.remove_storage(self.id.as_ref(), task_doc)?;
-            }
-            client.update_storage(
-                b"free_accounts".as_ref(),
-                &free_accounts.encode(),
-                free_accounts_doc,
-            )?;
-            client.update_storage(
-                b"pending_tasks".as_ref(),
-                &pending_tasks.encode(),
-                pending_tasks_doc,
-            )?;
+        if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
+            // Remove from pending tasks queue
+            pending_tasks.remove(idx);
+            // Recycle worker account
+            free_accounts.push(self.worker);
         }
+        client.update_storage(
+            b"free_accounts".as_ref(),
+            &free_accounts.encode(),
+            free_accounts_doc,
+        )?;
+        client.update_storage(
+            b"pending_tasks".as_ref(),
+            &pending_tasks.encode(),
+            pending_tasks_doc,
+        )?;
 
         Ok(())
     }
