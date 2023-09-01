@@ -541,7 +541,17 @@ scheduler
             })
         }
 
-        await runIntervalTasks();
+        while (true) {
+            try {
+                await runIntervalTasks();
+            } catch (error) {
+                if (error.message.includes('inkMessageReturn') || error.code == 'ECONNRESET') {
+                    console.warn('Got known exception caused by network traffic, will continue to execute');
+                } else {
+                    throw error;
+                }
+            }
+        }
       })
     );
 
