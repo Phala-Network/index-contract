@@ -438,33 +438,45 @@ mod index_executor {
             )
             .fetch_task()
             .map_err(|_| Error::FailedToFetchTask)?;
-            if let Some(mut actived_task) = actived_task {
-                // Initialize task, and save it to on-chain storage
-                actived_task
-                    .init(
-                        &Context {
-                            signer,
-                            registry: &self.registry,
-                            worker_accounts: self.worker_accounts.clone(),
-                        },
-                        client,
-                    )
-                    .map_err(|e| {
-                        pink_extension::info!(
-                            "Initial error {:?}, initialized task data: {:?}",
-                            &e,
-                            &actived_task
-                        );
-                        Error::FailedToInitTask
-                    })?;
-                pink_extension::info!(
-                    "An actived task was found on {:?}, initialized task data: {:?}",
-                    &source_chain,
-                    &actived_task
-                );
-            } else {
+            let Some(mut actived_task) = actived_task else {
                 pink_extension::debug!("No actived task found from {:?}", &source_chain);
+                return Ok(())
+            };
+
+            if client
+                .read_storage::<Task>(&actived_task.id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .is_some()
+            {
+                pink_extension::debug!(
+                    "Task {:?} already initialized, return",
+                    hex::encode(actived_task.id)
+                );
+                return Ok(());
             }
+            // Initialize task, and save it to on-chain storage
+            actived_task
+                .init(
+                    &Context {
+                        signer,
+                        registry: &self.registry,
+                        worker_accounts: self.worker_accounts.clone(),
+                    },
+                    client,
+                )
+                .map_err(|e| {
+                    pink_extension::info!(
+                        "Initial error {:?}, initialized task data: {:?}",
+                        &e,
+                        &actived_task
+                    );
+                    Error::FailedToInitTask
+                })?;
+            pink_extension::info!(
+                "An actived task was found on {:?}, initialized task data: {:?}",
+                &source_chain,
+                &actived_task
+            );
 
             Ok(())
         }

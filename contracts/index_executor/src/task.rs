@@ -118,17 +118,6 @@ impl Task {
             "Trying to lookup storage for task {:?} before initializing.",
             hex::encode(self.id),
         );
-        // if client.read_storage::<Task>(&self.id)?.is_some() {
-        //     if !(self.has_claimed(context))? {
-        //         pink_extension::debug!(
-        //             "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
-        //             hex::encode(self.id),
-        //             hex::encode(self.worker),
-        //         );
-        //         self.claim(context)?;
-        //     }
-        //     return Ok(());
-        // }
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -174,8 +163,6 @@ impl Task {
             &pending_tasks.encode(),
             pending_tasks_doc,
         )?;
-
-        // self.claim(context)?;
 
         Ok(())
     }
