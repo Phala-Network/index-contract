@@ -8,7 +8,7 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "@phala/sdk": "^0.5.1-nightly-20230824-1",
+    "@phala/sdk": "^0.5.1-nightly-20230901",
     "child_process": "^1.0.2",
     "commander": "^10.0.0",
     "console-stamp": "^3.1.0",
