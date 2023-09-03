@@ -24,6 +24,7 @@ pub struct EvmSygmaBridge {
     contract: Contract<PinkHttp>,
     erc20_handler_address: Address,
     fee_handler_address: Address,
+    fee_amount: u128,
     from_domain_id: u8,
     to_domain_id: u8,
     maybe_parachain_id: Option<u32>,
@@ -36,6 +37,7 @@ impl EvmSygmaBridge {
         contract_address: Address,
         erc20_handler_address: Address,
         fee_handler_address: Address,
+        fee_amount: u128,
         from_domain_id: u8,
         to_domain_id: u8,
         maybe_parachain_id: Option<u32>,
@@ -65,6 +67,7 @@ impl EvmSygmaBridge {
             contract,
             erc20_handler_address,
             fee_handler_address,
+            fee_amount,
             from_domain_id,
             to_domain_id,
             maybe_parachain_id,
@@ -82,7 +85,6 @@ impl CallBuilder for EvmSygmaBridge {
             .get(&spend_asset)
             .ok_or("NoResourceId")?
             .clone();
-        let receive_asset = Address::from_slice(&step.receive_asset);
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
         let mut recipient = step.recipient.ok_or("MissingRecipient")?;
         if recipient.len() == 32 {
@@ -175,7 +177,7 @@ impl CallBuilder for EvmSygmaBridge {
                     update_len: U256::from(32),
                     spend_asset,
                     spend_amount,
-                    receive_asset,
+                    receive_asset: spend_asset,
                 }),
                 input_call: None,
                 call_index: None,
@@ -184,14 +186,14 @@ impl CallBuilder for EvmSygmaBridge {
                 params: CallParams::Evm(EvmCall {
                     target: self.contract.address(),
                     calldata: bridge_calldata,
-                    value: U256::from(0),
+                    value: U256::from(self.fee_amount),
 
-                    need_settle: true,
-                    update_offset: U256::from(36),
+                    need_settle: false,
+                    update_offset: U256::from(68),
                     update_len: U256::from(32),
                     spend_asset,
                     spend_amount,
-                    receive_asset,
+                    receive_asset: spend_asset,
                 }),
                 input_call: None,
                 call_index: None,
@@ -202,19 +204,41 @@ impl CallBuilder for EvmSygmaBridge {
 
 #[cfg(test)]
 mod tests {
+    // use crate::utils::ToArray;
+
     use super::*;
     use sp_runtime::AccountId32;
+    // use pink_web3::keys::pink::KeyPair;
+    use pink_web3::types::H160;
 
     #[test]
     fn test_pha_from_goerli_to_rhala() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
+        // let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        // let secret_key = secret_key.unwrap().1;
+        // let secret_bytes = hex::decode(secret_key).unwrap();
+        // let _signer: [u8; 32] = secret_bytes.to_array();
+
         let rpc = "https://rpc.ankr.com/eth_goerli";
+
+        // Handler on Goerli
+        let handler_address: H160 =
+            H160::from_slice(&hex::decode("0b45A95d0A8736b4e7FB5B9f11b0D8F5Ac078860").unwrap());
+        let transport = Eth::new(PinkHttp::new(rpc.clone()));
+        let handler = Contract::from_json(
+            transport,
+            handler_address,
+            include_bytes!("../../abi/handler.json"),
+        )
+        .unwrap();
         let sygma_bridge = EvmSygmaBridge::new(
             rpc,
             Address::from_str("c26335a9f16398b5fDA4bC05b62C1429D8a4d755").unwrap(),
             Address::from_str("7Ed4B14a82B2F2C4DfB13DC4Eac00205EDEff6C2").unwrap(),
             Address::from_str("e6CE0ea4eC6ECbdC23eEF9f4fB165aCc979C56b5").unwrap(),
+            // 0.001 ETH on Goerli
+            1_000_000_000_000_000u128,
             1,
             3,
             None,
@@ -225,15 +249,16 @@ mod tests {
                 .unwrap()
                 .into();
 
-        let calls = sygma_bridge
+        let mut calls = sygma_bridge
             .build_call(Step {
                 exe_type: String::from(""),
                 exe: String::from(""),
-                source_chain: String::from("Rhala"),
-                dest_chain: String::from("Goerli"),
-                spend_asset: hex!("B376b0Ee6d8202721838e76376e81eEc0e2FE864").to_vec(),
-                receive_asset: hex!("B376b0Ee6d8202721838e76376e81eEc0e2FE864").to_vec(),
-                sender: Some(hex!("53e4C6611D3C92232bCBdd20D1073ce892D34594").to_vec()),
+                source_chain: String::from("Goerli"),
+                dest_chain: String::from("Rhaala"),
+                spend_asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
+                // MuliLocation: (0, Here)
+                receive_asset: hex::decode("0000").unwrap(),
+                sender: Some(hex::decode("53e4C6611D3C92232bCBdd20D1073ce892D34594").unwrap()),
                 recipient: Some(recipient.to_vec()),
                 spend_amount: Some(20_000_000_000_000_000_000 as u128),
                 origin_balance: None,
@@ -241,15 +266,64 @@ mod tests {
             })
             .unwrap();
 
-        match &calls[1].params {
-            CallParams::Evm(evm_call) => {
-                // https://goerli.etherscan.io/tx/0x42261d70e9849a30dd878c53d185136972deea0420322978fafe6313682da804
-                let encoded_data = hex::encode(&evm_call.calldata);
-                assert_eq!(encoded_data, String::from("73c45c9800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000001158e460913d000000000000000000000000000000000000000000000000000000000000000000024000101001218d75948e2983aa273f5dff9dced1935ce4704492ba6ea30f6d33a35010d3b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007038d7ea4c6800000000000000000000000000000000000000000000000000000"));
-            }
-            _ => {
-                println!("Not an EvmCall");
-            }
-        }
+        // Apply index mannually
+        calls[0].input_call = Some(0);
+        calls[0].call_index = Some(0);
+        calls[1].input_call = Some(0);
+        calls[1].call_index = Some(1);
+
+        // Make sure handler address hold enough spend asset and native asset (e.g. ETH).
+        // Because handler is the account who spend and pay fee on behalf
+
+        // Estiamte gas before submission
+        let _gas = resolve_ready(handler.estimate_gas(
+            "batchCall",
+            calls.clone(),
+            // Worker address
+            Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
+            Options::with(|opt| {
+                // 0.001 ETH
+                opt.value = Some(U256::from(1_000_000_000_000_000u128))
+            }),
+        ))
+        .map_err(|e| {
+            println!("Failed to estimated step gas cost with error: {:?}", e);
+            "FailedToEstimateGas"
+        })
+        .unwrap();
+
+        // Tested on Georli:
+        // Goerli: https://goerli.etherscan.io/tx/0x0157f0409e8a8769da5c2b58a8cc8f24e784fd0e2a52f2b74f9c1f7b9c5f60b8
+        // Rhala:
+
+        // Uncomment if wanna send it to blockchain
+        // let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
+        //     "batchCall",
+        //     calls,
+        //     Options::with(|opt| {
+        //         opt.gas = Some(gas);
+        //         // 0.001 ETH
+        //         opt.value = Some(U256::from(1_000_000_000_000_000u128))
+        //     }),
+        //     KeyPair::from(signer),
+        // ))
+        // .map_err(|e| {
+        //     println!(
+        //         "Failed to submit step execution tx with error: {:?}",
+        //         e
+        //     );
+        //     "FailedToSubmitTransaction"
+        // }).unwrap();
+
+        // match &calls[1].params {
+        //     CallParams::Evm(evm_call) => {
+        //         // https://goerli.etherscan.io/tx/0x42261d70e9849a30dd878c53d185136972deea0420322978fafe6313682da804
+        //         let encoded_data = hex::encode(&evm_call.calldata);
+        //         assert_eq!(encoded_data, String::from("73c45c9800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000001158e460913d000000000000000000000000000000000000000000000000000000000000000000024000101001218d75948e2983aa273f5dff9dced1935ce4704492ba6ea30f6d33a35010d3b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007038d7ea4c6800000000000000000000000000000000000000000000000000000"));
+        //     }
+        //     _ => {
+        //         println!("Not an EvmCall");
+        //     }
+        // }
     }
 }

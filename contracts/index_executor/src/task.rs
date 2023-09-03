@@ -1,6 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
+use crate::call::CallParams;
 use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
@@ -17,7 +18,7 @@ use pink_web3::{
     keys::pink::KeyPair,
     signing::Key,
     transports::{resolve_ready, PinkHttp},
-    types::H160,
+    types::{H160, U256},
 };
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -526,15 +527,29 @@ impl Task {
         let first_step = &mut self.merged_steps[0];
         first_step.set_spend(self.amount);
         first_step.sync_origin_balance(context)?;
-        let params = (task_id, first_step.derive_calls(context)?);
-        pink_extension::info!("claimAndBatchCall params {:?}", &params);
+        let calls = first_step.derive_calls(context)?;
 
+        // Accumulate msg.value in calls
+        let mut value = U256::from(0);
+        for call in calls.iter() {
+            match &call.params {
+                CallParams::Evm(evm_call) => {
+                    value = value + evm_call.value;
+                }
+                _ => return Err("UnexpectedCallType"),
+            }
+        }
+
+        let params = (task_id, calls);
+        pink_extension::info!("claimAndBatchCall params {:?}", &params);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "claimAndBatchCall",
             params.clone(),
             worker.address(),
-            Options::default(),
+            Options::with(|opt| {
+                opt.value = Some(value);
+            }),
         ))
         .map_err(|e| {
             pink_extension::error!(
@@ -551,6 +566,7 @@ impl Task {
             Options::with(|opt| {
                 opt.gas = Some(gas);
                 opt.nonce = Some(nonce.into());
+                opt.value = Some(value);
             }),
             worker,
         ))
