@@ -315,12 +315,25 @@ impl Runner for MultiStep {
                 )
                 .expect("Bad abi data");
 
+                // Accumulate msg.value in calls
+                let mut value = U256::from(0);
+                for call in calls.iter() {
+                    match &call.params {
+                        CallParams::Evm(evm_call) => {
+                            value = value + evm_call.value;
+                        }
+                        _ => return Err("UnexpectedCallType"),
+                    }
+                }
+
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
                     calls.clone(),
                     worker_account.account20.into(),
-                    Options::default(),
+                    Options::with(|opt| {
+                        opt.value = Some(value);
+                    }),
                 ))
                 .map_err(|e| {
                     pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
@@ -335,6 +348,7 @@ impl Runner for MultiStep {
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));
+                        opt.value = Some(value);
                     }),
                     KeyPair::from(signer),
                 ))
