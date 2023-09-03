@@ -189,7 +189,7 @@ impl CallBuilder for EvmSygmaBridge {
                     value: U256::from(self.fee_amount),
 
                     need_settle: false,
-                    update_offset: U256::from(68),
+                    update_offset: U256::from(164),
                     update_len: U256::from(32),
                     spend_asset,
                     spend_amount,
