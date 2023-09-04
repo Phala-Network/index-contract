@@ -27,6 +27,8 @@ pub enum TaskStatus {
     Actived,
     /// Task has been initialized, e.g. being applied nonce.
     Initialized,
+    /// Indicating that task already been claimed on source chain along with the transaction
+    Claimed(Vec<u8>),
     /// Task is being executing with step index.
     /// Transaction can be indentified by worker account nonce on specific chain
     /// [step_index, worker_nonce]
@@ -52,10 +54,14 @@ pub struct Task {
     pub amount: u128,
     // Nonce applied to claim task froom source chain
     pub claim_nonce: Option<u64>,
+    // Transaction hash of claim operation
+    pub claim_tx: Option<Vec<u8>>,
     /// All steps to included in the task
     pub steps: Vec<Step>,
     /// Steps  after merged, those actually will be executed
     pub merged_steps: Vec<MultiStep>,
+    /// Transaction hash of each step operation
+    pub execute_txs: Vec<Vec<u8>>,
     /// Current step index that is executing
     pub execute_index: u8,
     /// Sender address on source chain
@@ -75,8 +81,10 @@ impl Default for Task {
             source: String::default(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps: vec![],
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
@@ -179,7 +187,8 @@ impl Task {
                 hex::encode(self.id),
                 hex::encode(self.worker),
             );
-            self.claim(context)?;
+            let claim_tx = self.claim(context)?;
+            self.claim_tx = Some(claim_tx);
             return Ok(self.status.clone());
         }
 
@@ -267,7 +276,13 @@ impl Task {
                 self.execute_index,
                 nonce
             );
-            self.merged_steps[self.execute_index as usize].run(nonce, context)?;
+            let execute_tx = self.merged_steps[self.execute_index as usize].run(nonce, context)?;
+            if self.execute_txs.len() == self.execute_index as usize + 1 {
+                // Not the first time to execute the step, just replace it with new tx hash
+                self.execute_txs[self.execute_index as usize] = execute_tx;
+            } else {
+                self.execute_txs.push(execute_tx);
+            }
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
         } else {
             pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
@@ -540,18 +555,26 @@ impl Task {
         .map_err(|e| {
             pink_extension::error!("claimAndBatchCall: failed to submit tx with error {:?}", &e);
             "ClaimSubmitFailed"
-        })?;
+        })?
+        .as_bytes()
+        .to_vec();
 
         // Merge nonce to let check for first step work properly
         first_step.set_nonce(self.claim_nonce.unwrap());
+        // Set first step execution transaction hash
+        if self.execute_txs.is_empty() {
+            self.execute_txs.push(tx_id.clone());
+        } else {
+            self.execute_txs[0] = tx_id.clone();
+        }
 
         pink_extension::info!(
             "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
             hex::encode(task_id),
             &chain.name,
-            hex::encode(tx_id.clone().as_bytes())
+            hex::encode(&tx_id)
         );
-        Ok(tx_id.as_bytes().to_vec())
+        Ok(tx_id)
     }
 
     fn claim_sub_actived_tasks(
@@ -1025,8 +1048,10 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps,
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
@@ -1112,8 +1137,10 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps: steps.clone(),
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
@@ -1172,8 +1199,10 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps: steps.clone().as_slice()[3..].to_vec(),
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
@@ -1216,8 +1245,10 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps: steps.clone().as_slice()[..4].to_vec(),
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
@@ -1254,6 +1285,7 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0,
             claim_nonce: None,
+            claim_tx: None,
             steps: [
                 &steps.clone().as_slice()[..3],
                 &steps.clone().as_slice()[5..],
@@ -1261,6 +1293,7 @@ mod tests {
             .concat()
             .to_vec(),
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
@@ -1306,8 +1339,10 @@ mod tests {
             source: "Moonbeam".to_string(),
             amount: 0xf0f1f2f3f4f5f6f7f8f9,
             claim_nonce: None,
+            claim_tx: None,
             steps: steps.clone(),
             merged_steps: vec![],
+            execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
