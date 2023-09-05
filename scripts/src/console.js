@@ -509,35 +509,35 @@ scheduler
                     console.log(`Task execute result: ${JSON.stringify(output, null, 2)}`)
                 }, Number(opt.executeInterval | 10000))
 
-                // Trigger gcloud access token update
-                setInterval(async () => {
-                    try {
-                        const token = execSync('gcloud auth print-access-token').toString().trim();
-                        console.log(`Generate new token: ${token}`);
+                async function updateAccessToken() {
+                    const token = execSync('gcloud auth print-access-token').toString().trim();
+                    console.log(`Generate new token: ${token}`);
 
-                        let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address,
-                            {cert},
-                            storageUrl,
-                            token,
-                            config.key_store_contract_id,
-                            false,
-                        );
-                        // transaction / extrinct
-                        let options = {
-                            gasLimit: gasRequired.refTime,
-                            storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
-                        };
-                        await executor.tx.configEngine(options,
-                            storageUrl,
-                            token,
-                            config.key_store_contract_id,
-                            false,
-                        ).signAndSend(pair, { nonce: -1 });
-                        console.log(`✅ Access token updated successfully`);
-                    } catch (error) {
-                        throw new Error(`Failed to generate access token due to error: ${error}`)
-                    }
-                }, Number(opt.tokenUpdateInterval | 60000))
+                    let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address,
+                        {cert},
+                        storageUrl,
+                        token,
+                        config.key_store_contract_id,
+                        false,
+                    );
+                    // transaction / extrinct
+                    let options = {
+                        gasLimit: gasRequired.refTime,
+                        storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+                    };
+                    await executor.tx.configEngine(options,
+                        storageUrl,
+                        token,
+                        config.key_store_contract_id,
+                        false,
+                    ).signAndSend(pair, { nonce: -1 });
+                    console.log(`✅ Access token updated successfully`);
+                }
+
+                // Execute it immediately the first time
+                updateAccessToken();
+                // Trigger gcloud access token update
+                setInterval(updateAccessToken, Number(opt.tokenUpdateInterval | 1800000))
             })
         }
 
@@ -545,14 +545,7 @@ scheduler
             try {
                 await runIntervalTasks();
             } catch (error) {
-                if (
-                    error.message.includes('InkResponse') ||
-                    error.message.includes('inkMessageReturn') ||
-                    error.code == 'ECONNRESET') {
-                    console.warn('Got known exception caused by network traffic, will continue to execute');
-                } else {
-                    throw error;
-                }
+                process.exit(1);
             }
         }
       })
