@@ -193,11 +193,6 @@ impl Task {
         }
 
         let step_count = self.merged_steps.len();
-        // To avoid unnecessary remote check, we check execute_index in advance
-        if self.execute_index as usize == step_count {
-            return Ok(TaskStatus::Completed);
-        }
-
         match self.merged_steps[self.execute_index as usize].check(
             // An executing task must have nonce applied
             self.merged_steps[self.execute_index as usize]
@@ -207,13 +202,14 @@ impl Task {
         ) {
             // If step already executed successfully, execute next step
             Ok(true) => {
-                self.execute_index += 1;
-                self.retry_counter = 0;
                 // If all step executed successfully, set task as `Completed`
-                if self.execute_index as usize == step_count {
+                if self.execute_index as usize == (step_count - 1) {
                     self.status = TaskStatus::Completed;
                     return Ok(self.status.clone());
                 }
+
+                self.execute_index += 1;
+                self.retry_counter = 0;
 
                 // Settle last step before execute next step
                 let settle_balance =
