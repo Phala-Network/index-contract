@@ -80,11 +80,10 @@ impl CallBuilder for EvmSygmaBridge {
     fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
         let sender = Address::from_slice(&step.sender.ok_or("MissingSender")?);
         let spend_asset = Address::from_slice(&step.spend_asset);
-        let resource_id = self
+        let resource_id = *self
             .resource_id_map
             .get(&spend_asset)
-            .ok_or("NoResourceId")?
-            .clone();
+            .ok_or("NoResourceId")?;
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
         let mut recipient = step.recipient.ok_or("MissingRecipient")?;
         if recipient.len() == 32 {
@@ -215,11 +214,6 @@ mod tests {
     fn test_pha_from_goerli_to_rhala() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        // let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
-        // let secret_key = secret_key.unwrap().1;
-        // let secret_bytes = hex::decode(secret_key).unwrap();
-        // let _signer: [u8; 32] = secret_bytes.to_array();
-
         let rpc = "https://rpc.ankr.com/eth_goerli";
 
         // Handler on Goerli
@@ -297,6 +291,12 @@ mod tests {
         // Rhala:
 
         // Uncomment if wanna send it to blockchain
+
+        // let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        // let secret_key = secret_key.unwrap().1;
+        // let secret_bytes = hex::decode(secret_key).unwrap();
+        // let _signer: [u8; 32] = secret_bytes.to_array();
+
         // let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
         //     "batchCall",
         //     calls,

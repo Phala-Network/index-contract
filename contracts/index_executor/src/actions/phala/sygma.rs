@@ -66,14 +66,10 @@ mod tests {
     use xcm::v3::{Junctions, MultiLocation};
 
     #[test]
+    #[ignore]
     fn test_pha_from_phala_to_ethereum() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
-        let secret_key = secret_key.unwrap().1;
-        let secret_bytes = hex::decode(secret_key).unwrap();
-        let signer: [u8; 32] = secret_bytes.to_array();
 
         let xtransfer_sygma_ethereum = XTransferSygma::new(SYGMA_ETHEREUM_DOMAIN_ID);
         let pha_location = MultiLocation::new(0, Junctions::Here);
@@ -97,6 +93,11 @@ mod tests {
                 nonce: None,
             })
             .unwrap();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
 
         match &calls[0].params {
             CallParams::Sub(sub_call) => {
