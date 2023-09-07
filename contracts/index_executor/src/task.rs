@@ -17,7 +17,7 @@ use pink_web3::{
     keys::pink::KeyPair,
     signing::Key,
     transports::{resolve_ready, PinkHttp},
-    types::H160,
+    types::{H160, U256},
 };
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -121,11 +121,6 @@ impl Task {
         let (mut pending_tasks, pending_tasks_doc) = client
             .read_storage::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
-
-        pink_extension::debug!(
-            "Trying to lookup storage for task {:?} before initializing.",
-            hex::encode(self.id),
-        );
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -543,7 +538,8 @@ impl Task {
             "claimAndBatchCall",
             params,
             Options::with(|opt| {
-                opt.gas = Some(gas);
+                // Give 50% gas for potentially gas exceeding
+                opt.gas = Some(gas * U256::from(15) / U256::from(10));
                 opt.nonce = Some(nonce.into());
             }),
             worker,
