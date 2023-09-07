@@ -46,7 +46,7 @@ impl Registry {
                     name: "Moonbeam".to_string(),
                     endpoint: "https://moonbeam.api.onfinality.io/public".to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
+                    native_asset: hex::decode("0000000000000000000000000000000000000802")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
                     handler_contract: hex::decode("635eA86804200F80C16ea8EdDc3c749a54a9C37D")
