@@ -60,18 +60,18 @@ impl ActivedTaskFetcher {
         );
 
         let task_id: [u8; 32] = resolve_ready(handler.query(
-            "getLastActivedTask",
+            "getNextActivedTask",
             worker_address,
             None,
             Options::default(),
             None,
         ))
-        .map_err(|_| "FailedGetLastActivedTask")?;
+        .map_err(|_| "FailedGetNextActivedTask")?;
         if task_id == [0; 32] {
             return Ok(None);
         }
         pink_extension::debug!(
-            "getLastActivedTask, return task_id: {:?}",
+            "getNextActivedTask, return task_id: {:?}",
             hex::encode(task_id)
         );
         let evm_deposit_data: EvmDepositData =
@@ -143,5 +143,41 @@ impl ActivedTaskFetcher {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hex_literal::hex;
+    use primitive_types::H160;
+
+    #[test]
+    #[ignore]
+    fn test_fetch_task_from_moonbeam() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_address: H160 = hex!("bf526928373748b00763875448ee905367d97f96").into();
+        let task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Moonbeam"),
+                chain_type: ChainType::Evm,
+                endpoint: String::from("https://moonbeam.api.onfinality.io/public"),
+                native_asset: vec![0],
+                foreign_asset: None,
+                handler_contract: hex!("f778f213B618bBAfCF827b2a5faE93966697E4B5").into(),
+                tx_indexer: Default::default(),
+            },
+            worker: AccountInfo {
+                account20: worker_address.into(),
+                account32: [0; 32],
+            },
+        }
+        .fetch_task()
+        .unwrap()
+        .unwrap();
+
+        assert_eq!(task.steps.len(), 7);
     }
 }

@@ -613,7 +613,7 @@ mod tests {
     use crate::account::AccountInfo;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
-    use crate::step::StepJson;
+    use crate::step::StepInput;
     use crate::task_fetcher::ActivedTaskFetcher;
     use crate::utils::ToArray;
     use dotenv::dotenv;
@@ -947,7 +947,7 @@ mod tests {
     fn build_steps() -> Vec<Step> {
         vec![
             // moonbeam_stellaswap
-            StepJson {
+            StepInput {
                 exe_type: String::from("swap"),
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
@@ -958,7 +958,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // moonbeam_stellaswap
-            StepJson {
+            StepInput {
                 exe_type: String::from("swap"),
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
@@ -969,7 +969,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // moonbeam_bridge_to_phala
-            StepJson {
+            StepInput {
                 exe_type: String::from("bridge"),
                 exe: String::from("moonbeam_bridge_to_phala"),
                 source_chain: String::from("Moonbeam"),
@@ -980,7 +980,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // phala_bridge_to_astar
-            StepJson {
+            StepInput {
                 exe_type: String::from("bridge"),
                 exe: String::from("phala_bridge_to_astar"),
                 source_chain: String::from("Phala"),
@@ -991,7 +991,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // astar_bridge_to_astar_evm
-            StepJson {
+            StepInput {
                 exe_type: String::from("bridge"),
                 exe: String::from("astar_bridge_to_astarevm"),
                 source_chain: String::from("Astar"),
@@ -1002,7 +1002,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // astar_arthswap
-            StepJson {
+            StepInput {
                 exe_type: String::from("swap"),
                 exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
@@ -1013,7 +1013,7 @@ mod tests {
             .try_into()
             .unwrap(),
             // astar_arthswap
-            StepJson {
+            StepInput {
                 exe_type: String::from("swap"),
                 exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
