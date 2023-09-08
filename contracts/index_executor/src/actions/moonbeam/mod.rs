@@ -1,8 +1,9 @@
-use crate::actions::base::uniswapv3;
+use crate::actions::base::{native_wrapper, uniswapv3};
 
 pub mod xtoken;
 
 pub type MoonbeamStellaSwap = uniswapv3::UniswapV3;
+pub type MoonbeamNativeWrapper = native_wrapper::NativeWrapper;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
@@ -15,8 +16,18 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
         .unwrap()
         .to_array();
     let moonbeam_xtoken: [u8; 20] = hex_literal::hex!("0000000000000000000000000000000000000804");
+    let moonbeam_wglmr: [u8; 20] = hex_literal::hex!("Acc15dC74880C9944775448304B263D191c6077F");
+    let moonbeam_glmr: [u8; 20] = hex_literal::hex!("0000000000000000000000000000000000000802");
 
     vec![
+        (
+            String::from("moonbeam_nativewrapper"),
+            Box::new(MoonbeamNativeWrapper::new(
+                &chain.endpoint,
+                moonbeam_wglmr.into(),
+                moonbeam_glmr.into(),
+            )),
+        ),
         (
             String::from("moonbeam_stellaswap"),
             Box::new(MoonbeamStellaSwap::new(

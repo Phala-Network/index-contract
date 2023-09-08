@@ -540,12 +540,11 @@ mod index_executor {
                                 "Task execution has not finished yet, update data to remote storage: {:?}",
                                 hex::encode(task.id)
                             );
-                            client
-                                .update_storage(task.id.as_ref(), &task.encode(), task_doc)
-                                .map_err(|_| Error::FailedToUploadTask)?;
-                            continue;
                         }
                     }
+                    client
+                        .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                        .map_err(|_| Error::FailedToUploadTask)?;
                 }
             }
 
