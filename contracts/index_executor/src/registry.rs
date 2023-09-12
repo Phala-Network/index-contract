@@ -49,7 +49,7 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000802")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("635eA86804200F80C16ea8EdDc3c749a54a9C37D")
+                    handler_contract: hex::decode("C419faE665279374A263eb6F8481a174491da499")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
@@ -61,7 +61,7 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864")
+                    handler_contract: hex::decode("7a629133d67502d0CEc278106A71A20aEc21951e")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
                 },
