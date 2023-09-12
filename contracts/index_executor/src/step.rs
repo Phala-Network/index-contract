@@ -18,12 +18,9 @@ use pink_web3::{
     types::U256,
 };
 use scale::{Decode, Encode};
-use serde::Deserialize;
 
-/// The json object that the execution plan consists of
-#[derive(Deserialize, Clone)]
-pub struct StepJson {
-    pub exe_type: String,
+#[derive(Clone, Decode, Encode, PartialEq)]
+pub struct StepInput {
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
@@ -34,7 +31,6 @@ pub struct StepJson {
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Step {
-    pub exe_type: String,
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
@@ -51,7 +47,6 @@ pub struct Step {
 impl sp_std::fmt::Debug for Step {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         f.debug_struct("Step")
-            .field("exe_type", &self.exe_type)
             .field("exe", &self.exe)
             .field("source_chain", &self.source_chain)
             .field("dest_chain", &self.dest_chain)
@@ -66,17 +61,16 @@ impl sp_std::fmt::Debug for Step {
     }
 }
 
-impl TryFrom<StepJson> for Step {
+impl TryFrom<StepInput> for Step {
     type Error = &'static str;
 
-    fn try_from(json: StepJson) -> Result<Self, Self::Error> {
+    fn try_from(input: StepInput) -> Result<Self, Self::Error> {
         Ok(Self {
-            exe_type: json.exe_type,
-            exe: json.exe,
-            source_chain: json.source_chain,
-            dest_chain: json.dest_chain,
-            spend_asset: Self::decode_address(&json.spend_asset)?,
-            receive_asset: Self::decode_address(&json.receive_asset)?,
+            exe: input.exe,
+            source_chain: input.source_chain,
+            dest_chain: input.dest_chain,
+            spend_asset: Self::decode_address(&input.spend_asset)?,
+            receive_asset: Self::decode_address(&input.receive_asset)?,
             sender: None,
             recipient: None,
             spend_amount: Some(0),

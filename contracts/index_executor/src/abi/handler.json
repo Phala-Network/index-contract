@@ -68,12 +68,6 @@
         "internalType": "bytes",
         "name": "recipient",
         "type": "bytes"
-      },
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "task",
-        "type": "string"
       }
     ],
     "name": "Deposited",
@@ -149,6 +143,25 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "name": "_activedTaskIndexs",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       },
       {
         "internalType": "uint256",
@@ -198,9 +211,9 @@
         "type": "bytes"
       },
       {
-        "internalType": "string",
+        "internalType": "bytes",
         "name": "task",
-        "type": "string"
+        "type": "bytes"
       }
     ],
     "stateMutability": "view",
@@ -258,6 +271,11 @@
             "internalType": "uint256",
             "name": "updateLen",
             "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "spender",
+            "type": "address"
           },
           {
             "internalType": "address",
@@ -349,6 +367,11 @@
           },
           {
             "internalType": "address",
+            "name": "spender",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
             "name": "spendAsset",
             "type": "address"
           },
@@ -411,9 +434,9 @@
         "type": "bytes32"
       },
       {
-        "internalType": "string",
+        "internalType": "bytes",
         "name": "task",
-        "type": "string"
+        "type": "bytes"
       }
     ],
     "name": "deposit",
@@ -472,9 +495,9 @@
             "type": "bytes"
           },
           {
-            "internalType": "string",
+            "internalType": "bytes",
             "name": "task",
-            "type": "string"
+            "type": "bytes"
           }
         ],
         "internalType": "struct Handler.DepositInfo",
@@ -512,7 +535,7 @@
         "type": "address"
       }
     ],
-    "name": "getLastActivedTask",
+    "name": "getNextActivedTask",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -556,9 +579,9 @@
             "type": "bytes"
           },
           {
-            "internalType": "string",
+            "internalType": "bytes",
             "name": "task",
-            "type": "string"
+            "type": "bytes"
           }
         ],
         "internalType": "struct Handler.DepositInfo",

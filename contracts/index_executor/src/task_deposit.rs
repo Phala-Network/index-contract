@@ -1,4 +1,4 @@
-use crate::step::StepJson;
+use crate::step::StepInput;
 use crate::task::Task;
 use alloc::{string::String, vec::Vec};
 use pink_web3::{
@@ -15,7 +15,7 @@ pub struct EvmDepositData {
     sender: Address,
     amount: U256,
     recipient: Vec<u8>,
-    task: String,
+    task: Vec<u8>,
 }
 
 impl Detokenize for EvmDepositData {
@@ -37,7 +37,7 @@ impl Detokenize for EvmDepositData {
                             Token::Address(sender),
                             Token::Uint(amount),
                             Token::Bytes(recipient),
-                            Token::String(task),
+                            Token::Bytes(task),
                         ) => Ok(EvmDepositData {
                             sender,
                             amount,
@@ -77,7 +77,7 @@ pub struct DepositData {
     sender: Vec<u8>,
     amount: u128,
     recipient: Vec<u8>,
-    task: String,
+    task: Vec<u8>,
 }
 
 impl From<EvmDepositData> for DepositData {
@@ -97,7 +97,7 @@ impl From<SubDepositData> for DepositData {
             sender: value.sender.into(),
             amount: value.amount,
             recipient: value.recipient,
-            task: String::from_utf8_lossy(&value.task).into_owned(),
+            task: value.task,
         }
     }
 }
@@ -110,13 +110,14 @@ impl DepositData {
         worker: [u8; 32],
     ) -> Result<Task, &'static str> {
         pink_extension::debug!("Trying to parse task data from json string");
-        let execution_plan_json: ExecutionPlan =
-            pink_json::from_str(&self.task).map_err(|_| "InvalidTask")?;
+
+        let execution_plan: ExecutionPlan =
+            Decode::decode(&mut self.task.as_slice()).map_err(|_| "InvalidTask")?;
         pink_extension::debug!(
             "Parse task data successfully, found {:?} operations",
-            execution_plan_json.len()
+            execution_plan.len()
         );
-        if execution_plan_json.is_empty() {
+        if execution_plan.is_empty() {
             return Err("EmptyTask");
         }
         pink_extension::debug!("Trying to convert task data to task");
@@ -131,12 +132,14 @@ impl DepositData {
             ..Default::default()
         };
 
-        for step_json in execution_plan_json.iter() {
-            uninitialized_task.steps.push(step_json.clone().try_into()?);
+        for step_input in execution_plan.iter() {
+            uninitialized_task
+                .steps
+                .push(step_input.clone().try_into()?);
         }
 
         Ok(uninitialized_task)
     }
 }
 
-type ExecutionPlan = Vec<StepJson>;
+type ExecutionPlan = Vec<StepInput>;

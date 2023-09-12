@@ -125,7 +125,6 @@ mod tests {
 
         let call = transactor
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("Astar"),
@@ -184,7 +183,6 @@ mod tests {
 
         let call = transactor
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("Astar"),
@@ -241,7 +239,6 @@ mod tests {
 
         let call = transactor
             .build_call(Step {
-                exe_type: String::from("bridge"),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("AstarEvm"),
