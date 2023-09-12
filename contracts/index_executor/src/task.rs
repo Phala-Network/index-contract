@@ -618,7 +618,6 @@ mod tests {
     use crate::utils::ToArray;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use pink_web3::contract::tokens::Tokenize;
     use primitive_types::H160;
 
     #[test]
@@ -1356,306 +1355,32 @@ mod tests {
             step.set_spend(0xf0f1f2f3f4f5f6f7f8f9);
             calls.append(&mut step.derive_calls(&context).unwrap());
         }
-        assert_eq!(calls.len(), 2 * 3 + 1 + 1 + 2 * 2);
+        assert_eq!(calls.len(), 3 + 1 + 1 + 2);
 
         // Origin Step means Steps before merge
 
         // ========== First Merged Step =============
-        // calls[0] and calls[1] build according to origin Step 0,
+        // calls[0] build according to origin Step 0,
         // and origin Step 0 don't relay any previous steps happened
         // on the same chain
         assert_eq!(calls[0].input_call, Some(0));
-        assert_eq!(calls[1].input_call, Some(0));
-        // calls[2] and calls[3] build according to origin Step 1,
+        // calls[1] build according to origin Step 1,
         // and origin Step 1 relay Step 0 as input, so take last call
         // of Step 0 as input call
-        assert_eq!(calls[2].input_call, Some(1));
-        assert_eq!(calls[3].input_call, Some(1));
-        // calls[4] and calls[5] build according to origin Step 2,
+        assert_eq!(calls[1].input_call, Some(0));
+        // calls[2] build according to origin Step 2,
         // and origin Step 2 relay Step 1 as input, so take last call
         // of Step 1 as input call
-        assert_eq!(calls[4].input_call, Some(3));
-        assert_eq!(calls[5].input_call, Some(3));
+        assert_eq!(calls[2].input_call, Some(1));
 
         // ========== Second Merged Step =============
-        // calls[0] and calls[1] build according to origin Step 5,
+        // calls[5] build according to origin Step 5,
         // and origin Step 5 don't relay any previous steps heppened
         // on the same chain
-        assert_eq!(calls[0].input_call, Some(0));
-        assert_eq!(calls[1].input_call, Some(0));
-        // calls[2] and calls[3] build according to origin Step 6,
+        assert_eq!(calls[5].input_call, Some(0));
+        // calls[6] build according to origin Step 6,
         // and origin Step 6 relay Step 5 as input, so take last call
         // of Step 5 as input call
-        assert_eq!(calls[2].input_call, Some(1));
-        assert_eq!(calls[3].input_call, Some(1));
-    }
-
-    #[test]
-    fn test_calldata() {
-        dotenv().ok();
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        use crate::call::{Call, CallParams, EvmCall};
-        use pink_web3::types::{Address, U256};
-
-        let handler: H160 =
-            H160::from_slice(&hex::decode("B30A27eE79514614dc363CE0aABb0B939b9deAeD").unwrap());
-        let transport = Eth::new(PinkHttp::new("https://rpc.api.moonbeam.network"));
-        let handler =
-            Contract::from_json(transport, handler, include_bytes!("./abi/handler.json")).unwrap();
-        let task_id: [u8; 32] =
-            hex::decode("1125000000000000000000000000000000000000000000000000000000000000")
-                .unwrap()
-                .to_array();
-        // We call claimAndBatchCall so that first step will be executed along with the claim operation
-
-        let params = (
-            task_id,
-            vec![
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 112, 8, 90, 9,
-                            211, 13, 111, 140, 78, 207, 110, 225, 1, 32, 209, 132, 115, 131, 187,
-                            87, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 13, 224, 182, 179, 167, 100, 0, 0,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: false,
-                        update_offset: U256::from(36),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(1000000000000000000_u128),
-                        receive_asset: Address::from_slice(
-                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(0),
-                    call_index: Some(0),
-                },
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("70085a09d30d6f8c4ecf6ee10120d1847383bb57")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            56, 237, 23, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 13, 224, 182, 179, 167, 100, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99,
-                            94, 168, 104, 4, 32, 15, 128, 193, 110, 168, 237, 220, 60, 116, 154,
-                            84, 169, 195, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 14, 240, 187, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 172, 193, 93, 199, 72, 128,
-                            201, 148, 71, 117, 68, 131, 4, 178, 99, 209, 145, 198, 7, 127, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 31, 202, 203, 210, 24,
-                            237, 192, 235, 162, 15, 194, 48, 140, 119, 128, 128,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: true,
-                        update_offset: U256::from(4),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(1000000000000000000_u128),
-                        receive_asset: Address::from_slice(
-                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(0),
-                    call_index: Some(1),
-                },
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 112, 8, 90, 9,
-                            211, 13, 111, 140, 78, 207, 110, 225, 1, 32, 209, 132, 115, 131, 187,
-                            87, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: false,
-                        update_offset: U256::from(36),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(0),
-                        receive_asset: Address::from_slice(
-                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(1),
-                    call_index: Some(2),
-                },
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("70085a09d30d6f8c4ecf6ee10120d1847383bb57")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            56, 237, 23, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 94, 168,
-                            104, 4, 32, 15, 128, 193, 110, 168, 237, 220, 60, 116, 154, 84, 169,
-                            195, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 101, 14, 240, 189, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 31, 202, 203, 210,
-                            24, 237, 192, 235, 162, 15, 194, 48, 140, 119, 128, 128, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 99, 210, 78, 204, 142, 184,
-                            167, 181, 208, 128, 62, 144, 15, 123, 108, 237,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: true,
-                        update_offset: U256::from(4),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(0),
-                        receive_asset: Address::from_slice(
-                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(1),
-                    call_index: Some(3),
-                },
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: false,
-                        update_offset: U256::from(36),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(0),
-                        receive_asset: Address::from_slice(
-                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(3),
-                    call_index: Some(4),
-                },
-                Call {
-                    params: CallParams::Evm(EvmCall {
-                        target: Address::from_slice(
-                            hex::decode("0000000000000000000000000000000000000804")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        calldata: vec![
-                            185, 248, 19, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255,
-                            255, 99, 210, 78, 204, 142, 184, 167, 181, 208, 128, 62, 144, 15, 123,
-                            108, 237, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            1, 101, 160, 188, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 7, 243, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 34, 1, 4, 219, 160, 103, 127, 194, 116, 255, 172, 204, 15, 161,
-                            3, 10, 102, 177, 113, 209, 218, 146, 38, 210, 187, 157, 21, 38, 84,
-                            230, 167, 70, 242, 118, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        ],
-                        value: U256::from(0),
-
-                        need_settle: false,
-                        update_offset: U256::from(36),
-                        update_len: U256::from(32),
-                        spend_asset: Address::from_slice(
-                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                        spend_amount: U256::from(0),
-                        receive_asset: Address::from_slice(
-                            hex::decode("0000000000000000000000000000000000000000")
-                                .unwrap()
-                                .as_slice(),
-                        ),
-                    }),
-                    input_call: Some(3),
-                    call_index: Some(5),
-                },
-            ],
-        );
-
-        let claim_func = handler
-            .abi()
-            .function("claimAndBatchCall")
-            .map_err(|_| "NoFunctionFound")
-            .unwrap();
-        let calldata = claim_func
-            .encode_input(&params.into_tokens())
-            .map_err(|_| "EncodeParamError")
-            .unwrap();
-        println!("claim calldata: {:?}", hex::encode(calldata));
+        assert_eq!(calls[6].input_call, Some(0));
     }
 }

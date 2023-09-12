@@ -5,7 +5,7 @@ use super::asset::AstarAssets;
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use pink_subrpc::hasher::{Blake2_256, Hasher};
 use scale::{Compact, Decode, Encode};
 
@@ -34,7 +34,7 @@ impl AstarSubToEvmTransactor {
 }
 
 impl CallBuilder for AstarSubToEvmTransactor {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let bytes: [u8; 20] = step.recipient.clone().ok_or("MissingRecipient")?.to_array();
         let mut new_step = step;
         new_step.recipient = Some(self.h160_to_sr25519_pub(&bytes).to_vec());
@@ -57,7 +57,7 @@ impl AstarTransactor {
 }
 
 impl CallBuilder for AstarTransactor {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset_location = MultiLocation::decode(&mut step.spend_asset.as_slice())
             .map_err(|_| "FailedToScaleDecode")?;
         let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
@@ -65,7 +65,7 @@ impl CallBuilder for AstarTransactor {
         let amount = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
 
         if step.spend_asset == self.native {
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Sub(SubCall {
                     calldata: SubExtrinsic {
                         // Balance
@@ -77,12 +77,12 @@ impl CallBuilder for AstarTransactor {
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         } else {
             let asset_id = AstarAssets::new()
                 .get_assetid(&String::from("Astar"), &asset_location)
                 .ok_or("AssetNotFound")?;
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Sub(SubCall {
                     calldata: SubExtrinsic {
                         // palletAsset
@@ -94,7 +94,7 @@ impl CallBuilder for AstarTransactor {
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         }
     }
 }
@@ -123,7 +123,7 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
                 exe_type: String::from(""),
                 exe: String::from(""),
@@ -139,7 +139,7 @@ mod tests {
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,
@@ -182,7 +182,7 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
                 exe_type: String::from(""),
                 exe: String::from(""),
@@ -198,7 +198,7 @@ mod tests {
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,
@@ -239,7 +239,7 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
                 exe_type: String::from("bridge"),
                 exe: String::from(""),
@@ -255,7 +255,7 @@ mod tests {
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,

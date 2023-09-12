@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use scale::{Decode, Encode};
 
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
@@ -29,7 +28,7 @@ impl XTransferXcm {
 }
 
 impl CallBuilder for XTransferXcm {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let recipient = step.recipient.ok_or("MissingRecipient")?;
         let asset_location: MultiLocation =
             Decode::decode(&mut step.spend_asset.as_slice()).map_err(|_| "InvalidMultilocation")?;
@@ -61,7 +60,7 @@ impl CallBuilder for XTransferXcm {
         );
         let dest_weight: Weight = Weight::from_parts(6000000000_u64, 1000000_u64);
 
-        Ok(vec![Call {
+        Ok(Call {
             params: CallParams::Sub(SubCall {
                 calldata: SubExtrinsic {
                     pallet_id: 0x52u8,
@@ -72,7 +71,7 @@ impl CallBuilder for XTransferXcm {
             }),
             input_call: None,
             call_index: None,
-        }])
+        })
     }
 }
 
@@ -87,7 +86,7 @@ mod tests {
             // dest chain account type
             account_type: AccountType::Account32,
         };
-        let calls = xtransfer
+        let call = xtransfer
             .build_call(Step {
                 exe_type: String::from(""),
                 exe: String::from(""),
@@ -107,7 +106,7 @@ mod tests {
             })
             .unwrap();
 
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 println!("calldata: {:?}", hex::encode(&sub_call.calldata))
             }

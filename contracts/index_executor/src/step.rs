@@ -101,7 +101,8 @@ impl Step {
             "Trying to build calldata for according to step data: {:?}",
             self,
         );
-        action.build_call(self.clone())
+        let call = action.build_call(self.clone())?;
+        Ok(vec![call])
     }
 
     pub fn is_bridge_step(&self) -> bool {

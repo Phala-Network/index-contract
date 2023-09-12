@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Tokenize, Contract},
@@ -31,7 +30,7 @@ impl UniswapV3 {
 }
 
 impl CallBuilder for UniswapV3 {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset0 = Address::from_slice(&step.spend_asset);
         let asset1 = Address::from_slice(&step.receive_asset);
         let to = Address::from_slice(&step.recipient.ok_or("MissingRecipient")?);
@@ -51,55 +50,23 @@ impl CallBuilder for UniswapV3 {
             .encode_input(&[Token::Tuple(swap_params.into_tokens())])
             .map_err(|_| "EncodeParamError")?;
 
-        let token = Contract::from_json(
-            self.eth.clone(),
-            asset0,
-            include_bytes!("../../abi/erc20.json"),
-        )
-        .expect("Bad abi data");
-        let approve_params = (self.router.address(), amount_in);
-        let approve_func = token
-            .abi()
-            .function("approve")
-            .map_err(|_| "NoFunctionFound")?;
-        let approve_calldata = approve_func
-            .encode_input(&approve_params.into_tokens())
-            .map_err(|_| "EncodeParamError")?;
+        Ok(Call {
+            params: CallParams::Evm(EvmCall {
+                target: self.router.address(),
+                calldata: swap_calldata,
+                value: U256::from(0),
 
-        Ok(vec![
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: asset0,
-                    calldata: approve_calldata,
-                    value: U256::from(0),
-
-                    need_settle: false,
-                    update_offset: U256::from(36),
-                    update_len: U256::from(32),
-                    spend_asset: asset0,
-                    spend_amount: amount_in,
-                    receive_asset: asset0,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: self.router.address(),
-                    calldata: swap_calldata,
-                    value: U256::from(0),
-
-                    need_settle: true,
-                    update_offset: U256::from(132),
-                    update_len: U256::from(32),
-                    spend_asset: asset0,
-                    spend_amount: amount_in,
-                    receive_asset: asset1,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-        ])
+                need_settle: true,
+                update_offset: U256::from(132),
+                update_len: U256::from(32),
+                spender: self.router.address(),
+                spend_asset: asset0,
+                spend_amount: amount_in,
+                receive_asset: asset1,
+            }),
+            input_call: None,
+            call_index: None,
+        })
     }
 }
 
@@ -113,20 +80,22 @@ mod tests {
     use pink_web3::{
         api::{Eth, Namespace},
         contract::{Contract, Options},
+        keys::pink::KeyPair,
         transports::{resolve_ready, PinkHttp},
     };
 
     #[test]
+    #[ignore]
     fn should_work() {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
 
         use pink_web3::types::Address;
 
-        // let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
-        // let secret_key = secret_key.unwrap().1;
-        // let secret_bytes = hex::decode(secret_key).unwrap();
-        // let _signer: [u8; 32] = secret_bytes.to_array();
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
 
         // Handler on Moonbeam
         let handler_address: H160 =
@@ -145,7 +114,7 @@ mod tests {
             "https://rpc.api.moonbeam.network",
             stellaswap_routerv3.into(),
         );
-        let mut calls = stellaswap_v3
+        let mut call = stellaswap_v3
             .build_call(Step {
                 exe_type: String::from(""),
                 exe: String::from(""),
@@ -165,15 +134,13 @@ mod tests {
             .unwrap();
 
         // Apply index mannually
-        calls[0].input_call = Some(0);
-        calls[0].call_index = Some(0);
-        calls[1].input_call = Some(0);
-        calls[1].call_index = Some(1);
+        call.input_call = Some(0);
+        call.call_index = Some(0);
 
         // Estiamte gas before submission
-        let _gas = resolve_ready(handler.estimate_gas(
+        let gas = resolve_ready(handler.estimate_gas(
             "batchCall",
-            calls.clone(),
+            call.clone(),
             Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
             Options::default(),
         ))
@@ -184,20 +151,18 @@ mod tests {
         .unwrap();
 
         // Uncomment if wanna send it to blockchain
-        // let _tx_id = resolve_ready(handler.signed_call(
-        //     "batchCall",
-        //     calls,
-        //     Options::with(|opt| {
-        //         opt.gas = Some(gas);
-        //     }),
-        //     KeyPair::from(signer),
-        // ))
-        // .map_err(|e| {
-        //     println!(
-        //         "Failed to submit step execution tx with error: {:?}",
-        //         e
-        //     );
-        //     "FailedToSubmitTransaction"
-        // }).unwrap();
+        let _tx_id = resolve_ready(handler.signed_call(
+            "batchCall",
+            call,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+            }),
+            KeyPair::from(signer),
+        ))
+        .map_err(|e| {
+            println!("Failed to submit step execution tx with error: {:?}", e);
+            "FailedToSubmitTransaction"
+        })
+        .unwrap();
     }
 }

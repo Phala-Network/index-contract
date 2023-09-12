@@ -1,4 +1,4 @@
-use alloc::{vec, vec::Vec};
+use alloc::vec;
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Tokenize, Contract},
@@ -31,7 +31,7 @@ impl UniswapV2 {
 }
 
 impl CallBuilder for UniswapV2 {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset0 = Address::from_slice(&step.spend_asset);
         let asset1 = Address::from_slice(&step.receive_asset);
         let to = Address::from_slice(&step.recipient.ok_or("MissingRecipient")?);
@@ -51,54 +51,22 @@ impl CallBuilder for UniswapV2 {
             .encode_input(&swap_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
 
-        let token = Contract::from_json(
-            self.eth.clone(),
-            asset0,
-            include_bytes!("../../abi/erc20.json"),
-        )
-        .expect("Bad abi data");
-        let approve_params = (self.router.address(), amount_in);
-        let approve_func = token
-            .abi()
-            .function("approve")
-            .map_err(|_| "NoFunctionFound")?;
-        let approve_calldata = approve_func
-            .encode_input(&approve_params.into_tokens())
-            .map_err(|_| "EncodeParamError")?;
+        Ok(Call {
+            params: CallParams::Evm(EvmCall {
+                target: self.router.address(),
+                calldata: swap_calldata,
+                value: U256::from(0),
 
-        Ok(vec![
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: asset0,
-                    calldata: approve_calldata,
-                    value: U256::from(0),
-
-                    need_settle: false,
-                    update_offset: U256::from(36),
-                    update_len: U256::from(32),
-                    spend_asset: asset0,
-                    spend_amount: amount_in,
-                    receive_asset: asset0,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: self.router.address(),
-                    calldata: swap_calldata,
-                    value: U256::from(0),
-
-                    need_settle: true,
-                    update_offset: U256::from(4),
-                    update_len: U256::from(32),
-                    spend_asset: asset0,
-                    spend_amount: amount_in,
-                    receive_asset: asset1,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-        ])
+                need_settle: true,
+                update_offset: U256::from(4),
+                update_len: U256::from(32),
+                spender: self.router.address(),
+                spend_asset: asset0,
+                spend_amount: amount_in,
+                receive_asset: asset1,
+            }),
+            input_call: None,
+            call_index: None,
+        })
     }
 }

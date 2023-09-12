@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use pink_web3::{
     api::{Eth, Namespace},
     contract::{tokens::Tokenize, Contract},
@@ -28,7 +27,7 @@ impl NativeWrapper {
 }
 
 impl CallBuilder for NativeWrapper {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let spend_asset = Address::from_slice(&step.spend_asset);
         let receive_asset = Address::from_slice(&step.receive_asset);
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
@@ -43,7 +42,7 @@ impl CallBuilder for NativeWrapper {
             let deposit_calldata = deposit_func
                 .encode_input(&[])
                 .map_err(|_| "EncodeParamError")?;
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Evm(EvmCall {
                     target: self.weth9.address(),
                     calldata: deposit_calldata,
@@ -52,13 +51,15 @@ impl CallBuilder for NativeWrapper {
                     need_settle: true,
                     update_offset: U256::from(0),
                     update_len: U256::from(0),
+                    // No spender
+                    spender: Address::from(&[0; 20]),
                     spend_asset,
                     spend_amount,
                     receive_asset,
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         } else if spend_asset == self.weth9.address() && receive_asset == self.native {
             // Withdraw
             let withdraw_func = self
@@ -69,7 +70,7 @@ impl CallBuilder for NativeWrapper {
             let withdraw_calldata = withdraw_func
                 .encode_input(&spend_amount.into_tokens())
                 .map_err(|_| "EncodeParamError")?;
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Evm(EvmCall {
                     target: self.weth9.address(),
                     calldata: withdraw_calldata,
@@ -78,13 +79,15 @@ impl CallBuilder for NativeWrapper {
                     need_settle: true,
                     update_offset: U256::from(4),
                     update_len: U256::from(32),
+                    // No spender
+                    spender: Address::from(&[0; 20]),
                     spend_asset,
                     spend_amount,
                     receive_asset,
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         } else {
             Err("UnrecognizedArguments")
         }
@@ -178,12 +181,12 @@ mod tests {
             .unwrap();
 
         // Apply index mannually
-        deposit_call[0].input_call = Some(0);
-        deposit_call[0].call_index = Some(0);
-        withdraw_call[0].input_call = Some(0);
-        withdraw_call[0].call_index = Some(1);
+        deposit_call.input_call = Some(0);
+        deposit_call.call_index = Some(0);
+        withdraw_call.input_call = Some(0);
+        withdraw_call.call_index = Some(1);
 
-        let calls = [deposit_call, withdraw_call].concat().to_vec();
+        let calls = [deposit_call, withdraw_call].to_vec();
 
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(

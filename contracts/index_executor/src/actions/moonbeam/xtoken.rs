@@ -12,7 +12,7 @@ use crate::step::Step;
 
 #[derive(Clone)]
 pub struct XTokenBridge {
-    eth: Eth<PinkHttp>,
+    _eth: Eth<PinkHttp>,
     xtoken: Contract<PinkHttp>,
     dest_chain_id: u32,
 }
@@ -28,7 +28,7 @@ impl XTokenBridge {
         .expect("Bad abi data");
 
         Self {
-            eth,
+            _eth: eth,
             xtoken,
             dest_chain_id,
         }
@@ -36,7 +36,7 @@ impl XTokenBridge {
 }
 
 impl CallBuilder for XTokenBridge {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let spend_asset = Address::from_slice(&step.spend_asset);
         // We don't use it
         let receive_asset = Address::from_slice(&[0; 20]);
@@ -73,7 +73,6 @@ impl CallBuilder for XTokenBridge {
             ]),
         ]);
         let bridge_params = (spend_asset, spend_amount, location, weight);
-
         let bridge_func = self
             .xtoken
             .abi()
@@ -83,56 +82,24 @@ impl CallBuilder for XTokenBridge {
             .encode_input(&bridge_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
 
-        let token = Contract::from_json(
-            self.eth.clone(),
-            spend_asset,
-            include_bytes!("../../abi/erc20.json"),
-        )
-        .expect("Bad abi data");
-        let approve_params = (self.xtoken.address(), spend_amount);
-        let approve_func = token
-            .abi()
-            .function("approve")
-            .map_err(|_| "NoFunctionFound")?;
-        let approve_calldata = approve_func
-            .encode_input(&approve_params.into_tokens())
-            .map_err(|_| "EncodeParamError")?;
+        Ok(Call {
+            params: CallParams::Evm(EvmCall {
+                target: self.xtoken.address(),
+                calldata: bridge_calldata,
+                value: U256::from(0),
 
-        Ok(vec![
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: spend_asset,
-                    calldata: approve_calldata,
-                    value: U256::from(0),
-
-                    need_settle: false,
-                    update_offset: U256::from(36),
-                    update_len: U256::from(32),
-                    spend_asset,
-                    spend_amount,
-                    receive_asset,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: self.xtoken.address(),
-                    calldata: bridge_calldata,
-                    value: U256::from(0),
-
-                    // Bridge operation do not need do settlement on source chain, because it must be the
-                    // last step on source chain
-                    need_settle: false,
-                    update_offset: U256::from(36),
-                    update_len: U256::from(32),
-                    spend_asset,
-                    spend_amount,
-                    receive_asset,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-        ])
+                // Bridge operation do not need do settlement on source chain, because it must be the
+                // last step on source chain
+                need_settle: false,
+                update_offset: U256::from(36),
+                update_len: U256::from(32),
+                spender: self.xtoken.address(),
+                spend_asset,
+                spend_amount,
+                receive_asset,
+            }),
+            input_call: None,
+            call_index: None,
+        })
     }
 }
