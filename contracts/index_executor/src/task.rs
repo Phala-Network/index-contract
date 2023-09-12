@@ -233,7 +233,7 @@ impl Task {
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
                 self.retry_counter += 1;
-                if self.retry_counter < 5 {
+                if self.retry_counter < 10 {
                     // FIXME: handle returned error
                     let _ = self.execute_step(context, client)?;
                 } else {
