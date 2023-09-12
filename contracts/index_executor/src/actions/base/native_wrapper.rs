@@ -141,7 +141,6 @@ mod tests {
         );
         let mut deposit_call = native_wrapper
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),
@@ -160,7 +159,6 @@ mod tests {
 
         let mut withdraw_call = native_wrapper
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),

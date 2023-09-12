@@ -948,7 +948,6 @@ mod tests {
         vec![
             // moonbeam_stellaswap
             StepInput {
-                exe_type: String::from("swap"),
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),
@@ -959,7 +958,6 @@ mod tests {
             .unwrap(),
             // moonbeam_stellaswap
             StepInput {
-                exe_type: String::from("swap"),
                 exe: String::from("moonbeam_stellaswap"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Moonbeam"),
@@ -970,7 +968,6 @@ mod tests {
             .unwrap(),
             // moonbeam_bridge_to_phala
             StepInput {
-                exe_type: String::from("bridge"),
                 exe: String::from("moonbeam_bridge_to_phala"),
                 source_chain: String::from("Moonbeam"),
                 dest_chain: String::from("Phala"),
@@ -981,7 +978,6 @@ mod tests {
             .unwrap(),
             // phala_bridge_to_astar
             StepInput {
-                exe_type: String::from("bridge"),
                 exe: String::from("phala_bridge_to_astar"),
                 source_chain: String::from("Phala"),
                 dest_chain: String::from("Astar"),
@@ -992,7 +988,6 @@ mod tests {
             .unwrap(),
             // astar_bridge_to_astar_evm
             StepInput {
-                exe_type: String::from("bridge"),
                 exe: String::from("astar_bridge_to_astarevm"),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("AstarEvm"),
@@ -1003,7 +998,6 @@ mod tests {
             .unwrap(),
             // astar_arthswap
             StepInput {
-                exe_type: String::from("swap"),
                 exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
                 dest_chain: String::from("AstarEvm"),
@@ -1014,7 +1008,6 @@ mod tests {
             .unwrap(),
             // astar_arthswap
             StepInput {
-                exe_type: String::from("swap"),
                 exe: String::from("astar_evm_arthswap"),
                 source_chain: String::from("AstarEvm"),
                 dest_chain: String::from("AstarEvm"),

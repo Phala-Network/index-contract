@@ -89,7 +89,6 @@ mod tests {
         };
         let calls = xtransfer
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Phala"),
                 dest_chain: String::from("Astar"),

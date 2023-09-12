@@ -153,7 +153,7 @@ mod tests {
     use primitive_types::H160;
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_fetch_task_from_moonbeam() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 

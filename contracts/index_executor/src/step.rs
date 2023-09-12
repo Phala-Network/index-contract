@@ -21,7 +21,6 @@ use scale::{Decode, Encode};
 
 #[derive(Clone, Decode, Encode, PartialEq)]
 pub struct StepInput {
-    pub exe_type: String,
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
@@ -32,7 +31,6 @@ pub struct StepInput {
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Step {
-    pub exe_type: String,
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
@@ -49,7 +47,6 @@ pub struct Step {
 impl sp_std::fmt::Debug for Step {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         f.debug_struct("Step")
-            .field("exe_type", &self.exe_type)
             .field("exe", &self.exe)
             .field("source_chain", &self.source_chain)
             .field("dest_chain", &self.dest_chain)
@@ -69,7 +66,6 @@ impl TryFrom<StepInput> for Step {
 
     fn try_from(input: StepInput) -> Result<Self, Self::Error> {
         Ok(Self {
-            exe_type: input.exe_type,
             exe: input.exe,
             source_chain: input.source_chain,
             dest_chain: input.dest_chain,
