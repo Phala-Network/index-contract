@@ -232,8 +232,8 @@ impl Task {
                 );
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
-                self.retry_counter += 1;
                 if self.retry_counter < 10 {
+                    self.retry_counter += 1;
                     // FIXME: handle returned error
                     let _ = self.execute_step(context, client)?;
                 } else {
@@ -267,6 +267,7 @@ impl Task {
                 self.execute_index,
                 nonce
             );
+            self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
             let execute_tx = self.merged_steps[self.execute_index as usize].run(nonce, context)?;
             if self.execute_txs.len() == self.execute_index as usize + 1 {
                 // Not the first time to execute the step, just replace it with new tx hash
@@ -274,7 +275,6 @@ impl Task {
             } else {
                 self.execute_txs.push(execute_tx);
             }
-            self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
         } else {
             pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
         }

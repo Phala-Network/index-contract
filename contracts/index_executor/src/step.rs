@@ -301,6 +301,7 @@ impl Runner for MultiStep {
         let signer = context.signer;
         let worker_account = AccountInfo::from(context.signer);
         let calls = self.derive_calls(context)?;
+        pink_extension::debug!("Derived calls to be sumitted: {:?}", &calls);
 
         self.sync_origin_balance(context)?;
 
