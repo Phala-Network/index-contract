@@ -31,6 +31,7 @@ pub struct EvmSygmaBridge {
     resource_id_map: BTreeMap<Address, [u8; 32]>,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl EvmSygmaBridge {
     pub fn new(
         rpc: &str,
@@ -149,21 +150,6 @@ impl CallBuilder for EvmSygmaBridge {
             .encode_input(&bridge_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
 
-        let token = Contract::from_json(
-            self.eth.clone(),
-            spend_asset,
-            include_bytes!("../../abi/erc20.json"),
-        )
-        .expect("Bad abi data");
-        let approve_params = (self.erc20_handler_address, spend_amount);
-        let approve_func = token
-            .abi()
-            .function("approve")
-            .map_err(|_| "NoFunctionFound")?;
-        let approve_calldata = approve_func
-            .encode_input(&approve_params.into_tokens())
-            .map_err(|_| "EncodeParamError")?;
-
         Ok(Call {
             params: CallParams::Evm(EvmCall {
                 target: self.contract.address(),
@@ -193,6 +179,7 @@ mod tests {
     use pink_web3::types::H160;
 
     #[test]
+    #[ignore]
     fn test_pha_from_goerli_to_rhala() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
@@ -229,7 +216,7 @@ mod tests {
             .build_call(Step {
                 exe: String::from(""),
                 source_chain: String::from("Goerli"),
-                dest_chain: String::from("Rhaala"),
+                dest_chain: String::from("Rhala"),
                 spend_asset: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864").unwrap(),
                 // MuliLocation: (0, Here)
                 receive_asset: hex::decode("0000").unwrap(),

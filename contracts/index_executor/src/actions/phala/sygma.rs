@@ -1,4 +1,3 @@
-use alloc::{vec, vec::Vec};
 use scale::{Decode, Encode};
 
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
@@ -24,7 +23,7 @@ impl XTransferSygma {
 }
 
 impl CallBuilder for XTransferSygma {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let recipient: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
         let asset_location: MultiLocation =
             Decode::decode(&mut step.spend_asset.as_slice()).map_err(|_| "InvalidMultilocation")?;
@@ -42,7 +41,7 @@ impl CallBuilder for XTransferSygma {
         );
         let dest_weight: Option<Weight> = None;
 
-        Ok(vec![Call {
+        Ok(Call {
             params: CallParams::Sub(SubCall {
                 calldata: SubExtrinsic {
                     pallet_id: 0x52u8,
@@ -53,7 +52,7 @@ impl CallBuilder for XTransferSygma {
             }),
             input_call: None,
             call_index: None,
-        }])
+        })
     }
 }
 
@@ -77,9 +76,8 @@ mod tests {
             hex_literal::hex!("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").into();
         let endpoint = "https://subbridge-test.phala.network/rhala/ws";
 
-        let calls = xtransfer_sygma_ethereum
+        let call = xtransfer_sygma_ethereum
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Phala"),
                 dest_chain: String::from("Ethereum"),
@@ -99,7 +97,7 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,

@@ -320,7 +320,7 @@ impl Runner for MultiStep {
                 for call in calls.iter() {
                     match &call.params {
                         CallParams::Evm(evm_call) => {
-                            value = value + evm_call.value;
+                            value += evm_call.value;
                         }
                         _ => return Err("UnexpectedCallType"),
                     }
