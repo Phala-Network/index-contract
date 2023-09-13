@@ -77,7 +77,7 @@ impl EvmSygmaBridge {
 }
 
 impl CallBuilder for EvmSygmaBridge {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let sender = Address::from_slice(&step.sender.ok_or("MissingSender")?);
         let spend_asset = Address::from_slice(&step.spend_asset);
         let resource_id = *self
@@ -164,40 +164,22 @@ impl CallBuilder for EvmSygmaBridge {
             .encode_input(&approve_params.into_tokens())
             .map_err(|_| "EncodeParamError")?;
 
-        Ok(vec![
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: spend_asset,
-                    calldata: approve_calldata,
-                    value: U256::from(0),
-
-                    need_settle: false,
-                    update_offset: U256::from(36),
-                    update_len: U256::from(32),
-                    spend_asset,
-                    spend_amount,
-                    receive_asset: spend_asset,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-            Call {
-                params: CallParams::Evm(EvmCall {
-                    target: self.contract.address(),
-                    calldata: bridge_calldata,
-                    value: U256::from(self.fee_amount),
-
-                    need_settle: false,
-                    update_offset: U256::from(164),
-                    update_len: U256::from(32),
-                    spend_asset,
-                    spend_amount,
-                    receive_asset: spend_asset,
-                }),
-                input_call: None,
-                call_index: None,
-            },
-        ])
+        Ok(Call {
+            params: CallParams::Evm(EvmCall {
+                target: self.contract.address(),
+                calldata: bridge_calldata,
+                value: U256::from(self.fee_amount),
+                spender: self.erc20_handler_address,
+                need_settle: false,
+                update_offset: U256::from(164),
+                update_len: U256::from(32),
+                spend_asset,
+                spend_amount,
+                receive_asset: spend_asset,
+            }),
+            input_call: None,
+            call_index: None,
+        })
     }
 }
 
@@ -243,9 +225,8 @@ mod tests {
                 .unwrap()
                 .into();
 
-        let mut calls = sygma_bridge
+        let mut call = sygma_bridge
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Goerli"),
                 dest_chain: String::from("Rhaala"),
@@ -261,10 +242,8 @@ mod tests {
             .unwrap();
 
         // Apply index mannually
-        calls[0].input_call = Some(0);
-        calls[0].call_index = Some(0);
-        calls[1].input_call = Some(0);
-        calls[1].call_index = Some(1);
+        call.input_call = Some(0);
+        call.call_index = Some(0);
 
         // Make sure handler address hold enough spend asset and native asset (e.g. ETH).
         // Because handler is the account who spend and pay fee on behalf
@@ -272,7 +251,7 @@ mod tests {
         // Estiamte gas before submission
         let _gas = resolve_ready(handler.estimate_gas(
             "batchCall",
-            calls.clone(),
+            call.clone(),
             // Worker address
             Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
             Options::with(|opt| {
@@ -299,7 +278,7 @@ mod tests {
 
         // let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
         //     "batchCall",
-        //     calls,
+        //     call,
         //     Options::with(|opt| {
         //         opt.gas = Some(gas);
         //         // 0.001 ETH
@@ -308,14 +287,12 @@ mod tests {
         //     KeyPair::from(signer),
         // ))
         // .map_err(|e| {
-        //     println!(
-        //         "Failed to submit step execution tx with error: {:?}",
-        //         e
-        //     );
+        //     println!("Failed to submit step execution tx with error: {:?}", e);
         //     "FailedToSubmitTransaction"
-        // }).unwrap();
+        // })
+        // .unwrap();
 
-        // match &calls[1].params {
+        // match &call.params {
         //     CallParams::Evm(evm_call) => {
         //         // https://goerli.etherscan.io/tx/0x42261d70e9849a30dd878c53d185136972deea0420322978fafe6313682da804
         //         let encoded_data = hex::encode(&evm_call.calldata);
