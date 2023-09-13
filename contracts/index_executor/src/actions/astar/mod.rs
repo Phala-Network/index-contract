@@ -1,9 +1,10 @@
 pub mod asset;
 mod sub;
 
-use crate::actions::base::uniswapv2;
+use crate::actions::base::{native_wrapper, uniswapv2};
 
 pub type AstarArthSwap = uniswapv2::UniswapV2;
+pub type AstarNativeWrapper = native_wrapper::NativeWrapper;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
@@ -14,13 +15,26 @@ pub fn evm_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> 
     let arthswap_pancake_router: [u8; 20] = hex::decode("E915D2393a08a00c5A463053edD31bAe2199b9e7")
         .unwrap()
         .to_array();
-    vec![(
-        String::from("astar_evm_arthswap"),
-        Box::new(AstarArthSwap::new(
-            &chain.endpoint,
-            arthswap_pancake_router.into(),
-        )),
-    )]
+    let astar_evm_wastr: [u8; 20] = hex_literal::hex!("Aeaaf0e2c81Af264101B9129C00F4440cCF0F720");
+    let astar_evm_astr: [u8; 20] = hex_literal::hex!("0000000000000000000000000000000000000000");
+
+    vec![
+        (
+            String::from("astar_evm_nativewrapper"),
+            Box::new(AstarNativeWrapper::new(
+                &chain.endpoint,
+                astar_evm_wastr.into(),
+                astar_evm_astr.into(),
+            )),
+        ),
+        (
+            String::from("astar_evm_arthswap"),
+            Box::new(AstarArthSwap::new(
+                &chain.endpoint,
+                arthswap_pancake_router.into(),
+            )),
+        ),
+    ]
 }
 
 pub fn sub_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
