@@ -1,6 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
+use crate::call::CallParams;
 use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
@@ -515,15 +516,29 @@ impl Task {
         let first_step = &mut self.merged_steps[0];
         first_step.set_spend(self.amount);
         first_step.sync_origin_balance(context)?;
-        let params = (task_id, first_step.derive_calls(context)?);
-        pink_extension::info!("claimAndBatchCall params {:?}", &params);
+        let calls = first_step.derive_calls(context)?;
 
+        // Accumulate msg.value in calls
+        let mut value = U256::from(0);
+        for call in calls.iter() {
+            match &call.params {
+                CallParams::Evm(evm_call) => {
+                    value += evm_call.value;
+                }
+                _ => return Err("UnexpectedCallType"),
+            }
+        }
+
+        let params = (task_id, calls);
+        pink_extension::info!("claimAndBatchCall params {:?}", &params);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "claimAndBatchCall",
             params.clone(),
             worker.address(),
-            Options::default(),
+            Options::with(|opt| {
+                opt.value = Some(value);
+            }),
         ))
         .map_err(|e| {
             pink_extension::error!(
@@ -541,6 +556,7 @@ impl Task {
                 // Give 50% gas for potentially gas exceeding
                 opt.gas = Some(gas * U256::from(15) / U256::from(10));
                 opt.nonce = Some(nonce.into());
+                opt.value = Some(value);
             }),
             worker,
         ))
