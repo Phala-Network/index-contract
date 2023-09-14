@@ -1,5 +1,6 @@
 use crate::account::AccountInfo;
 use crate::chain::{Chain, ChainType};
+use crate::storage::StorageClient;
 use crate::task::Task;
 use crate::task_deposit::{DepositData, EvmDepositData, SubDepositData};
 use alloc::vec::Vec;
@@ -31,9 +32,9 @@ impl ActivedTaskFetcher {
         ActivedTaskFetcher { chain, worker }
     }
 
-    pub fn fetch_task(&self) -> Result<Option<Task>, &'static str> {
+    pub fn fetch_task(&self, client: &StorageClient) -> Result<Option<Task>, &'static str> {
         match self.chain.chain_type {
-            ChainType::Evm => Ok(self.query_evm_actived_task(&self.chain, &self.worker)?),
+            ChainType::Evm => Ok(self.query_evm_actived_task(&self.chain, &self.worker, client)?),
             ChainType::Sub => Ok(self.query_sub_actived_task(&self.chain, &self.worker)?),
         }
     }
@@ -42,6 +43,7 @@ impl ActivedTaskFetcher {
         &self,
         chain: &Chain,
         worker: &AccountInfo,
+        client: &StorageClient,
     ) -> Result<Option<Task>, &'static str> {
         let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
@@ -74,7 +76,7 @@ impl ActivedTaskFetcher {
             "getNextActivedTask, return task_id: {:?}",
             hex::encode(task_id)
         );
-        let evm_deposit_data: EvmDepositData =
+        let mut evm_deposit_data: EvmDepositData =
             resolve_ready(handler.query("getTaskData", task_id, None, Options::default(), None))
                 .map_err(|_| "FailedGetTaskData")?;
         pink_extension::debug!(
@@ -83,7 +85,21 @@ impl ActivedTaskFetcher {
             &chain.name,
             &evm_deposit_data,
         );
-        let deposit_data: DepositData = evm_deposit_data.into();
+
+        // Read solution from db
+        let solution_id = [b"solution".to_vec(), task_id.to_vec()].concat();
+        let (solution, _) = client
+            .read_storage::<Vec<u8>>(&solution_id)
+            .map_err(|_| "FailedToReadStorage")?
+            .ok_or("NoSolutionFound")?;
+        pink_extension::debug!(
+            "Found solution data associate to task {:?}, solution: {:?}",
+            &hex::encode(task_id),
+            &hex::encode(&solution),
+        );
+
+        evm_deposit_data.task = Some(solution);
+        let deposit_data: DepositData = evm_deposit_data.try_into()?;
         let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
         Ok(Some(task))
     }
@@ -156,7 +172,7 @@ mod tests {
     #[ignore]
     fn test_fetch_task_from_moonbeam() {
         pink_extension_runtime::mock_ext::mock_all_ext();
-
+        let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         let worker_address: H160 = hex!("bf526928373748b00763875448ee905367d97f96").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
@@ -174,7 +190,7 @@ mod tests {
                 account32: [0; 32],
             },
         }
-        .fetch_task()
+        .fetch_task(&client)
         .unwrap()
         .unwrap();
 

@@ -97,8 +97,8 @@ impl CallBuilder for NativeWrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::ToArray;
     use crate::call::PackCall;
+    use crate::utils::ToArray;
     use dotenv::dotenv;
     use primitive_types::H160;
 

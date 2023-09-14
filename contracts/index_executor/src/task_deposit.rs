@@ -1,6 +1,6 @@
 use crate::step::StepInput;
 use crate::task::Task;
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 use pink_web3::{
     contract::{tokens::Detokenize, Error as PinkError},
     ethabi::Token,
@@ -10,12 +10,12 @@ use scale::{Decode, Encode};
 use xcm::v3::AssetId as XcmAssetId;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct EvmDepositData {
-    // TODO: use Bytes
     sender: Address,
+    token: Address,
     amount: U256,
-    recipient: Vec<u8>,
-    task: Vec<u8>,
+    pub task: Option<Vec<u8>>,
 }
 
 impl Detokenize for EvmDepositData {
@@ -29,21 +29,17 @@ impl Detokenize for EvmDepositData {
                 Token::Tuple(deposit_data) => {
                     match (
                         deposit_data[0].clone(),
+                        deposit_data[1].clone(),
                         deposit_data[2].clone(),
-                        deposit_data[3].clone(),
-                        deposit_data[4].clone(),
                     ) {
-                        (
-                            Token::Address(sender),
-                            Token::Uint(amount),
-                            Token::Bytes(recipient),
-                            Token::Bytes(task),
-                        ) => Ok(EvmDepositData {
-                            sender,
-                            amount,
-                            recipient,
-                            task,
-                        }),
+                        (Token::Address(sender), Token::Address(token), Token::Uint(amount)) => {
+                            Ok(EvmDepositData {
+                                sender,
+                                token,
+                                amount,
+                                task: None,
+                            })
+                        }
                         _ => Err(PinkError::InvalidOutputType(String::from(
                             "Return type dismatch",
                         ))),
@@ -73,21 +69,21 @@ pub struct SubDepositData {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct DepositData {
-    // TODO: use Bytes
     sender: Vec<u8>,
     amount: u128,
     recipient: Vec<u8>,
     task: Vec<u8>,
 }
 
-impl From<EvmDepositData> for DepositData {
-    fn from(value: EvmDepositData) -> Self {
-        Self {
+impl TryFrom<EvmDepositData> for DepositData {
+    type Error = &'static str;
+    fn try_from(value: EvmDepositData) -> Result<Self, &'static str> {
+        Ok(Self {
             sender: value.sender.as_bytes().into(),
             amount: value.amount.try_into().expect("Amount overflow"),
-            recipient: value.recipient,
-            task: value.task,
-        }
+            recipient: vec![],
+            task: value.task.ok_or("MiisingSolution")?,
+        })
     }
 }
 

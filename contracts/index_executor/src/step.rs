@@ -95,7 +95,16 @@ impl Step {
             "Trying to build calldata for according to step data: {:?}",
             self,
         );
-        let call = action.build_call(self.clone())?;
+        let source_chain = self.source_chain(context).ok_or("MissingSourceChain")?;
+        let worker_account = AccountInfo::from(context.signer);
+        let sender = match source_chain.chain_type {
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
+        };
+
+        let mut step = self.clone();
+        step.sender = Some(sender);
+        let call = action.build_call(step)?;
         Ok(vec![call])
     }
 

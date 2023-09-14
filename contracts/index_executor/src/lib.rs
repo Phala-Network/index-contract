@@ -55,6 +55,8 @@ mod index_executor {
         FailedToInitTask,
         FailedToDestoryTask,
         FailedToUploadTask,
+        FailedToUploadSolution,
+        SolutionAlreadyExist,
         FailedToReApplyNonce,
         FailedToReRunTask,
         TaskNotFoundInStorage,
@@ -292,6 +294,29 @@ mod index_executor {
         }
 
         #[ink(message)]
+        pub fn upload_solution(&self, id: TaskId, solution: Vec<u8>) -> Result<()> {
+            self.ensure_running()?;
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+
+            let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
+            if client
+                .read_storage::<Vec<u8>>(&solution_id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .is_some()
+            {
+                return Err(Error::SolutionAlreadyExist);
+            }
+
+            client
+                .alloc_storage(&solution_id, &solution)
+                .log_err("failed to upload solution")
+                .or(Err(Error::FailedToUploadSolution))?;
+
+            Ok(())
+        }
+
+        #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             self.ensure_running()?;
 
@@ -393,6 +418,19 @@ mod index_executor {
                 .map(|(task, _)| task))
         }
 
+        #[ink(message)]
+        pub fn get_solution(&self, id: TaskId) -> Result<Option<Vec<u8>>> {
+            self.ensure_running()?;
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+
+            let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
+            Ok(client
+                .read_storage::<Vec<u8>>(&solution_id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .map(|(solution, _)| solution))
+        }
+
         /// Returs the interior registry, callable to all
         #[ink(message)]
         pub fn get_registry(&self) -> Result<Registry> {
@@ -436,7 +474,7 @@ mod index_executor {
                     .ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(signer),
             )
-            .fetch_task()
+            .fetch_task(client)
             .map_err(|_| Error::FailedToFetchTask)?;
             let Some(mut actived_task) = actived_task else {
                 pink_extension::debug!("No actived task found from {:?}", &source_chain);

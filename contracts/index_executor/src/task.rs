@@ -644,6 +644,7 @@ mod tests {
 
         pink_extension_runtime::mock_ext::mock_all_ext();
 
+        let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
         let task = ActivedTaskFetcher {
             chain: Chain {
@@ -663,7 +664,7 @@ mod tests {
                 account32: [0; 32],
             },
         }
-        .fetch_task()
+        .fetch_task(&client)
         .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
@@ -733,6 +734,7 @@ mod tests {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
 
+        let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         // Worker public key
         let worker_key: [u8; 32] =
             hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
@@ -753,7 +755,7 @@ mod tests {
                 account32: worker_key,
             },
         }
-        .fetch_task()
+        .fetch_task(&client)
         .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
@@ -900,7 +902,7 @@ mod tests {
                 account32: [0; 32],
             },
         }
-        .fetch_task()
+        .fetch_task(&client)
         .unwrap()
         .unwrap();
         assert_eq!(task.steps.len(), 3);
@@ -942,7 +944,8 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(3000));
 
         // Now let's query if the task is exist in rollup storage with another rollup client
-        let another_client = StorageClient::new("another url".to_string(), "key".to_string());
+        let another_client: StorageClient =
+            StorageClient::new("another url".to_string(), "key".to_string());
         let onchain_task = another_client
             .read_storage::<Task>(&task.id)
             .unwrap()

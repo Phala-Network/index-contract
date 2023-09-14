@@ -31,7 +31,7 @@ impl Registry {
                 Chain {
                     id: 0,
                     name: "Ethereum".to_string(),
-                    endpoint: "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
+                    endpoint: "https://mainnet.infura.io/v3/e5f4c95222934613bbde028ba5dc526b"
                         .to_string(),
                     chain_type: ChainType::Evm,
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
@@ -39,7 +39,7 @@ impl Registry {
                     foreign_asset: None,
                     handler_contract: hex::decode("1a2428eA1cba2be5719eF22e0ED87aB33a8655a3")
                         .expect("InvalidLocation"),
-                    tx_indexer: "null".to_string(),
+                    tx_indexer: "https://squid.subsquid.io/graph-ethereum/graphql".to_string(),
                 },
                 Chain {
                     id: 1,
@@ -49,7 +49,7 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000802")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("7f3B4d16501043620Dafe664264B3863a61f6275")
+                    handler_contract: hex::decode("0C6182a4435a75d6871143f938426eFBDd0d11C9")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
@@ -61,7 +61,7 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("30f8549A46afa69f3F9b46e3C28F456796E6Cf37")
+                    handler_contract: hex::decode("678D1D26dA14C6FcC32057401993A6989a6F477d")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
                 },
