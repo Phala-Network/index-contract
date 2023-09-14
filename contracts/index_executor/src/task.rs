@@ -1,7 +1,7 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::call::CallParams;
+use crate::call::{CallParams, PackCall};
 use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
@@ -529,7 +529,7 @@ impl Task {
             }
         }
 
-        let params = (task_id, calls);
+        let params = (task_id, calls.pack());
         pink_extension::info!("claimAndBatchCall params {:?}", &params);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(

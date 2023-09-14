@@ -5,7 +5,7 @@ use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
 
 use crate::account::AccountInfo;
-use crate::call::{Call, CallBuilder, CallParams, SubCall};
+use crate::call::{Call, CallBuilder, CallParams, PackCall, SubCall};
 use crate::context::Context;
 use crate::storage::StorageClient;
 use crate::traits::Runner;
@@ -325,11 +325,12 @@ impl Runner for MultiStep {
                         _ => return Err("UnexpectedCallType"),
                     }
                 }
+                let packed_calls = calls.pack();
 
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
-                    calls.clone(),
+                    packed_calls.clone(),
                     worker_account.account20.into(),
                     Options::with(|opt| {
                         opt.value = Some(value);
@@ -344,7 +345,7 @@ impl Runner for MultiStep {
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(
                     "batchCall",
-                    calls,
+                    packed_calls,
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));

@@ -91,8 +91,8 @@ impl CallBuilder for XTokenBridge {
                 // Bridge operation do not need do settlement on source chain, because it must be the
                 // last step on source chain
                 need_settle: false,
-                update_offset: U256::from(36),
-                update_len: U256::from(32),
+                update_offset: 36,
+                update_len: 32,
                 spender: self.xtoken.address(),
                 spend_asset,
                 spend_amount,

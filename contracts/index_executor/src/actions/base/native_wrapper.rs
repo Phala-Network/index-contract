@@ -49,8 +49,8 @@ impl CallBuilder for NativeWrapper {
                     value: spend_amount,
 
                     need_settle: true,
-                    update_offset: U256::from(0),
-                    update_len: U256::from(0),
+                    update_offset: 0,
+                    update_len: 0,
                     // No spender
                     spender: Address::from(&[0; 20]),
                     spend_asset,
@@ -77,8 +77,8 @@ impl CallBuilder for NativeWrapper {
                     value: U256::from(0),
 
                     need_settle: true,
-                    update_offset: U256::from(4),
-                    update_len: U256::from(32),
+                    update_offset: 4,
+                    update_len: 32,
                     // No spender
                     spender: Address::from(&[0; 20]),
                     spend_asset,
@@ -98,6 +98,7 @@ impl CallBuilder for NativeWrapper {
 mod tests {
     use super::*;
     use crate::utils::ToArray;
+    use crate::call::PackCall;
     use dotenv::dotenv;
     use primitive_types::H160;
 
@@ -189,7 +190,7 @@ mod tests {
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "batchCall",
-            calls.clone(),
+            calls.clone().pack(),
             Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
             Options::with(|opt| {
                 // 0.1 GLMR
@@ -206,7 +207,7 @@ mod tests {
         // Uncomment if wanna send it to blockchain
         let tx_id = resolve_ready(handler.signed_call(
             "batchCall",
-            calls,
+            calls.pack(),
             Options::with(|opt| {
                 opt.gas = Some(gas);
                 // 0.1 GLMR

@@ -57,8 +57,8 @@ impl CallBuilder for UniswapV3 {
                 value: U256::from(0),
 
                 need_settle: true,
-                update_offset: U256::from(132),
-                update_len: U256::from(32),
+                update_offset: 132,
+                update_len: 32,
                 spender: self.router.address(),
                 spend_asset: asset0,
                 spend_amount: amount_in,
@@ -73,7 +73,7 @@ impl CallBuilder for UniswapV3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::ToArray;
+    use crate::{call::PackCall, utils::ToArray};
     use dotenv::dotenv;
     use primitive_types::H160;
 
@@ -139,7 +139,7 @@ mod tests {
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "batchCall",
-            call.clone(),
+            vec![call.clone()].pack(),
             Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
             Options::default(),
         ))
@@ -152,7 +152,7 @@ mod tests {
         // Uncomment if wanna send it to blockchain
         let _tx_id = resolve_ready(handler.signed_call(
             "batchCall",
-            call,
+            vec![call].pack(),
             Options::with(|opt| {
                 opt.gas = Some(gas);
             }),

@@ -157,8 +157,8 @@ impl CallBuilder for EvmSygmaBridge {
                 value: U256::from(self.fee_amount),
                 spender: self.erc20_handler_address,
                 need_settle: false,
-                update_offset: U256::from(164),
-                update_len: U256::from(32),
+                update_offset: 164,
+                update_len: 32,
                 spend_asset,
                 spend_amount,
                 receive_asset: spend_asset,
@@ -172,6 +172,7 @@ impl CallBuilder for EvmSygmaBridge {
 #[cfg(test)]
 mod tests {
     // use crate::utils::ToArray;
+    use crate::call::PackCall;
 
     use super::*;
     use sp_runtime::AccountId32;
@@ -238,7 +239,7 @@ mod tests {
         // Estiamte gas before submission
         let _gas = resolve_ready(handler.estimate_gas(
             "batchCall",
-            call.clone(),
+            vec![call.clone()].pack(),
             // Worker address
             Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
             Options::with(|opt| {
@@ -265,7 +266,7 @@ mod tests {
 
         // let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
         //     "batchCall",
-        //     call,
+        //     vec![call].pack(),
         //     Options::with(|opt| {
         //         opt.gas = Some(gas);
         //         // 0.001 ETH
