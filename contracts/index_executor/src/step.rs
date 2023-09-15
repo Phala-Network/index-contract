@@ -19,7 +19,8 @@ use pink_web3::{
 };
 use scale::{Decode, Encode};
 
-#[derive(Clone, Decode, Encode, PartialEq)]
+#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct StepInput {
     pub exe: String,
     pub source_chain: String,

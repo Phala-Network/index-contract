@@ -2,7 +2,7 @@ use crate::account::AccountInfo;
 use crate::chain::{Chain, ChainType};
 use crate::storage::StorageClient;
 use crate::task::Task;
-use crate::task_deposit::{DepositData, EvmDepositData, SubDepositData};
+use crate::task_deposit::{DepositData, EvmDepositData, Solution, SubDepositData};
 use alloc::vec::Vec;
 use pink_extension::ResultExt;
 use pink_subrpc::{
@@ -16,6 +16,7 @@ use pink_web3::{
     transports::{resolve_ready, PinkHttp},
     types::{Address, H160},
 };
+use scale::Encode;
 
 /// Fetch actived tasks from blockchains and construct a `Task` from it.
 /// If the given chain is EVM based, fetch tasks from solidity-based smart contract storage through RPC task.
@@ -89,16 +90,16 @@ impl ActivedTaskFetcher {
         // Read solution from db
         let solution_id = [b"solution".to_vec(), task_id.to_vec()].concat();
         let (solution, _) = client
-            .read_storage::<Vec<u8>>(&solution_id)
+            .read_storage::<Solution>(&solution_id)
             .map_err(|_| "FailedToReadStorage")?
             .ok_or("NoSolutionFound")?;
         pink_extension::debug!(
             "Found solution data associate to task {:?}, solution: {:?}",
             &hex::encode(task_id),
-            &hex::encode(&solution),
+            &solution,
         );
 
-        evm_deposit_data.task = Some(solution);
+        evm_deposit_data.solution = Some(solution.encode());
         let deposit_data: DepositData = evm_deposit_data.try_into()?;
         let task = deposit_data.to_task(&chain.name, task_id, self.worker.account32)?;
         Ok(Some(task))

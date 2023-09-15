@@ -30,6 +30,7 @@ mod index_executor {
     use crate::registry::Registry;
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
+    use crate::task_deposit::Solution;
     use crate::task_fetcher::ActivedTaskFetcher;
     use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
@@ -426,9 +427,9 @@ mod index_executor {
 
             let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
             Ok(client
-                .read_storage::<Vec<u8>>(&solution_id)
+                .read_storage::<Solution>(&solution_id)
                 .map_err(|_| Error::FailedToReadStorage)?
-                .map(|(solution, _)| solution))
+                .map(|(solution, _)| solution.encode()))
         }
 
         /// Returs the interior registry, callable to all

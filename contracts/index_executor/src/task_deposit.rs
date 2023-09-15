@@ -1,6 +1,6 @@
 use crate::step::StepInput;
 use crate::task::Task;
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{string::String, vec::Vec};
 use pink_web3::{
     contract::{tokens::Detokenize, Error as PinkError},
     ethabi::Token,
@@ -9,13 +9,16 @@ use pink_web3::{
 use scale::{Decode, Encode};
 use xcm::v3::AssetId as XcmAssetId;
 
+pub type Solution = Vec<StepInput>;
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct EvmDepositData {
     sender: Address,
     token: Address,
+    recipient: Vec<u8>,
     amount: U256,
-    pub task: Option<Vec<u8>>,
+    pub solution: Option<Vec<u8>>,
 }
 
 impl Detokenize for EvmDepositData {
@@ -31,15 +34,20 @@ impl Detokenize for EvmDepositData {
                         deposit_data[0].clone(),
                         deposit_data[1].clone(),
                         deposit_data[2].clone(),
+                        deposit_data[3].clone(),
                     ) {
-                        (Token::Address(sender), Token::Address(token), Token::Uint(amount)) => {
-                            Ok(EvmDepositData {
-                                sender,
-                                token,
-                                amount,
-                                task: None,
-                            })
-                        }
+                        (
+                            Token::Address(sender),
+                            Token::Address(token),
+                            Token::Bytes(recipient),
+                            Token::Uint(amount),
+                        ) => Ok(EvmDepositData {
+                            sender,
+                            token,
+                            recipient,
+                            amount,
+                            solution: None,
+                        }),
                         _ => Err(PinkError::InvalidOutputType(String::from(
                             "Return type dismatch",
                         ))),
@@ -62,7 +70,7 @@ pub struct SubDepositData {
     pub asset: XcmAssetId,
     pub amount: u128,
     pub recipient: Vec<u8>,
-    pub task: Vec<u8>,
+    pub solution: Vec<u8>,
 }
 
 // Define the structures to parse deposit data json
@@ -72,7 +80,7 @@ pub struct DepositData {
     sender: Vec<u8>,
     amount: u128,
     recipient: Vec<u8>,
-    task: Vec<u8>,
+    solution: Vec<u8>,
 }
 
 impl TryFrom<EvmDepositData> for DepositData {
@@ -81,8 +89,8 @@ impl TryFrom<EvmDepositData> for DepositData {
         Ok(Self {
             sender: value.sender.as_bytes().into(),
             amount: value.amount.try_into().expect("Amount overflow"),
-            recipient: vec![],
-            task: value.task.ok_or("MiisingSolution")?,
+            recipient: value.recipient,
+            solution: value.solution.ok_or("MiisingSolution")?,
         })
     }
 }
@@ -93,7 +101,7 @@ impl From<SubDepositData> for DepositData {
             sender: value.sender.into(),
             amount: value.amount,
             recipient: value.recipient,
-            task: value.task,
+            solution: value.solution,
         }
     }
 }
@@ -107,13 +115,13 @@ impl DepositData {
     ) -> Result<Task, &'static str> {
         pink_extension::debug!("Trying to parse task data from json string");
 
-        let execution_plan: ExecutionPlan =
-            Decode::decode(&mut self.task.as_slice()).map_err(|_| "InvalidTask")?;
+        let solution: Solution =
+            Decode::decode(&mut self.solution.as_slice()).map_err(|_| "InvalidTask")?;
         pink_extension::debug!(
             "Parse task data successfully, found {:?} operations",
-            execution_plan.len()
+            solution.len()
         );
-        if execution_plan.is_empty() {
+        if solution.is_empty() {
             return Err("EmptyTask");
         }
         pink_extension::debug!("Trying to convert task data to task");
@@ -128,7 +136,7 @@ impl DepositData {
             ..Default::default()
         };
 
-        for step_input in execution_plan.iter() {
+        for step_input in solution.iter() {
             uninitialized_task
                 .steps
                 .push(step_input.clone().try_into()?);
@@ -137,5 +145,3 @@ impl DepositData {
         Ok(uninitialized_task)
     }
 }
-
-type ExecutionPlan = Vec<StepInput>;

@@ -62,6 +62,12 @@
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes",
+        "name": "recipient",
+        "type": "bytes"
       }
     ],
     "name": "Deposited",
@@ -195,6 +201,11 @@
         "type": "address"
       },
       {
+        "internalType": "bytes",
+        "name": "recipient",
+        "type": "bytes"
+      },
+      {
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
@@ -279,6 +290,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "bytes",
+        "name": "recipient",
+        "type": "bytes"
+      },
+      {
         "internalType": "address",
         "name": "worker",
         "type": "address"
@@ -333,6 +349,11 @@
             "internalType": "address",
             "name": "token",
             "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "recipient",
+            "type": "bytes"
           },
           {
             "internalType": "uint256",
@@ -407,6 +428,11 @@
             "internalType": "address",
             "name": "token",
             "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "recipient",
+            "type": "bytes"
           },
           {
             "internalType": "uint256",
