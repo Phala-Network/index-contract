@@ -58,8 +58,8 @@ impl CallBuilder for UniswapV2 {
                 value: U256::from(0),
 
                 need_settle: true,
-                update_offset: 4,
-                update_len: 32,
+                update_offset: U256::from(4),
+                update_len: U256::from(32),
                 spender: self.router.address(),
                 spend_asset: asset0,
                 spend_amount: amount_in,
