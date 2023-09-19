@@ -1,7 +1,6 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::call::CallParams;
 use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
@@ -116,57 +115,40 @@ impl sp_std::fmt::Debug for Task {
 impl Task {
     // Initialize task
     pub fn init(&mut self, context: &Context, client: &StorageClient) -> Result<(), &'static str> {
-        let (mut free_accounts, free_accounts_doc) = client
-            .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
-            .ok_or("StorageNotConfigured")?;
-        let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
-            .ok_or("StorageNotConfigured")?;
-
-        // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
-        if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
-            free_accounts.remove(index);
+        if let Some((task, _)) = client
+            .read_storage::<Task>(&self.id)
+            .map_err(|_| "FailedToReadStorage")?
+        {
             pink_extension::debug!(
-                "Worker {:?} is free, will be applied to this task {:?}.",
-                hex::encode(self.worker),
+                "Task {:?} already initialized, will check if it is missed to be added to execute",
                 hex::encode(self.id)
             );
+            if client
+                .read_storage::<TaskId>(&self.worker)
+                .map_err(|_| "FailedToReadStorage")?
+                .is_none()
+                // Still need to check status in case task actually has completed
+                && task.status == TaskStatus::Initialized
+            {
+                client.alloc_storage(&self.worker, &self.id.encode())?;
+            }
         } else {
-            pink_extension::debug!(
-                "Worker {:?} is busy, try again later for this task {:?}.",
-                hex::encode(self.worker),
-                hex::encode(self.id)
-            );
-            return Err("WorkerIsBusy");
+            // Apply recipient for each step before merged
+            self.apply_recipient(context)?;
+
+            // Merge steps
+            self.merge_step(context)?;
+
+            // Apply worker nonce for each step in task
+            self.apply_nonce(0, context, client)?;
+
+            // TODO: query initial balance of worker account and setup to specific step
+            self.status = TaskStatus::Initialized;
+            self.execute_index = 0;
+
+            client.alloc_storage(self.id.as_ref(), &self.encode())?;
+            client.alloc_storage(&self.worker, &self.id.encode())?;
         }
-
-        // Apply recipient for each step before merged
-        self.apply_recipient(context)?;
-
-        // Merge steps
-        self.merge_step(context)?;
-
-        // Apply worker nonce for each step in task
-        self.apply_nonce(0, context, client)?;
-
-        // TODO: query initial balance of worker account and setup to specific step
-        self.status = TaskStatus::Initialized;
-        self.execute_index = 0;
-        // Push to pending tasks queue
-        pending_tasks.push(self.id);
-        // Save task data
-        client.alloc_storage(self.id.as_ref(), &self.encode())?;
-
-        client.update_storage(
-            b"free_accounts".as_ref(),
-            &free_accounts.encode(),
-            free_accounts_doc,
-        )?;
-        client.update_storage(
-            b"pending_tasks".as_ref(),
-            &pending_tasks.encode(),
-            pending_tasks_doc,
-        )?;
 
         Ok(())
     }
@@ -284,29 +266,10 @@ impl Task {
 
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
-        let (mut free_accounts, free_accounts_doc) = client
-            .read_storage::<Vec<[u8; 32]>>(b"free_accounts")?
-            .ok_or("StorageNotConfigured")?;
-        let (mut pending_tasks, pending_tasks_doc) = client
-            .read_storage::<Vec<TaskId>>(b"pending_tasks")?
-            .ok_or("StorageNotConfigured")?;
-
-        if let Some(idx) = pending_tasks.iter().position(|id| *id == self.id) {
-            // Remove from pending tasks queue
-            pending_tasks.remove(idx);
-            // Recycle worker account
-            free_accounts.push(self.worker);
-        }
-        client.update_storage(
-            b"free_accounts".as_ref(),
-            &free_accounts.encode(),
-            free_accounts_doc,
-        )?;
-        client.update_storage(
-            b"pending_tasks".as_ref(),
-            &pending_tasks.encode(),
-            pending_tasks_doc,
-        )?;
+        let (_, running_task_doc) = client
+            .read_storage::<TaskId>(&self.worker)?
+            .ok_or("TaskNotBeingExecuted")?;
+        client.remove_storage(&self.worker, running_task_doc)?;
 
         Ok(())
     }
@@ -857,15 +820,6 @@ mod tests {
 
         // Create storage client
         let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
-        // Setup initial worker accounts to storage
-        let accounts: Vec<[u8; 32]> = worker_accounts
-            .clone()
-            .into_iter()
-            .map(|account| account.account32.clone())
-            .collect();
-        client
-            .alloc_storage(b"free_accounts", &accounts.encode())
-            .unwrap();
 
         // Fetch actived task from chain
         let pre_mock_executor_address: H160 =

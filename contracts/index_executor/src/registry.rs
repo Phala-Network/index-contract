@@ -37,7 +37,7 @@ impl Registry {
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("1a2428eA1cba2be5719eF22e0ED87aB33a8655a3")
+                    handler_contract: hex::decode("d693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c")
                         .expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-ethereum/graphql".to_string(),
                 },

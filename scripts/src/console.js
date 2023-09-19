@@ -200,12 +200,6 @@ executor
             console.log(`✅ Config executor`)
         }
 
-        await delay(10*1000);   // 10 seconds
-        {
-            await executor.query.configStorage(cert.address, {cert});
-            console.log(`✅ Config storage`)
-        }
-
         if (opt.resume !== false) {
             // costs estimation
             let { gasRequired, storageDeposit } = await executor.query.resumeExecutor(cert.address, {cert});

@@ -90,7 +90,8 @@ mod index_executor {
     pub enum RunningType {
         // [source_chain, worker_sr25519_pub_key]
         Fetch(String, [u8; 32]),
-        Execute,
+        // [worker_sr25519_pub_key]
+        Execute([u8; 32]),
     }
 
     #[ink(storage)]
@@ -169,33 +170,6 @@ mod index_executor {
                 self.worker_accounts.clone()
             );
             Self::env().emit_event(Configured {});
-            Ok(())
-        }
-
-        /// Save worker account information to remote storage.
-        #[ink(message)]
-        pub fn config_storage(&self) -> Result<()> {
-            self.ensure_owner()?;
-
-            let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
-
-            pink_extension::debug!("Start to config storage");
-            let accounts: Vec<[u8; 32]> = self
-                .worker_accounts
-                .clone()
-                .into_iter()
-                .map(|account| account.account32)
-                .collect();
-            client
-                .alloc_storage(b"free_accounts", &accounts.encode())
-                .map_err(|_| Error::FailedToSetupStorage)?;
-
-            let empty_tasks: Vec<TaskId> = vec![];
-            client
-                .alloc_storage(b"pending_tasks", &empty_tasks.encode())
-                .map_err(|_| Error::FailedToSetupStorage)?;
-            Self::env().emit_event(WorkerSetToStorage {});
             Ok(())
         }
 
@@ -302,7 +276,7 @@ mod index_executor {
 
             let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
             if client
-                .read_storage::<Vec<u8>>(&solution_id)
+                .read_storage::<Solution>(&solution_id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .is_some()
             {
@@ -328,7 +302,7 @@ mod index_executor {
                 RunningType::Fetch(source_chain, worker) => {
                     self.fetch_task(&client, &source_chain, worker)?
                 }
-                RunningType::Execute => self.execute_task(&client)?,
+                RunningType::Execute(worker) => self.execute_task(&client, worker)?,
             };
 
             Ok(())
@@ -388,29 +362,30 @@ mod index_executor {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
 
-            let mut tasks = Vec::new();
-            if let Some((ids, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"pending_tasks")
-                .map_err(|_| Error::FailedToReadStorage)?
-            {
-                for id in ids.iter() {
+            let mut tasks: Vec<Task> = Vec::new();
+            for worker_account in self.worker_accounts.iter() {
+                if let Some((task_id, _)) = client
+                    .read_storage::<TaskId>(&worker_account.account32)
+                    .map_err(|_| Error::FailedToReadStorage)?
+                {
                     pink_extension::debug!(
                         "Trying to read pending task data from remote storage, task id: {:?}",
-                        &hex::encode(id)
+                        &hex::encode(task_id)
                     );
                     let (task, _) = client
-                        .read_storage::<Task>(id)
+                        .read_storage::<Task>(&task_id)
                         .map_err(|_| Error::FailedToReadStorage)?
                         .ok_or(Error::TaskNotFoundInStorage)?;
 
                     tasks.push(task);
                 }
             }
+
             Ok(tasks)
         }
 
         #[ink(message)]
-        pub fn get_running_task(&self, id: TaskId) -> Result<Option<Task>> {
+        pub fn get_task(&self, id: TaskId) -> Result<Option<Task>> {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
             Ok(client
@@ -444,21 +419,6 @@ mod index_executor {
             Ok(self.worker_accounts.clone())
         }
 
-        /// Return worker accounts information that is free
-        #[ink(message)]
-        pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
-            let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
-            if let Some((accounts, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"free_accounts")
-                .map_err(|_| Error::FailedToReadStorage)?
-            {
-                Ok(accounts)
-            } else {
-                Ok(vec![])
-            }
-        }
-
         /// Search actived tasks from source chain and upload them to storage
         pub fn fetch_task(
             &self,
@@ -482,17 +442,6 @@ mod index_executor {
                 return Ok(())
             };
 
-            if client
-                .read_storage::<Task>(&actived_task.id)
-                .map_err(|_| Error::FailedToReadStorage)?
-                .is_some()
-            {
-                pink_extension::debug!(
-                    "Task {:?} already initialized, return",
-                    hex::encode(actived_task.id)
-                );
-                return Ok(());
-            }
             // Initialize task, and save it to on-chain storage
             actived_task
                 .init(
@@ -522,69 +471,72 @@ mod index_executor {
 
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
-        pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            if let Some((ids, _)) = client
-                .read_storage::<Vec<[u8; 32]>>(b"pending_tasks")
+        pub fn execute_task(&self, client: &StorageClient, worker: [u8; 32]) -> Result<()> {
+            if let Some((id, _)) = client
+                .read_storage::<TaskId>(&worker)
                 .map_err(|_| Error::FailedToReadStorage)?
             {
-                for id in ids.iter() {
-                    pink_extension::debug!(
-                        "Trying to read pending task data from remote storage, task id: {:?}",
-                        &hex::encode(id)
-                    );
-                    let (mut task, task_doc) = client
-                        .read_storage::<Task>(id)
-                        .map_err(|_| Error::FailedToReadStorage)?
-                        .ok_or(Error::TaskNotFoundInStorage)?;
+                pink_extension::debug!(
+                    "Trying to read pending task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let (mut task, task_doc) = client
+                    .read_storage::<Task>(&id)
+                    .map_err(|_| Error::FailedToReadStorage)?
+                    .ok_or(Error::TaskNotFoundInStorage)?;
 
-                    pink_extension::info!(
-                        "Start execute task, execute worker account: {:?}",
-                        &hex::encode(task.worker)
-                    );
-                    match task.execute(
-                        &Context {
-                            signer: self.pub_to_prv(task.worker).unwrap(),
-                            worker_accounts: self.worker_accounts.clone(),
-                            registry: &self.registry,
-                        },
-                        client,
-                    ) {
-                        Ok(TaskStatus::Completed) => {
-                            pink_extension::info!(
-                                "Task execution completed, delete it from storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                            // Remove task from blockchain and recycle worker account
-                            task.destroy(client)
-                                .map_err(|_| Error::FailedToDestoryTask)?;
-                        }
-                        Err(err) => {
-                            pink_extension::error!(
-                                "Failed to execute task on step {:?} with error {}, task data: {:?}",
-                                task.execute_index,
-                                err,
-                                &task
-                            );
-
-                            // Execution failed, prepare necessary informations that DAO can handle later.
-                            // Informatios should contains:
-                            // 1. Sender on source chain
-                            // 2. Current step
-                            // 3. The allocated worker account
-                            // 4. Current asset that worker account hold
-                            //
-                        }
-                        _ => {
-                            pink_extension::info!(
-                                "Task execution has not finished yet, update data to remote storage: {:?}",
-                                hex::encode(task.id)
-                            );
-                        }
+                pink_extension::info!(
+                    "Start execute task, execute worker account: {:?}",
+                    &hex::encode(task.worker)
+                );
+                match task.execute(
+                    &Context {
+                        signer: self.pub_to_prv(task.worker).unwrap(),
+                        worker_accounts: self.worker_accounts.clone(),
+                        registry: &self.registry,
+                    },
+                    client,
+                ) {
+                    Ok(TaskStatus::Completed) => {
+                        pink_extension::info!(
+                            "Task execution completed, delete it from storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                        // Remove task from blockchain and recycle worker account
+                        task.destroy(client)
+                            .map_err(|_| Error::FailedToDestoryTask)?;
                     }
-                    client
-                        .update_storage(task.id.as_ref(), &task.encode(), task_doc)
-                        .map_err(|_| Error::FailedToUploadTask)?;
+                    Err(err) => {
+                        pink_extension::error!(
+                            "Failed to execute task on step {:?} with error {}, task data: {:?}",
+                            task.execute_index,
+                            err,
+                            &task
+                        );
+
+                        // Execution failed, prepare necessary informations that DAO can handle later.
+                        // Informatios should contains:
+                        // 1. Sender on source chain
+                        // 2. Current step
+                        // 3. The allocated worker account
+                        // 4. Current asset that worker account hold
+                        //
+                    }
+                    _ => {
+                        pink_extension::info!(
+                            "Task execution has not finished yet, update data to remote storage: {:?}",
+                            hex::encode(task.id)
+                        );
+                    }
                 }
+                client
+                    .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                    .map_err(|_| Error::FailedToUploadTask)?;
+            } else {
+                pink_extension::debug!(
+                    "No pending task to execute for worker: {:?}, return",
+                    &hex::encode(worker)
+                );
             }
 
             Ok(())
