@@ -15,8 +15,11 @@ use xcm::v3::{
     MultiLocation,
 };
 
-use crate::call::{Call, CallBuilder, CallParams, EvmCall};
 use crate::step::Step;
+use crate::{
+    call::{Call, CallBuilder, CallParams, EvmCall},
+    utils::ToArray,
+};
 
 #[derive(Clone)]
 pub struct EvmSygmaBridge {
@@ -90,7 +93,7 @@ impl CallBuilder for EvmSygmaBridge {
         if recipient.len() == 32 {
             let account_id = AccountId32 {
                 network: None,
-                id: recipient.try_into().unwrap(),
+                id: recipient.to_array(),
             };
             let rec = match self.maybe_parachain_id {
                 Some(parachain_id) => {
@@ -102,10 +105,15 @@ impl CallBuilder for EvmSygmaBridge {
         }
         let mut deposit_data: Vec<u8> = vec![];
         let token_stats: [u8; 32] = spend_amount.into();
-        let mut recipient_len: [u8; 32] = [0; 32];
-        recipient_len[24..].copy_from_slice(&recipient.len().to_be_bytes());
         deposit_data.extend(token_stats);
-        deposit_data.extend(recipient_len);
+        deposit_data.extend_from_slice(&{
+            let mut res = Vec::new();
+            for b in U256::from(recipient.len()).0.iter().rev() {
+                let bytes = b.to_be_bytes();
+                res.extend(bytes);
+            }
+            res
+        });
         deposit_data.extend(recipient);
 
         let fee_handler = Contract::from_json(
@@ -171,11 +179,10 @@ impl CallBuilder for EvmSygmaBridge {
 
 #[cfg(test)]
 mod tests {
-    // use crate::utils::ToArray;
+    use crate::utils::ToArray;
 
     use super::*;
-    use sp_runtime::AccountId32;
-    // use pink_web3::keys::pink::KeyPair;
+    use pink_web3::keys::pink::KeyPair;
     use pink_web3::types::H160;
 
     #[test]
@@ -187,7 +194,7 @@ mod tests {
 
         // Handler on Goerli
         let handler_address: H160 =
-            H160::from_slice(&hex::decode("0b45A95d0A8736b4e7FB5B9f11b0D8F5Ac078860").unwrap());
+            H160::from_slice(&hex::decode("0B674CC89F54a47Be4Eb6C1A125bB8f04A529181").unwrap());
         let transport = Eth::new(PinkHttp::new(rpc.clone()));
         let handler = Contract::from_json(
             transport,
@@ -207,11 +214,6 @@ mod tests {
             None,
         );
 
-        let recipient: [u8; 32] =
-            AccountId32::from_str("412WzkzTZRXWvb5pwZfew4TCB6z2nTS4t4FhY3LJgd8XMoQ2")
-                .unwrap()
-                .into();
-
         let mut call = sygma_bridge
             .build_call(Step {
                 exe: String::from(""),
@@ -221,8 +223,11 @@ mod tests {
                 // MuliLocation: (0, Here)
                 receive_asset: hex::decode("0000").unwrap(),
                 sender: Some(hex::decode("53e4C6611D3C92232bCBdd20D1073ce892D34594").unwrap()),
-                recipient: Some(recipient.to_vec()),
-                spend_amount: Some(20_000_000_000_000_000_000 as u128),
+                recipient: Some(
+                    hex::decode("04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276")
+                        .unwrap(),
+                ),
+                spend_amount: Some(1_000_000_000_000_000_000 as u128),
                 origin_balance: None,
                 nonce: None,
             })
@@ -236,7 +241,7 @@ mod tests {
         // Because handler is the account who spend and pay fee on behalf
 
         // Estiamte gas before submission
-        let _gas = resolve_ready(handler.estimate_gas(
+        let gas = resolve_ready(handler.estimate_gas(
             "batchCall",
             vec![call.clone()],
             // Worker address
@@ -253,41 +258,177 @@ mod tests {
         .unwrap();
 
         // Tested on Georli:
-        // Goerli: https://goerli.etherscan.io/tx/0x0157f0409e8a8769da5c2b58a8cc8f24e784fd0e2a52f2b74f9c1f7b9c5f60b8
+        // Goerli: https://goerli.etherscan.io/tx/0xe64402af2a358c155a15d26bd547ab6beb51790a4ffb3f0eee248b5b67e09dab
         // Rhala:
 
-        // Uncomment if wanna send it to blockchain
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let signer: [u8; 32] = secret_bytes.to_array();
 
-        // let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
-        // let secret_key = secret_key.unwrap().1;
-        // let secret_bytes = hex::decode(secret_key).unwrap();
-        // let _signer: [u8; 32] = secret_bytes.to_array();
+        let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
+            "batchCall",
+            vec![call],
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                // 0.001 ETH
+                opt.value = Some(U256::from(1_000_000_000_000_000u128))
+            }),
+            KeyPair::from(signer),
+        ))
+        .map_err(|e| {
+            println!("Failed to submit step execution tx with error: {:?}", e);
+            "FailedToSubmitTransaction"
+        })
+        .unwrap();
+    }
 
-        // let _tx_id: primitive_types::H256 = resolve_ready(handler.signed_call(
-        //     "batchCall",
-        //     vec![call],
-        //     Options::with(|opt| {
-        //         opt.gas = Some(gas);
-        //         // 0.001 ETH
-        //         opt.value = Some(U256::from(1_000_000_000_000_000u128))
-        //     }),
-        //     KeyPair::from(signer),
-        // ))
-        // .map_err(|e| {
-        //     println!("Failed to submit step execution tx with error: {:?}", e);
-        //     "FailedToSubmitTransaction"
-        // })
-        // .unwrap();
+    // cargo test --package index_executor --lib -- actions::ethereum::sygma::tests::test_batch_call_on_ethereum --exact --nocapture
+    #[test]
+    #[ignore]
+    fn test_batch_call_on_ethereum() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
 
-        // match &call.params {
-        //     CallParams::Evm(evm_call) => {
-        //         // https://goerli.etherscan.io/tx/0x42261d70e9849a30dd878c53d185136972deea0420322978fafe6313682da804
-        //         let encoded_data = hex::encode(&evm_call.calldata);
-        //         assert_eq!(encoded_data, String::from("73c45c9800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000001158e460913d000000000000000000000000000000000000000000000000000000000000000000024000101001218d75948e2983aa273f5dff9dced1935ce4704492ba6ea30f6d33a35010d3b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007038d7ea4c6800000000000000000000000000000000000000000000000000000"));
-        //     }
-        //     _ => {
-        //         println!("Not an EvmCall");
-        //     }
-        // }
+        let rpc = "https://mainnet.infura.io/v3/e5f4c95222934613bbde028ba5dc526b";
+
+        // Handler on Ethereum
+        let handler_address: H160 =
+            H160::from_slice(&hex::decode("d693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c").unwrap());
+        let transport = Eth::new(PinkHttp::new(rpc.clone()));
+        let handler = Contract::from_json(
+            transport,
+            handler_address,
+            include_bytes!("../../abi/handler.json"),
+        )
+        .unwrap();
+
+        let wrap_call = Call {
+            params: CallParams::Evm(EvmCall {
+                target: hex::decode("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                calldata: vec![208, 227, 13, 176],
+                value: U256::from(300000000000000_u128),
+                need_settle: true,
+                update_offset: U256::from(0),
+                update_len: U256::from(0),
+                spender: hex::decode("0000000000000000000000000000000000000000")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_asset: hex::decode("0000000000000000000000000000000000000000")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_amount: U256::from(300000000000000_u128),
+                receive_asset: hex::decode("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+            }),
+            input_call: Some(0),
+            call_index: Some(0),
+        };
+
+        let swap_call = Call {
+            params: CallParams::Evm(EvmCall {
+                target: hex::decode("7a250d5630b4cf539739df2c5dacb4c659f2488d")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                calldata: vec![
+                    56, 237, 23, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 214, 147, 189, 197, 203, 12, 242, 163, 31, 8, 116,
+                    74, 14, 193, 53, 166, 140, 38, 254, 28, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 49, 28, 40, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 42, 170, 57, 178, 35, 254, 141, 10,
+                    14, 92, 79, 39, 234, 217, 8, 60, 117, 108, 194, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 108, 91, 169, 22, 66, 241, 2, 130, 181, 118, 217, 25, 34, 174, 100, 72,
+                    201, 213, 47, 78,
+                ],
+                value: U256::from(0),
+                need_settle: true,
+                update_offset: U256::from(4),
+                update_len: U256::from(32),
+                spender: hex::decode("7a250d5630b4cf539739df2c5dacb4c659f2488d")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_asset: hex::decode("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_amount: U256::from(0),
+                receive_asset: hex::decode("6c5ba91642f10282b576d91922ae6448c9d52f4e")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+            }),
+            input_call: Some(0),
+            call_index: Some(1),
+        };
+
+        let bridge_call = Call {
+            params: CallParams::Evm(EvmCall {
+                target: hex::decode("4d878e8fb90178588cda4cf1dccdc9a6d2757089")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                calldata: vec![
+                    115, 196, 92, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 1, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 0, 1, 1, 0,
+                    4, 219, 160, 103, 127, 194, 116, 255, 172, 204, 15, 161, 3, 10, 102, 177, 113,
+                    209, 218, 146, 38, 210, 187, 157, 21, 38, 84, 230, 167, 70, 242, 118, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 6, 90, 243, 16, 122, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                value: U256::from(100000000000000_u128),
+                need_settle: false,
+                update_offset: U256::from(164),
+                update_len: U256::from(32),
+                spender: hex::decode("c832588193cd5ed2185dada4a531e0b26ec5b830")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_asset: hex::decode("6c5ba91642f10282b576d91922ae6448c9d52f4e")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+                spend_amount: U256::from(0),
+                receive_asset: hex::decode("6c5ba91642f10282b576d91922ae6448c9d52f4e")
+                    .unwrap()
+                    .to_array()
+                    .into(),
+            }),
+            input_call: Some(1),
+            call_index: Some(2),
+        };
+
+        let _gas = resolve_ready(handler.estimate_gas(
+            "batchCall",
+            vec![wrap_call, swap_call, bridge_call],
+            // Worker address
+            Address::from_slice(&hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
+            Options::default(),
+        ))
+        .map_err(|e| {
+            println!("Failed to estimated step gas cost with error: {:?}", e);
+            "FailedToEstimateGas"
+        })
+        .unwrap();
     }
 }
