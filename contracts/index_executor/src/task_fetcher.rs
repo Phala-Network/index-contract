@@ -18,9 +18,6 @@ use pink_web3::{
 
 /// Fetch actived tasks from blockchains and construct a `Task` from it.
 /// If the given chain is EVM based, fetch tasks from solidity-based smart contract storage through RPC task.
-/// For example, call RPC methods defined here:
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L147
-///     https://github.com/Phala-Network/index-solidity/blob/7b4458f9b8277df8a1c705a4d0f264476f42fcf2/contracts/Handler.sol#L165
 /// If the given chain is Substrate based, fetch tasks from pallet storage through RPC task.
 pub struct ActivedTaskFetcher {
     pub chain: Chain,
@@ -130,7 +127,7 @@ impl ActivedTaskFetcher {
                 )
                 .log_err(&format!(
                     "query_sub_actived_task: failed to get task data for task id {:?}",
-                    hex::encode(&oldest_task)
+                    hex::encode(oldest_task)
                 ))
                 .or(Err("FailedGetDepositData"))?
                 {

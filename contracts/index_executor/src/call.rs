@@ -79,7 +79,7 @@ impl Tokenizable for Call {
                 U256::from(call_index).into_token(),
             ]),
             _ => {
-                return Token::Tuple(vec![]);
+                Token::Tuple(vec![])
             }
         }
     }
