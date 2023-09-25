@@ -23,38 +23,38 @@ impl Detokenize for EvmDepositData {
     where
         Self: Sized,
     {
-        if tokens.len() == 1 {
-            let deposit_raw = tokens[0].clone();
-            match deposit_raw {
-                Token::Tuple(deposit_data) => {
-                    match (
-                        deposit_data[0].clone(),
-                        deposit_data[2].clone(),
-                        deposit_data[3].clone(),
-                        deposit_data[4].clone(),
-                    ) {
-                        (
-                            Token::Address(sender),
-                            Token::Uint(amount),
-                            Token::Bytes(recipient),
-                            Token::String(task),
-                        ) => Ok(EvmDepositData {
-                            sender,
-                            amount,
-                            recipient,
-                            task,
-                        }),
-                        _ => Err(PinkError::InvalidOutputType(String::from(
-                            "Return type dismatch",
-                        ))),
-                    }
+        if tokens.len() != 1 {
+            return Err(PinkError::InvalidOutputType(String::from("Invalid length")));
+        }
+
+        let deposit_raw = tokens[0].clone();
+        match deposit_raw {
+            Token::Tuple(deposit_data) => {
+                match (
+                    deposit_data[0].clone(),
+                    deposit_data[2].clone(),
+                    deposit_data[3].clone(),
+                    deposit_data[4].clone(),
+                ) {
+                    (
+                        Token::Address(sender),
+                        Token::Uint(amount),
+                        Token::Bytes(recipient),
+                        Token::String(task),
+                    ) => Ok(EvmDepositData {
+                        sender,
+                        amount,
+                        recipient,
+                        task,
+                    }),
+                    _ => Err(PinkError::InvalidOutputType(String::from(
+                        "Return type dismatch",
+                    ))),
                 }
-                _ => Err(PinkError::InvalidOutputType(String::from(
-                    "Unexpected output type",
-                ))),
             }
-        } else {
-            Err(PinkError::InvalidOutputType(String::from("Invalid length")))
+            _ => Err(PinkError::InvalidOutputType(String::from(
+                "Unexpected output type",
+            ))),
         }
     }
 }

@@ -4,12 +4,9 @@ pub type EthereumUniswapV2 = uniswapv2::UniswapV2;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
-use crate::utils::ToArray;
 
 pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
-    let uniswapv2_router: [u8; 20] = hex::decode("7a250d5630B4cF539739dF2C5dAcb4c659F2488D")
-        .unwrap()
-        .to_array();
+    let uniswapv2_router: [u8; 20] = hex_literal::hex!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D");
 
     vec![(
         String::from("ethereum_uniswapv2"),

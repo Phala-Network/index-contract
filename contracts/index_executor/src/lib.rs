@@ -128,7 +128,7 @@ mod index_executor {
             Ok(())
         }
 
-        /// Debug only, remove before release
+        /// TODO: Debug only, remove before release
         #[ink(message)]
         pub fn export_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
             self.ensure_owner()?;

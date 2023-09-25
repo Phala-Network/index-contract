@@ -1,6 +1,6 @@
 use crate::traits::AssetRegistry;
 use crate::utils::slice_to_generalkey;
-use alloc::{vec, vec::Vec};
+use alloc::{collections::BTreeMap, vec::Vec};
 
 use scale::Decode;
 use scale::Encode;
@@ -116,7 +116,7 @@ pub type TokenAttrs = (
 pub struct AcalaAssets;
 
 impl AcalaAssets {
-    fn get_map() -> Vec<TokenAttrs> {
+    fn get_map() -> BTreeMap<MultiLocation, TokenAttrs> {
         let lc_kar: MultiLocation =
             MultiLocation::new(1, X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x80])));
         let lc_pha: MultiLocation = MultiLocation::new(1, X1(Parachain(2004)));
@@ -124,19 +124,23 @@ impl AcalaAssets {
             MultiLocation::new(1, X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x00])));
         let lc_dot: MultiLocation =
             MultiLocation::new(1, X2(Parachain(2000), slice_to_generalkey(&[0x00, 0x02])));
-        vec![
-            (lc_aca, TokenSymbol::ACA, TokenType::Utility, None),
-            (lc_dot, TokenSymbol::DOT, TokenType::Native, None),
-            (lc_kar, TokenSymbol::KAR, TokenType::Native, None),
-            (lc_pha, TokenSymbol::PHA, TokenType::Foreign, Some(FA_PHA)),
-        ]
+        BTreeMap::from([
+            (lc_aca, (lc_aca, TokenSymbol::ACA, TokenType::Utility, None)),
+            (lc_dot, (lc_dot, TokenSymbol::DOT, TokenType::Native, None)),
+            (lc_kar, (lc_kar, TokenSymbol::KAR, TokenType::Native, None)),
+            (
+                lc_pha,
+                (lc_pha, TokenSymbol::PHA, TokenType::Foreign, Some(FA_PHA)),
+            ),
+        ])
     }
 
     pub fn get_asset_attrs(
         location: &MultiLocation,
     ) -> Option<(TokenSymbol, TokenType, Option<ForeignAssetId>)> {
         let tokens = AcalaAssets::get_map();
-        let token = tokens.iter().find(|s| s.0 == *location);
+        let token = tokens.get(location);
+        // let token = tokens.iter().find(|s| s.0 == *location);
         if let Some(token) = token {
             return Some((token.1, token.2, token.3));
         }

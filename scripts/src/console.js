@@ -14,8 +14,8 @@ const PhalaSDKTypes = PhalaSdk.types
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const { loadContractFile, createContract, delay } = require('./utils');
 
-const ERC20ABI = require('./ERC20ABI.json')
-const HandlerABI = require('./HandlerABI.json')
+const ERC20ABI = require('../../contracts/index_executor/src/abi/erc20.json')
+const HandlerABI = require('../../contracts/index_executor/src/abi//handler.json')
 
 function run(afn) {
     function runner(...args) {

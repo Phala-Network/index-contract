@@ -34,11 +34,11 @@ impl Registry {
                     endpoint: "https://mainnet.infura.io/v3/6d61e7957c1c489ea8141e947447405b"
                         .to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
+                    native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
+                        .to_vec(),
                     foreign_asset: None,
-                    handler_contract: hex::decode("F9eaE3Ec6BFE94F510eb3a5de8Ac9dEB9E74DF39")
-                        .expect("InvalidLocation"),
+                    handler_contract: hex_literal::hex!("F9eaE3Ec6BFE94F510eb3a5de8Ac9dEB9E74DF39")
+                        .to_vec(),
                     tx_indexer_url: "null".to_string(),
                 },
                 Chain {
@@ -46,11 +46,11 @@ impl Registry {
                     name: "Moonbeam".to_string(),
                     endpoint: "https://moonbeam.api.onfinality.io/public".to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
+                    native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
+                        .to_vec(),
                     foreign_asset: None,
-                    handler_contract: hex::decode("635eA86804200F80C16ea8EdDc3c749a54a9C37D")
-                        .expect("InvalidLocation"),
+                    handler_contract: hex_literal::hex!("635eA86804200F80C16ea8EdDc3c749a54a9C37D")
+                        .to_vec(),
                     tx_indexer_url: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
                 Chain {
@@ -58,11 +58,11 @@ impl Registry {
                     name: "AstarEvm".to_string(),
                     endpoint: "https://astar.public.blastapi.io".to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
+                    native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
+                        .to_vec(),
                     foreign_asset: None,
-                    handler_contract: hex::decode("B376b0Ee6d8202721838e76376e81eEc0e2FE864")
-                        .expect("InvalidLocation"),
+                    handler_contract: hex_literal::hex!("B376b0Ee6d8202721838e76376e81eEc0e2FE864")
+                        .to_vec(),
                     tx_indexer_url: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
                 },
                 Chain {

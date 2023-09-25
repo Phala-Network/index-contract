@@ -7,13 +7,11 @@ pub type AstarArthSwap = uniswapv2::UniswapV2;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
-use crate::utils::ToArray;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 pub fn evm_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
-    let arthswap_pancake_router: [u8; 20] = hex::decode("E915D2393a08a00c5A463053edD31bAe2199b9e7")
-        .unwrap()
-        .to_array();
+    let arthswap_pancake_router: [u8; 20] =
+        hex_literal::hex!("E915D2393a08a00c5A463053edD31bAe2199b9e7");
     vec![(
         String::from("astar_evm_arthswap"),
         Box::new(AstarArthSwap::new(

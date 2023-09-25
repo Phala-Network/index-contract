@@ -5,11 +5,10 @@ use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
 use crate::tx;
-use alloc::{string::String, vec, vec::Vec};
-use ink::storage::Mapping;
-use scale::{Decode, Encode};
-
+use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
+use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
+use scale::{Decode, Encode};
 
 use pink_web3::{
     api::{Eth, Namespace},
@@ -118,17 +117,6 @@ impl Task {
             "Trying to lookup storage for task {:?} before initializing.",
             hex::encode(self.id),
         );
-        // if client.read_storage::<Task>(&self.id)?.is_some() {
-        //     if !(self.has_claimed(context))? {
-        //         pink_extension::debug!(
-        //             "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
-        //             hex::encode(self.id),
-        //             hex::encode(self.worker),
-        //         );
-        //         self.claim(context)?;
-        //     }
-        //     return Ok(());
-        // }
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -174,8 +162,6 @@ impl Task {
             &pending_tasks.encode(),
             pending_tasks_doc,
         )?;
-
-        // self.claim(context)?;
 
         Ok(())
     }
@@ -420,34 +406,25 @@ impl Task {
         context: &Context,
         _client: &StorageClient,
     ) -> Result<(), &'static str> {
-        let mut nonce_map: Mapping<String, u64> = Mapping::default();
+        let mut nonce_map: BTreeMap<String, u64> = BTreeMap::default();
 
         // Apply claim nonce if hasn't claimed
         if self.claim_nonce.is_none() || !self.has_claimed(context)? {
             let claim_nonce = self.get_nonce(context, &self.source)?;
-            nonce_map.insert(self.source.clone(), &(claim_nonce + 1));
+            nonce_map.insert(self.source.clone(), claim_nonce + 1);
             self.claim_nonce = Some(claim_nonce);
         }
 
         // Apply nonce for each step
         for index in start_index as usize..self.merged_steps.len() {
-            let nonce: u64 =
-                match nonce_map.get(&self.merged_steps[index].as_single_step().source_chain) {
-                    Some(nonce) => nonce,
-                    None => self.get_nonce(
-                        context,
-                        &self.merged_steps[index].as_single_step().source_chain,
-                    )?,
-                };
+            let source_chain = self.merged_steps[index].as_single_step().source_chain;
+            let nonce: u64 = match nonce_map.get(&source_chain) {
+                Some(nonce) => *nonce,
+                None => self.get_nonce(context, &source_chain)?,
+            };
             self.merged_steps[index].set_nonce(nonce);
             // Increase nonce by 1
-            nonce_map.insert(
-                self.merged_steps[index]
-                    .as_single_step()
-                    .source_chain
-                    .clone(),
-                &(nonce + 1),
-            );
+            nonce_map.insert(source_chain, nonce + 1);
         }
 
         Ok(())
@@ -461,7 +438,14 @@ impl Task {
             ChainType::Sub => account_info.account32.to_vec(),
             // ChainType::Unknown => panic!("chain not supported!"),
         };
-        let nonce = chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?;
+        let nonce = chain
+            .get_nonce(account.clone())
+            .log_err(&format!(
+                "call task get_nonce failed on chain {:?} for account {:?}",
+                chain.name,
+                hex::encode(account)
+            ))
+            .or(Err("FetchNonceFailed"))?;
         Ok(nonce)
     }
 
@@ -469,8 +453,7 @@ impl Task {
         let chain = context
             .registry
             .get_chain(&self.source)
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
+            .ok_or("MissingChain")?;
         let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
 
         match chain.chain_type {
@@ -488,8 +471,7 @@ impl Task {
         let chain = context
             .registry
             .get_chain(&self.source)
-            .map(Ok)
-            .unwrap_or(Err("MissingChain"))?;
+            .ok_or("MissingChain")?;
         let account = match chain.chain_type {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
@@ -518,8 +500,12 @@ impl Task {
     ) -> Result<Vec<u8>, &'static str> {
         let handler: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(chain.endpoint));
-        let handler = Contract::from_json(transport, handler, include_bytes!("./abi/handler.json"))
-            .map_err(|_| "ConstructContractFailed")?;
+        let handler = Contract::from_json(transport, handler, crate::constants::HANDLER_ABI)
+            .log_err(&format!(
+                "claim_evm_actived_tasks: failed to instatiate handler {:?} on {:?}",
+                handler, &chain.name
+            ))
+            .or(Err("ConstructContractFailed"))?;
         let worker = KeyPair::from(context.signer);
 
         // We call claimAndBatchCall so that first step will be executed along with the claim operation
@@ -536,13 +522,11 @@ impl Task {
             worker.address(),
             Options::default(),
         ))
-        .map_err(|e| {
-            pink_extension::error!(
-                "claimAndBatchCall: failed to estimate gas cost with error {:?}",
-                &e
-            );
-            "GasEstimateFailed"
-        })?;
+        .log_err(&format!(
+            "claim_evm_actived_tasks: failed to estimate gas cost with params: {:?}",
+            &params
+        ))
+        .or(Err("GasEstimateFailed"))?;
 
         // Submit the claim transaction
         let tx_id = resolve_ready(handler.signed_call(
@@ -554,10 +538,11 @@ impl Task {
             }),
             worker,
         ))
-        .map_err(|e| {
-            pink_extension::error!("claimAndBatchCall: failed to submit tx with error {:?}", &e);
-            "ClaimSubmitFailed"
-        })?;
+        .log_err(&format!(
+            "claim_evm_actived_tasks: failed to submit tx with nonce: {:?}",
+            &nonce
+        ))
+        .or(Err("ClaimSubmitFailed"))?;
 
         // Merge nonce to let check for first step work properly
         first_step.set_nonce(self.claim_nonce.unwrap());
@@ -596,9 +581,11 @@ impl Task {
                 era: None,
             },
         )
-        .map_err(|_| "ClaimInvalidSignature")?;
-        let tx_id =
-            send_transaction(&chain.endpoint, &signed_tx).map_err(|_| "ClaimSubmitFailed")?;
+        .log_err("claim_sub_actived_tasks: failed to create signed transaction")
+        .or(Err("ClaimInvalidSignature"))?;
+        let tx_id = send_transaction(&chain.endpoint, &signed_tx)
+            .log_err("claim_sub_actived_tasks: failed to submit transaction to execute task claim")
+            .or(Err("ClaimSubmitFailed"))?;
         pink_extension::info!(
             "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
             hex::encode(task_id),
@@ -1386,7 +1373,7 @@ mod tests {
             H160::from_slice(&hex::decode("B30A27eE79514614dc363CE0aABb0B939b9deAeD").unwrap());
         let transport = Eth::new(PinkHttp::new("https://rpc.api.moonbeam.network"));
         let handler =
-            Contract::from_json(transport, handler, include_bytes!("./abi/handler.json")).unwrap();
+            Contract::from_json(transport, handler, crate::constants::HANDLER_ABI).unwrap();
         let task_id: [u8; 32] =
             hex::decode("1125000000000000000000000000000000000000000000000000000000000000")
                 .unwrap()

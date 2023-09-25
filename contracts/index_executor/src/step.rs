@@ -1,7 +1,7 @@
 use crate::chain::{BalanceFetcher, Chain, ChainType};
 use crate::utils::ToArray;
-use alloc::vec;
-use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
+use pink_extension::ResultExt;
 use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
 
 use crate::account::AccountInfo;
@@ -123,7 +123,7 @@ impl Step {
             return Err("InvalidAddressInStep");
         }
 
-        hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
+        hex::decode(&address[2..]).or(Err("DecodeAddressFailed"))
     }
 }
 
@@ -315,7 +315,7 @@ impl Runner for MultiStep {
                 let handler = Contract::from_json(
                     Eth::new(PinkHttp::new(chain.endpoint)),
                     chain.handler_contract.to_array().into(),
-                    include_bytes!("./abi/handler.json"),
+                    crate::constants::HANDLER_ABI,
                 )
                 .expect("Bad abi data");
 
@@ -326,10 +326,11 @@ impl Runner for MultiStep {
                     worker_account.account20.into(),
                     Options::default(),
                 ))
-                .map_err(|e| {
-                    pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
-                    "FailedToEstimateGas"
-                })?;
+                .log_err(&format!(
+                    "Step.run: failed to estimated step gas cost with calls: {:?}",
+                    &calls
+                ))
+                .or(Err("FailedToEstimateGas"))?;
                 pink_extension::debug!("Estimated step gas error: {:?}", gas);
 
                 // Actually submit the tx (no guarantee for success)
@@ -342,13 +343,11 @@ impl Runner for MultiStep {
                     }),
                     KeyPair::from(signer),
                 ))
-                .map_err(|e| {
-                    pink_extension::error!(
-                        "Failed to submit step execution tx with error: {:?}",
-                        e
-                    );
-                    "FailedToSubmitTransaction"
-                })?;
+                .log_err(&format!(
+                    "Step.run: failed to submit tx with nonce: {:?}",
+                    &nonce
+                ))
+                .or(Err("FailedToSubmitTransaction"))?;
 
                 tx_id.as_bytes().to_owned()
             }
@@ -365,21 +364,18 @@ impl Runner for MultiStep {
                             era: None,
                         },
                     )
-                    .map_err(|e| {
-                        pink_extension::error!(
-                            "Failed to construct substrate tx with error: {:?}",
-                            e
-                        );
-                        "FailedToCreateTransaction"
-                    })?;
+                    .log_err(&format!(
+                        "Step.run: failed to create transaction with nonce: {:?}",
+                        hex::encode(&calldata)
+                    ))
+                    .or(Err("FailedToCreateTransaction"))?;
 
-                    send_transaction(&chain.endpoint, &signed_tx).map_err(|e| {
-                        pink_extension::error!(
-                            "Failed to submit step execution tx with error: {:?}",
-                            e
-                        );
-                        "FailedToSubmitTransaction"
-                    })?
+                    send_transaction(&chain.endpoint, &signed_tx)
+                        .log_err(&format!(
+                            "Step.run: failed to submit step execution tx with signed tx: {:?}",
+                            &signed_tx
+                        ))
+                        .or(Err("FailedToSubmitTransaction"))?
                 }
                 _ => return Err("UnexpectedCallType"),
             },

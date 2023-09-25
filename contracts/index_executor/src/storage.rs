@@ -4,7 +4,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use pink_extension::http_req;
+use pink_extension::{http_req, ResultExt};
 use scale::Decode;
 use serde::Deserialize;
 
@@ -125,9 +125,12 @@ impl StorageClient {
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
             Ok(if !response.is_empty() {
                 let data_str = response[0].document.fields.data.string_value.clone();
-                let raw_data = hex::decode(data_str).map_err(|_| "InvalidDataStr")?;
-                let data: T =
-                    T::decode(&mut raw_data.as_slice()).map_err(|_| "DecodeDataFailed")?;
+                let raw_data = hex::decode(data_str)
+                    .log_err("Get unexpected data format from database")
+                    .or(Err("InvalidDataStr"))?;
+                let data: T = T::decode(&mut raw_data.as_slice())
+                    .log_err("Decode failed from data returned from database")
+                    .or(Err("DecodeDataFailed"))?;
                 let document_id = response[0]
                     .document
                     .name

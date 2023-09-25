@@ -2,7 +2,7 @@ use crate::account::AccountInfo;
 use crate::chain::{Chain, ChainType};
 use crate::task::Task;
 use crate::task_deposit::{DepositData, EvmDepositData, SubDepositData};
-use alloc::vec::Vec;
+use alloc::{format, vec::Vec};
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_storage,
@@ -43,14 +43,14 @@ impl ActivedTaskFetcher {
         chain: &Chain,
         worker: &AccountInfo,
     ) -> Result<Option<Task>, &'static str> {
-        let handler_on_goerli: H160 = H160::from_slice(&chain.handler_contract);
+        let handler: H160 = H160::from_slice(&chain.handler_contract);
         let transport = Eth::new(PinkHttp::new(&chain.endpoint));
-        let handler = Contract::from_json(
-            transport,
-            handler_on_goerli,
-            include_bytes!("./abi/handler.json"),
-        )
-        .map_err(|_| "ConstructContractFailed")?;
+        let handler = Contract::from_json(transport, handler, crate::constants::HANDLER_ABI)
+            .log_err(&format!(
+                "query_evm_actived_task: failed to instantiate handler {:?} on {:?}",
+                handler, &chain.name
+            ))
+            .or(Err("ConstructContractFailed"))?;
 
         let worker_address: Address = worker.account20.into();
         pink_extension::debug!(
@@ -66,7 +66,11 @@ impl ActivedTaskFetcher {
             Options::default(),
             None,
         ))
-        .map_err(|_| "FailedGetLastActivedTask")?;
+        .log_err(&format!(
+            "query_evm_actived_task: failed to get last actived task for worker {:?}",
+            worker_address
+        ))
+        .or(Err("FailedGetLastActivedTask"))?;
         if task_id == [0; 32] {
             return Ok(None);
         }
@@ -76,7 +80,11 @@ impl ActivedTaskFetcher {
         );
         let evm_deposit_data: EvmDepositData =
             resolve_ready(handler.query("getTaskData", task_id, None, Options::default(), None))
-                .map_err(|_| "FailedGetTaskData")?;
+                .log_err(&format!(
+                    "query_evm_actived_task: failed to get task data of task id: {:?}",
+                    hex::encode(task_id)
+                ))
+                .or(Err("FailedGetTaskData"))?;
         pink_extension::debug!(
             "Fetch deposit data successfully for task {:?} on {:?}, deposit data: {:?}",
             &hex::encode(task_id),
@@ -101,12 +109,15 @@ impl ActivedTaskFetcher {
             ),
             None,
         )
-        .log_err("Read storage [actived task] failed")
-        .map_err(|_| "FailedGetTaskData")?
+        .log_err(&format!(
+            "query_sub_actived_task: get actived task failed on chain {:?}",
+            &chain.name
+        ))
+        .or(Err("FailedGetTaskData"))?
         {
             let actived_tasks: Vec<[u8; 32]> = scale::Decode::decode(&mut raw_storage.as_slice())
-                .log_err("Decode storage [actived task] failed")
-                .map_err(|_| "DecodeStorageFailed")?;
+                .log_err("query_sub_actived_task: decode storage [actived task] failed")
+                .or(Err("DecodeStorageFailed"))?;
             if !actived_tasks.is_empty() {
                 let oldest_task = actived_tasks[0];
                 if let Some(raw_storage) = get_storage(
@@ -117,13 +128,16 @@ impl ActivedTaskFetcher {
                     ),
                     None,
                 )
-                .log_err("Read storage [actived task] failed")
-                .map_err(|_| "FailedGetDepositData")?
+                .log_err(&format!(
+                    "query_sub_actived_task: failed to get task data for task id {:?}",
+                    hex::encode(&oldest_task)
+                ))
+                .or(Err("FailedGetDepositData"))?
                 {
                     let sub_deposit_data: SubDepositData =
                         scale::Decode::decode(&mut raw_storage.as_slice())
-                            .log_err("Decode storage [deposit data] failed")
-                            .map_err(|_| "DecodeStorageFailed")?;
+                            .log_err("query_sub_actived_task: decode storage [deposit data] failed")
+                            .or(Err("DecodeStorageFailed"))?;
                     pink_extension::debug!(
                         "Fetch deposit data successfully for task {:?} on {:?}, deposit data: {:?}",
                         &hex::encode(oldest_task),

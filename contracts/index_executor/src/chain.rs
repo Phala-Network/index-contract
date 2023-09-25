@@ -120,8 +120,8 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     let web3 = Web3::new(transport);
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
-                        .log_err("Fetch data [evm native balance] failed")
-                        .map_err(|_| "FetchDataFailed")?;
+                        .log_err("chain::get_balance: fetch data [evm native balance] failed")
+                        .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 } else {
                     let eth = Eth::new(transport);
@@ -138,8 +138,8 @@ impl BalanceFetcher for Chain {
                         Options::default(),
                         None,
                     ))
-                    .log_err("Fetch data [evm erc20 balance] failed")
-                    .map_err(|_| "FetchDataFailed")?;
+                    .log_err("chain::get_balance: fetch data [evm erc20 balance] failed")
+                    .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 }
             }
@@ -154,13 +154,13 @@ impl BalanceFetcher for Chain {
                         ),
                         None,
                     )
-                    .log_err("Read storage [sub native balance] failed")
-                    .map_err(|_| "FetchDataFailed")?
+                    .log_err("chain::get_balance, read storage [sub native balance] failed")
+                    .or(Err("FetchDataFailed"))?
                     {
                         let account_info: AccountInfo<Index, AccountData<Balance>> =
                             scale::Decode::decode(&mut raw_storage.as_slice())
-                                .log_err("Decode storage [sub native balance] failed")
-                                .map_err(|_| "DecodeStorageFailed")?;
+                                .log_err("chain::get_balance, decode storage [sub native balance] failed")
+                                .or(Err("DecodeStorageFailed"))?;
                         Ok(account_info.data.free)
                     } else {
                         Ok(0u128)
@@ -186,14 +186,14 @@ impl BalanceFetcher for Chain {
                                 None,
                             )
                             .log_err(
-                                "Read storage [sub foreign asset balance] from pallet-asset failed",
+                                "chain::get_balance: read storage [sub foreign asset balance] from pallet-asset failed",
                             )
-                            .map_err(|_| "FetchDataFailed")?
+                            .or(Err("FetchDataFailed"))?
                             {
                                 let account_info: AssetAccount<Balance, Balance, ()> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
-                                    .log_err("Decode storage [sub foreign asset balance] from pallet-asset failed")
-                                        .map_err(|_| "DecodeStorageFailed")?;
+                                    .log_err("chain::get_balance: decode storage [sub foreign asset balance] from pallet-asset failed")
+                                        .or(Err("DecodeStorageFailed"))?;
                                 Ok(account_info.balance)
                             } else {
                                 Ok(0u128)
@@ -214,14 +214,14 @@ impl BalanceFetcher for Chain {
                                 None,
                             )
                             .log_err(
-                                "Read storage [sub foreign asset balance] from orml-token failed",
+                                "chain::get_balance: read storage [sub foreign asset balance] from orml-token failed",
                             )
-                            .map_err(|_| "FetchDataFailed")?
+                            .or(Err("FetchDataFailed"))?
                             {
                                 let account_info: OrmlTokenAccountData<Balance> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
-                                    .log_err("Decode storage [sub foreign asset balance] from orml-token failed")
-                                        .map_err(|_| "DecodeStorageFailed")?;
+                                    .log_err("chain::get_balance: decode storage [sub foreign asset balance] from orml-token failed")
+                                        .or(Err("DecodeStorageFailed"))?;
                                 Ok(account_info.free)
                             } else {
                                 Ok(0u128)
