@@ -37,5 +37,9 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             String::from("phala_bridge_to_ethereum"),
             Box::new(sygma::XTransferSygma::new(SYGMA_ETHEREUM_DOMAIN_ID)),
         ),
+        (
+            String::from("khala_bridge_to_ethereum"),
+            Box::new(sygma::XTransferSygma::new(SYGMA_ETHEREUM_DOMAIN_ID)),
+        ),
     ]
 }
