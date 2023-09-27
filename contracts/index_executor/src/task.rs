@@ -535,7 +535,7 @@ impl Task {
     }
 
     fn claim_sub_actived_tasks(
-        &self,
+        &mut self,
         chain: Chain,
         task_id: TaskId,
         context: &Context,
@@ -568,6 +568,8 @@ impl Task {
             &chain.name,
             hex::encode(tx_id.clone())
         );
+        let first_step = &mut self.merged_steps[0];
+        first_step.set_spend(self.amount);
         Ok(tx_id)
     }
 }
