@@ -59,5 +59,13 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
                 PHALA_PARACHAIN_ID,
             )),
         ),
+        (
+            String::from("moonbeam_bridge_to_assethub"),
+            Box::new(xtoken::XTokenBridge::new(
+                &chain.endpoint,
+                moonbeam_xtoken.into(),
+                ASSETHUB_PARACHAIN_ID,
+            )),
+        ),
     ]
 }
