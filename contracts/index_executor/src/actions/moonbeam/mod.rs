@@ -40,7 +40,7 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             Box::new(xtoken::XTokenBridge::new(
                 &chain.endpoint,
                 moonbeam_xtoken.into(),
-                ACALA_PARACHAIN_ID,
+                xtoken::XTokenDestChain::Parachain(ACALA_PARACHAIN_ID),
             )),
         ),
         (
@@ -48,7 +48,7 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             Box::new(xtoken::XTokenBridge::new(
                 &chain.endpoint,
                 moonbeam_xtoken.into(),
-                ASTAR_PARACHAIN_ID,
+                xtoken::XTokenDestChain::Parachain(ASTAR_PARACHAIN_ID),
             )),
         ),
         (
@@ -56,15 +56,15 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             Box::new(xtoken::XTokenBridge::new(
                 &chain.endpoint,
                 moonbeam_xtoken.into(),
-                PHALA_PARACHAIN_ID,
+                xtoken::XTokenDestChain::Parachain(PHALA_PARACHAIN_ID),
             )),
         ),
         (
-            String::from("moonbeam_bridge_to_assethub"),
+            String::from("moonbeam_bridge_to_polkadot"),
             Box::new(xtoken::XTokenBridge::new(
                 &chain.endpoint,
                 moonbeam_xtoken.into(),
-                ASSETHUB_PARACHAIN_ID,
+                xtoken::XTokenDestChain::Relaychain,
             )),
         ),
     ]

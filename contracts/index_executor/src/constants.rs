@@ -10,6 +10,7 @@ pub const ACALA_PARACHAIN_ID: u32 = 2000;
 pub const ASTAR_PARACHAIN_ID: u32 = 2006;
 pub const MOONBEAM_PARACHAIN_ID: u32 = 2004;
 pub const PHALA_PARACHAIN_ID: u32 = 2035;
+#[allow(dead_code)]
 pub const ASSETHUB_PARACHAIN_ID: u32 = 1000;
 #[allow(dead_code)]
 pub const KHALA_PARACHAIN_ID: u32 = 2004;

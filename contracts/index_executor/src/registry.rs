@@ -107,6 +107,17 @@ impl Registry {
                     handler_contract: hex::decode("00").expect("InvalidLocation"),
                     tx_indexer: "https://squid.subsquid.io/graph-acala/graphql".to_string(),
                 },
+                Chain {
+                    id: 7,
+                    name: "Polkadot".to_string(),
+                    endpoint: "https://polkadot.dwellir.com".to_string(),
+                    chain_type: ChainType::Sub,
+                    native_asset: hex::decode("0000").expect("InvalidLocation"),
+                    foreign_asset: Some(ForeignAssetModule::PalletAsset),
+                    // FIXME: No Handler pallet in Polkadot
+                    handler_contract: hex::decode("00").expect("InvalidLocation"),
+                    tx_indexer: "https://squid.subsquid.io/graph-polkadot/graphql".to_string(),
+                },
             ],
         }
     }
