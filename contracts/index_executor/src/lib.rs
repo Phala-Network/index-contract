@@ -139,6 +139,17 @@ mod index_executor {
             Ok(self.worker_prv_keys.clone())
         }
 
+        /// Debug only, remove before release
+        #[ink(message)]
+        pub fn import_worker_keys(&mut self, keys: Vec<[u8; 32]>) -> Result<()> {
+            self.ensure_owner()?;
+            self.worker_prv_keys = keys;
+            for key in self.worker_prv_keys.iter() {
+                self.worker_accounts.push(AccountInfo::from(*key))
+            }
+            Ok(())
+        }
+
         /// FIXME: Pass the key implicitly
         #[ink(message)]
         pub fn config_engine(
