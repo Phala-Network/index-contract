@@ -31,7 +31,7 @@ impl Registry {
                 Chain {
                     id: 0,
                     name: "Ethereum".to_string(),
-                    endpoint: "https://mainnet.infura.io/v3/e5f4c95222934613bbde028ba5dc526b"
+                    endpoint: "https://rpc.ankr.com/eth"
                         .to_string(),
                     chain_type: ChainType::Evm,
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
