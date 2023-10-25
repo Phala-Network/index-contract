@@ -1,4 +1,4 @@
-use crate::step::StepInput;
+use crate::step::{MultiStep, StepInput};
 use crate::task::Task;
 use alloc::{string::String, vec::Vec};
 use pink_web3::{
@@ -49,7 +49,7 @@ impl Detokenize for EvmDepositData {
                             solution: None,
                         }),
                         _ => Err(PinkError::InvalidOutputType(String::from(
-                            "Return type dismatch",
+                            "Return type mismatch",
                         ))),
                     }
                 }
@@ -90,7 +90,7 @@ impl TryFrom<EvmDepositData> for DepositData {
             sender: value.sender.as_bytes().into(),
             amount: value.amount.try_into().expect("Amount overflow"),
             recipient: value.recipient,
-            solution: value.solution.ok_or("MiisingSolution")?,
+            solution: value.solution.ok_or("MissingSolution")?,
         })
     }
 }
@@ -115,7 +115,7 @@ impl DepositData {
     ) -> Result<Task, &'static str> {
         pink_extension::debug!("Trying to parse task data from json string");
 
-        let solution: Solution =
+        let solution: Vec<MultiStep> =
             Decode::decode(&mut self.solution.as_slice()).map_err(|_| "InvalidTask")?;
         pink_extension::debug!(
             "Parse task data successfully, found {:?} operations",
@@ -126,21 +126,16 @@ impl DepositData {
         }
         pink_extension::debug!("Trying to convert task data to task");
 
-        let mut uninitialized_task = Task {
+        let uninitialized_task = Task {
             id,
             source: source_chain.into(),
             sender: self.sender.clone(),
             recipient: self.recipient.clone(),
             amount: self.amount,
             worker,
+            merged_steps: solution.try_into().unwrap(),
             ..Default::default()
         };
-
-        for step_input in solution.iter() {
-            uninitialized_task
-                .steps
-                .push(step_input.clone().try_into()?);
-        }
 
         Ok(uninitialized_task)
     }
