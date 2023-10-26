@@ -46,7 +46,7 @@ impl CallBuilder for XTokenBridge {
         let spend_asset = Address::from_slice(&step.spend_asset);
         // We don't use it
         let receive_asset = Address::from_slice(&[0; 20]);
-        let mut recipient = step.recipient.ok_or("MissingRecipient")?;
+        let mut recipient = step.recipient;
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
 
         let weight: u64 = 6000000000;
@@ -171,10 +171,11 @@ mod tests {
                 // MuliLocation: (0, Here)
                 receive_asset: hex::decode("0000").unwrap(),
                 sender: Some(hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap()),
-                recipient: Some(
-                    hex::decode("7804e66ec9eea3d8daf6273ffbe0a8af25a8879cf43f14d0ebbb30941f578242")
-                        .unwrap(),
-                ),
+                recipient: hex::decode(
+                    "7804e66ec9eea3d8daf6273ffbe0a8af25a8879cf43f14d0ebbb30941f578242",
+                )
+                .unwrap(),
+
                 // 0.05 xcDOT
                 spend_amount: Some(500_000_000 as u128),
                 origin_balance: None,

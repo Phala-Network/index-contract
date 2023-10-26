@@ -35,9 +35,9 @@ impl AstarSubToEvmTransactor {
 
 impl CallBuilder for AstarSubToEvmTransactor {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
-        let bytes: [u8; 20] = step.recipient.clone().ok_or("MissingRecipient")?.to_array();
+        let bytes: [u8; 20] = step.recipient.to_array();
         let mut new_step = step;
-        new_step.recipient = Some(self.h160_to_sr25519_pub(&bytes).to_vec());
+        new_step.recipient = self.h160_to_sr25519_pub(&bytes).to_vec();
         self.transactor.build_call(new_step)
     }
 }
@@ -60,7 +60,7 @@ impl CallBuilder for AstarTransactor {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset_location = MultiLocation::decode(&mut step.spend_asset.as_slice())
             .map_err(|_| "FailedToScaleDecode")?;
-        let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
+        let bytes: [u8; 32] = step.recipient.to_array();
         let recipient = MultiAddress::Id(AccountId::from(bytes));
         let amount = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
 
@@ -131,7 +131,7 @@ mod tests {
                 spend_asset: astr_location.encode(),
                 receive_asset: astr_location.encode(),
                 sender: None,
-                recipient: Some(recipient),
+                recipient,
                 // 0.1 ASTR
                 spend_amount: Some(1_00_000_000_000_000_000 as u128),
                 origin_balance: None,
@@ -189,7 +189,7 @@ mod tests {
                 spend_asset: pha_location.encode(),
                 receive_asset: pha_location.encode(),
                 sender: None,
-                recipient: Some(recipient),
+                recipient,
                 // 0.1 PHA
                 spend_amount: Some(1_00_000_000_000 as u128),
                 origin_balance: None,
@@ -245,7 +245,7 @@ mod tests {
                 spend_asset: pha_location.encode(),
                 receive_asset: pha_location.encode(),
                 sender: None,
-                recipient: Some(h160_recipient),
+                recipient: h160_recipient,
                 // 0.1 PHA
                 spend_amount: Some(1_00_000_000_000 as u128),
                 origin_balance: None,

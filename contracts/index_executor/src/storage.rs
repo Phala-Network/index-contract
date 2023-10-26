@@ -258,7 +258,6 @@ mod tests {
             amount: 0,
             claim_nonce: None,
             claim_tx: None,
-            steps: vec![],
             merged_steps: vec![],
             execute_txs: vec![],
             execute_index: 0,

@@ -152,7 +152,7 @@ mod tests {
                 // wglmr
                 receive_asset: wglmr.into(),
                 sender: None,
-                recipient: Some(hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
+                recipient: hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap(),
                 // 0.1 glmr
                 spend_amount: Some(100_000_000_000_000_000 as u128),
                 origin_balance: None,
@@ -170,7 +170,7 @@ mod tests {
                 // glmr
                 receive_asset: glmr.into(),
                 sender: None,
-                recipient: Some(hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap()),
+                recipient: hex::decode("bf526928373748b00763875448ee905367d97f96").unwrap(),
                 // 0.05 wglmr, will be updated to 0.1 wglmr bc we set deposit call as input call where we got 0.1 wglmr
                 spend_amount: Some(50_000_000_000_000_000 as u128),
                 origin_balance: None,

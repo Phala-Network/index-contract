@@ -194,7 +194,5 @@ mod tests {
         .fetch_task(&client)
         .unwrap()
         .unwrap();
-
-        assert_eq!(task.steps.len(), 7);
     }
 }

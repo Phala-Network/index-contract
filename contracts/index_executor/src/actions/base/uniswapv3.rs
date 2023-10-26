@@ -33,7 +33,7 @@ impl CallBuilder for UniswapV3 {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset0 = Address::from_slice(&step.spend_asset);
         let asset1 = Address::from_slice(&step.receive_asset);
-        let to = Address::from_slice(&step.recipient.ok_or("MissingRecipient")?);
+        let to = Address::from_slice(&step.recipient);
         let amount_out = U256::from(1);
         let amount_in = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
         let time = pink_extension::ext().untrusted_millis_since_unix_epoch() / 1000;
@@ -124,7 +124,7 @@ mod tests {
                 // xcPHA
                 receive_asset: hex::decode("FFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED").unwrap(),
                 sender: None,
-                recipient: Some(hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap()),
+                recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
                 // 0.002 xcDOT
                 spend_amount: Some(2_0_000_000 as u128),
                 origin_balance: None,

@@ -31,8 +31,7 @@ impl Registry {
                 Chain {
                     id: 0,
                     name: "Ethereum".to_string(),
-                    endpoint: "https://rpc.ankr.com/eth"
-                        .to_string(),
+                    endpoint: "https://rpc.ankr.com/eth".to_string(),
                     chain_type: ChainType::Evm,
                     native_asset: hex::decode("0000000000000000000000000000000000000000")
                         .expect("InvalidLocation"),

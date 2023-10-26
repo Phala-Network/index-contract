@@ -2,7 +2,7 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use crate::chain::{Chain, ChainType, NonceFetcher};
-use crate::step::{MultiStep, Step};
+use crate::step::MultiStep;
 use crate::storage::StorageClient;
 use crate::tx;
 use alloc::{string::String, vec, vec::Vec};
@@ -56,8 +56,6 @@ pub struct Task {
     pub claim_nonce: Option<u64>,
     // Transaction hash of claim operation
     pub claim_tx: Option<Vec<u8>>,
-    /// All steps to included in the task
-    pub steps: Vec<Step>,
     /// Steps  after merged, those actually will be executed
     pub merged_steps: Vec<MultiStep>,
     /// Transaction hash of each step operation
@@ -82,7 +80,6 @@ impl Default for Task {
             amount: 0,
             claim_nonce: None,
             claim_tx: None,
-            steps: vec![],
             merged_steps: vec![],
             execute_txs: vec![],
             execute_index: 0,
@@ -102,7 +99,6 @@ impl sp_std::fmt::Debug for Task {
             .field("source", &self.source)
             .field("amount", &self.amount)
             .field("claim_nonce", &self.claim_nonce)
-            .field("steps", &self.steps)
             .field("merged_steps", &self.merged_steps)
             .field("execute_index", &self.execute_index)
             .field("sender", &hex::encode(&self.sender))
@@ -133,9 +129,6 @@ impl Task {
                 client.alloc_storage(&self.worker, &self.id.encode())?;
             }
         } else {
-            // Apply recipient for each step before merged
-            self.apply_recipient(context)?;
-
             // Apply worker nonce for each step in task
             self.apply_nonce(0, context, client)?;
 
@@ -268,43 +261,6 @@ impl Task {
             .ok_or("TaskNotBeingExecuted")?;
         client.remove_storage(&self.worker, running_task_doc)?;
 
-        Ok(())
-    }
-
-    pub fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
-        let step_count = self.steps.len();
-        for (index, step) in self.steps.iter_mut().enumerate() {
-            let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
-            let step_dest_chain = &step.dest_chain(context).ok_or("MissingChain")?;
-            let worker_account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-
-            // For sure last step we should put real recipient, or else the recipient could be either
-            // worker account or handler account
-            step.recipient = if index == step_count - 1 {
-                Some(self.recipient.clone())
-            } else {
-                // If bridge to a EVM chain, asset should be send to Handler account to execute the reset of calls
-                if step.is_bridge_step() {
-                    if step_dest_chain.is_evm_chain() {
-                        Some(step_dest_chain.handler_contract.clone())
-                    } else {
-                        Some(worker_account_info.account32.to_vec())
-                    }
-                } else {
-                    // For non-bridge operatoions, because we don't batch call in Sub chains, so recipient should
-                    // be worker account on source chain, or should be Handler address on source chain
-                    if step_source_chain.is_sub_chain() {
-                        let worker_account = match step_source_chain.chain_type {
-                            ChainType::Evm => worker_account_info.account20.to_vec(),
-                            ChainType::Sub => worker_account_info.account32.to_vec(),
-                        };
-                        Some(worker_account)
-                    } else {
-                        Some(step_source_chain.handler_contract.clone())
-                    }
-                }
-            };
-        }
         Ok(())
     }
 
@@ -530,7 +486,7 @@ mod tests {
     use crate::account::AccountInfo;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
-    use crate::step::StepInput;
+    use crate::step::{Step, StepInput};
     use crate::task_fetcher::ActivedTaskFetcher;
     use crate::utils::ToArray;
     use dotenv::dotenv;
@@ -568,12 +524,6 @@ mod tests {
         .fetch_task(&client)
         .unwrap()
         .unwrap();
-        assert_eq!(task.steps.len(), 3);
-        assert_eq!(
-            task.steps[1].spend_amount.unwrap(),
-            100_000_000_000_000_000_000 as u128
-        );
-        assert_eq!(task.steps[2].spend_amount.unwrap(), 12_000_000);
     }
 
     #[test]
@@ -659,12 +609,6 @@ mod tests {
         .fetch_task(&client)
         .unwrap()
         .unwrap();
-        assert_eq!(task.steps.len(), 3);
-        assert_eq!(task.steps[1].spend_amount.unwrap(), 301_000_000_000_000);
-        assert_eq!(
-            task.steps[2].spend_amount.unwrap(),
-            1_000_000_000_000_000_000 as u128
-        );
     }
 
     #[test]
@@ -797,7 +741,6 @@ mod tests {
         .fetch_task(&client)
         .unwrap()
         .unwrap();
-        assert_eq!(task.steps.len(), 3);
 
         // Init task
         assert_eq!(task.init(
@@ -848,174 +791,100 @@ mod tests {
             onchain_task.worker,
             worker_accounts.last().unwrap().account32
         );
-        assert_eq!(onchain_task.steps.len(), 3);
-        assert_eq!(onchain_task.steps[0].nonce, Some(0));
-        assert_eq!(onchain_task.steps[1].nonce, Some(1));
-        assert_eq!(onchain_task.steps[2].nonce, Some(2));
     }
 
-    fn build_steps() -> Vec<Step> {
+    fn build_multi_steps() -> Vec<MultiStep> {
         vec![
-            // moonbeam_stellaswap
-            StepInput {
-                exe: String::from("moonbeam_stellaswap"),
-                source_chain: String::from("Moonbeam"),
-                dest_chain: String::from("Moonbeam"),
-                spend_asset: String::from("0xAcc15dC74880C9944775448304B263D191c6077F"),
-                receive_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
-            }
-            .try_into()
-            .unwrap(),
-            // moonbeam_stellaswap
-            StepInput {
-                exe: String::from("moonbeam_stellaswap"),
-                source_chain: String::from("Moonbeam"),
-                dest_chain: String::from("Moonbeam"),
-                spend_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
-                receive_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
-            }
-            .try_into()
-            .unwrap(),
-            // moonbeam_bridge_to_phala
-            StepInput {
-                exe: String::from("moonbeam_bridge_to_phala"),
-                source_chain: String::from("Moonbeam"),
-                dest_chain: String::from("Phala"),
-                spend_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
-                receive_asset: String::from("0x0000"),
-            }
-            .try_into()
-            .unwrap(),
+            MultiStep::Batch(vec![
+                // moonbeam_stellaswap
+                StepInput {
+                    exe: String::from("moonbeam_stellaswap"),
+                    source_chain: String::from("Moonbeam"),
+                    dest_chain: String::from("Moonbeam"),
+                    spend_asset: String::from("0xAcc15dC74880C9944775448304B263D191c6077F"),
+                    receive_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
+                    recipient: String::from("0xB8D20dfb8c3006AA17579887ABF719DA8bDf005B"),
+                }
+                .try_into()
+                .unwrap(),
+                // moonbeam_stellaswap
+                StepInput {
+                    exe: String::from("moonbeam_stellaswap"),
+                    source_chain: String::from("Moonbeam"),
+                    dest_chain: String::from("Moonbeam"),
+                    spend_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
+                    receive_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
+                    recipient: String::from("0xB8D20dfb8c3006AA17579887ABF719DA8bDf005B"),
+                }
+                .try_into()
+                .unwrap(),
+                // moonbeam_bridge_to_phala
+                StepInput {
+                    exe: String::from("moonbeam_bridge_to_phala"),
+                    source_chain: String::from("Moonbeam"),
+                    dest_chain: String::from("Phala"),
+                    spend_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
+                    receive_asset: String::from("0x0000"),
+                    recipient: String::from(
+                        "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    ),
+                }
+                .try_into()
+                .unwrap(),
+            ]),
             // phala_bridge_to_astar
-            StepInput {
-                exe: String::from("phala_bridge_to_astar"),
-                source_chain: String::from("Phala"),
-                dest_chain: String::from("Astar"),
-                spend_asset: String::from("0x0000"),
-                receive_asset: String::from("0x010100cd1f"),
-            }
-            .try_into()
-            .unwrap(),
-            // astar_bridge_to_astar_evm
-            StepInput {
-                exe: String::from("astar_bridge_to_astarevm"),
-                source_chain: String::from("Astar"),
-                dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0x010100cd1f"),
-                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
-            }
-            .try_into()
-            .unwrap(),
-            // astar_arthswap
-            StepInput {
-                exe: String::from("astar_evm_arthswap"),
-                source_chain: String::from("AstarEvm"),
-                dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
-                receive_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
-            }
-            .try_into()
-            .unwrap(),
-            // astar_arthswap
-            StepInput {
-                exe: String::from("astar_evm_arthswap"),
-                source_chain: String::from("AstarEvm"),
-                dest_chain: String::from("AstarEvm"),
-                spend_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
-                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
-            }
-            .try_into()
-            .unwrap(),
+            MultiStep::Single(
+                StepInput {
+                    exe: String::from("phala_bridge_to_astar"),
+                    source_chain: String::from("Phala"),
+                    dest_chain: String::from("Astar"),
+                    spend_asset: String::from("0x0000"),
+                    receive_asset: String::from("0x010100cd1f"),
+                    recipient: String::from(
+                        "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    ),
+                }
+                .try_into()
+                .unwrap(),
+            ),
+            MultiStep::Single(
+                // astar_bridge_to_astar_evm
+                StepInput {
+                    exe: String::from("astar_bridge_to_astarevm"),
+                    source_chain: String::from("Astar"),
+                    dest_chain: String::from("AstarEvm"),
+                    spend_asset: String::from("0x010100cd1f"),
+                    receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
+                    recipient: String::from("0xbEA1C40ecf9c4603ec25264860B9b6623Ff733F5"),
+                }
+                .try_into()
+                .unwrap(),
+            ),
+            MultiStep::Batch(vec![
+                // astar_arthswap
+                StepInput {
+                    exe: String::from("astar_evm_arthswap"),
+                    source_chain: String::from("AstarEvm"),
+                    dest_chain: String::from("AstarEvm"),
+                    spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
+                    receive_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
+                    recipient: String::from("0xbEA1C40ecf9c4603ec25264860B9b6623Ff733F5"),
+                }
+                .try_into()
+                .unwrap(),
+                // astar_arthswap
+                StepInput {
+                    exe: String::from("astar_evm_arthswap"),
+                    source_chain: String::from("AstarEvm"),
+                    dest_chain: String::from("AstarEvm"),
+                    spend_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
+                    receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+                    recipient: String::from("0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20"),
+                }
+                .try_into()
+                .unwrap(),
+            ]),
         ]
-    }
-
-    #[test]
-    fn test_apply_recipient() {
-        dotenv().ok();
-        pink_extension_runtime::mock_ext::mock_all_ext();
-
-        let worker_key = [0x11; 32];
-        let steps = build_steps();
-        let mut task = Task {
-            id: [1; 32],
-            worker: AccountInfo::from(worker_key).account32,
-            status: TaskStatus::Actived,
-            source: "Moonbeam".to_string(),
-            amount: 0,
-            claim_nonce: None,
-            claim_tx: None,
-            steps,
-            merged_steps: vec![],
-            execute_txs: vec![],
-            execute_index: 0,
-            sender: vec![],
-            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
-            retry_counter: 0,
-        };
-        let context = Context {
-            signer: worker_key,
-            worker_accounts: vec![AccountInfo::from(worker_key)],
-            registry: &Registry::new(),
-        };
-
-        task.apply_recipient(&context).unwrap();
-
-        // moonbeam_stellaswap
-        assert_eq!(
-            task.steps[0].recipient,
-            Some(
-                context
-                    .registry
-                    .get_chain(&String::from("Moonbeam"))
-                    .unwrap()
-                    .handler_contract
-            )
-        );
-        // moonbeam_stellaswap
-        assert_eq!(
-            task.steps[1].recipient,
-            Some(
-                context
-                    .registry
-                    .get_chain(&String::from("Moonbeam"))
-                    .unwrap()
-                    .handler_contract
-            )
-        );
-        // moonbeam_bridge_to_phala
-        assert_eq!(
-            task.steps[2].recipient,
-            Some(AccountInfo::from(worker_key).account32.to_vec())
-        );
-        // phala_bridge_to_astar
-        assert_eq!(
-            task.steps[3].recipient,
-            Some(AccountInfo::from(worker_key).account32.to_vec())
-        );
-        // astar_bridge_to_astar_evm
-        assert_eq!(
-            task.steps[4].recipient,
-            Some(
-                context
-                    .registry
-                    .get_chain(&String::from("AstarEvm"))
-                    .unwrap()
-                    .handler_contract
-            )
-        );
-        // astar_arthswap
-        assert_eq!(
-            task.steps[5].recipient,
-            Some(
-                context
-                    .registry
-                    .get_chain(&String::from("AstarEvm"))
-                    .unwrap()
-                    .handler_contract
-            )
-        );
-        // astar_arthswap
-        assert_eq!(task.steps[6].recipient, Some(task.recipient));
     }
 
     #[test]
@@ -1023,8 +892,9 @@ mod tests {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
 
+        let merged_steps = build_multi_steps();
+
         let worker_key = [0x11; 32];
-        let steps = build_steps();
         let mut task = Task {
             id: [1; 32],
             worker: AccountInfo::from(worker_key).account32,
@@ -1033,8 +903,7 @@ mod tests {
             amount: 0xf0f1f2f3f4f5f6f7f8f9,
             claim_nonce: None,
             claim_tx: None,
-            steps: steps.clone(),
-            merged_steps: vec![],
+            merged_steps: merged_steps.clone(),
             execute_txs: vec![],
             execute_index: 0,
             sender: vec![],
@@ -1046,8 +915,6 @@ mod tests {
             worker_accounts: vec![AccountInfo::from(worker_key)],
             registry: &Registry::new(),
         };
-
-        task.apply_recipient(&context).unwrap();
 
         let mut calls = vec![];
 
@@ -1076,7 +943,7 @@ mod tests {
 
         // ========== Second Merged Step =============
         // calls[5] build according to origin Step 5,
-        // and origin Step 5 don't relay any previous steps heppened
+        // and origin Step 5 don't relay any previous steps happened
         // on the same chain
         assert_eq!(calls[5].input_call, Some(0));
         // calls[6] build according to origin Step 6,

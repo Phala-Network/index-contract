@@ -89,7 +89,7 @@ impl CallBuilder for EvmSygmaBridge {
             .get(&spend_asset)
             .ok_or("NoResourceId")?;
         let spend_amount = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);
-        let mut recipient = step.recipient.ok_or("MissingRecipient")?;
+        let mut recipient = step.recipient;
         if recipient.len() == 32 {
             let account_id = AccountId32 {
                 network: None,
@@ -223,10 +223,10 @@ mod tests {
                 // MuliLocation: (0, Here)
                 receive_asset: hex::decode("0000").unwrap(),
                 sender: Some(hex::decode("53e4C6611D3C92232bCBdd20D1073ce892D34594").unwrap()),
-                recipient: Some(
-                    hex::decode("04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276")
-                        .unwrap(),
-                ),
+                recipient: hex::decode(
+                    "04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276",
+                )
+                .unwrap(),
                 spend_amount: Some(1_000_000_000_000_000_000 as u128),
                 origin_balance: None,
                 nonce: None,
