@@ -110,7 +110,7 @@ impl Registry {
                 Chain {
                     id: 7,
                     name: "Polkadot".to_string(),
-                    endpoint: "https://polkadot.dwellir.com".to_string(),
+                    endpoint: "https://polkadot.api.onfinality.io/public".to_string(),
                     chain_type: ChainType::Sub,
                     native_asset: hex::decode("0000").expect("InvalidLocation"),
                     foreign_asset: Some(ForeignAssetModule::PalletAsset),
