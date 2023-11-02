@@ -25,7 +25,7 @@ impl CallBuilder for AcalaTransactor {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset_location = MultiLocation::decode(&mut step.spend_asset.as_slice())
             .map_err(|_| "FailedToScaleDecode")?;
-        let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
+        let bytes: [u8; 32] = step.recipient.to_array();
         let recipient = MultiAddress::Id(AccountId::from(bytes));
         let asset_attrs = AcalaAssets::get_asset_attrs(&asset_location).ok_or("BadAsset")?;
         let currency_id = CurrencyId::Token(asset_attrs.0);

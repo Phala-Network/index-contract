@@ -29,7 +29,7 @@ impl XTransferXcm {
 
 impl CallBuilder for XTransferXcm {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
-        let recipient = step.recipient.ok_or("MissingRecipient")?;
+        let recipient = step.recipient;
         let asset_location: MultiLocation =
             Decode::decode(&mut step.spend_asset.as_slice()).map_err(|_| "InvalidMultilocation")?;
         let multi_asset = MultiAsset {
@@ -94,10 +94,10 @@ mod tests {
                 spend_asset: hex::decode("0000").unwrap(),
                 receive_asset: hex::decode("010100cd1f").unwrap(),
                 sender: None,
-                recipient: Some(
-                    hex::decode("04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276")
-                        .unwrap(),
-                ),
+                recipient: hex::decode(
+                    "04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276",
+                )
+                .unwrap(),
                 // 2 PHA
                 spend_amount: Some(2_000_000_000_000 as u128),
                 origin_balance: None,

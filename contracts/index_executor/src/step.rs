@@ -27,6 +27,7 @@ pub struct StepInput {
     pub dest_chain: String,
     pub spend_asset: String,
     pub receive_asset: String,
+    pub recipient: String,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
@@ -38,7 +39,7 @@ pub struct Step {
     pub spend_asset: Vec<u8>,
     pub receive_asset: Vec<u8>,
     pub sender: Option<Vec<u8>>,
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
     pub spend_amount: Option<u128>,
     // Used to check balance change
     pub origin_balance: Option<u128>,
@@ -54,7 +55,7 @@ impl sp_std::fmt::Debug for Step {
             .field("spend_asset", &hex::encode(&self.spend_asset))
             .field("receive_asset", &hex::encode(&self.receive_asset))
             .field("sender", &self.sender.as_ref().map(hex::encode))
-            .field("recipient", &self.recipient.as_ref().map(hex::encode))
+            .field("recipient", &hex::encode(&self.recipient))
             .field("spend_amount", &self.spend_amount)
             .field("origin_balance", &self.origin_balance)
             .field("nonce", &self.nonce)
@@ -73,7 +74,7 @@ impl TryFrom<StepInput> for Step {
             spend_asset: Self::decode_address(&input.spend_asset)?,
             receive_asset: Self::decode_address(&input.receive_asset)?,
             sender: None,
-            recipient: None,
+            recipient: Self::decode_address(&input.recipient)?,
             spend_amount: Some(0),
             origin_balance: None,
             nonce: None,
@@ -129,6 +130,33 @@ impl Step {
         }
 
         hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
+    }
+}
+
+#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[allow(clippy::large_enum_variant)]
+pub enum MultiStepInput {
+    Single(StepInput),
+    Batch(Vec<StepInput>),
+}
+
+impl TryFrom<MultiStepInput> for MultiStep {
+    type Error = &'static str;
+
+    fn try_from(input: MultiStepInput) -> Result<Self, Self::Error> {
+        match input {
+            MultiStepInput::Single(step_input) => {
+                Ok(MultiStep::Single(Step::try_from(step_input)?))
+            }
+            MultiStepInput::Batch(vec_step_input) => {
+                let mut vec_step = Vec::new();
+                for step_input in vec_step_input {
+                    vec_step.push(Step::try_from(step_input)?);
+                }
+                Ok(MultiStep::Batch(vec_step))
+            }
+        }
     }
 }
 
@@ -217,7 +245,7 @@ impl MultiStep {
         let step = self.as_single_step();
         let dest_chain = step.dest_chain(context).ok_or("MissingDestChain")?;
         let origin_balance = step.origin_balance.ok_or("MissingBalance")?;
-        let recipient = step.recipient.clone().ok_or("MissingRecipient")?;
+        let recipient = step.recipient.clone();
         let latest_balance = dest_chain.get_balance(step.receive_asset, recipient.clone())?;
         pink_extension::debug!(
             "Settle info of account {:?}: origin_balance is {:?}, latest_balance is {:?}",
@@ -249,8 +277,7 @@ impl MultiStep {
             .registry
             .get_chain(&dest_chain)
             .ok_or("MissingDestChain")?;
-        let origin_balance =
-            chain.get_balance(receive_asset, recipient.ok_or("MissingRecipient")?)?;
+        let origin_balance = chain.get_balance(receive_asset, recipient)?;
 
         match self {
             MultiStep::Single(step) => {
@@ -407,7 +434,7 @@ impl Runner for MultiStep {
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
         let worker_account = AccountInfo::from(context.signer);
-        let recipient = as_single_step.recipient.clone().ok_or("MissingRecipient")?;
+        let recipient = as_single_step.recipient.clone();
 
         // Query off-chain indexer directly get the execution result
         let account = match source_chain.chain_type {
