@@ -8,12 +8,20 @@ pub mod moonbeam;
 pub mod phala;
 pub mod polkadot;
 
-#[derive(Clone, scale::Decode, scale::Encode, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Default, scale::Decode, scale::Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ActionExtraInfo {
+    // The fee is a constant amount that will NOT deducted from user spend asset or receive asset
+    // That means our worker will pay for this during execution, so it should be treat like tx fee
+    // that should be deducted from user spend separately
     // Represent USD: const_proto_fee / 10000
     // We can potentially use Fixed crates here
-    pub const_proto_fee: u16,
+    pub extra_proto_fee: u32,
+    // The fee is a constant amount that will deducted from user spend asset or receive asset
+    // Represent USD: const_proto_fee / 10000
+    // We can potentially use Fixed crates here
+    pub const_proto_fee: u32,
+    // The fee that calculated by a percentage scale, will deducted from user spend asset or receive asset
     pub percentage_proto_fee: Permill,
     pub confirm_time: u16,
 }

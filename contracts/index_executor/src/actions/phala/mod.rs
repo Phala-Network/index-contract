@@ -68,6 +68,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Phala" || chain == "Khala");
     if action == "phala_bridge_to_acala" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -75,6 +76,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_bridge_to_astar" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -82,6 +84,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_bridge_to_moonbeam" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -96,6 +99,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 5 USD
             const_proto_fee: 5000,
             percentage_proto_fee: Permill::zero(),
@@ -110,6 +114,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "khala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 5 USD
             const_proto_fee: 5000,
             percentage_proto_fee: Permill::zero(),

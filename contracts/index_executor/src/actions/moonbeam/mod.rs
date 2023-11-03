@@ -77,18 +77,21 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Moonbeam");
     if action == "moonbeam_nativewrapper" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             const_proto_fee: 0,
             percentage_proto_fee: Permill::zero(),
             confirm_time: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "moonbeam_stellaswap" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             const_proto_fee: 0,
             percentage_proto_fee: Permill::from_perthousand(3),
             confirm_time: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "moonbeam_bridge_to_acala" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -96,6 +99,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "moonbeam_bridge_to_astar" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -103,6 +107,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "moonbeam_bridge_to_phala" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),
@@ -110,6 +115,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "moonbeam_bridge_to_polkadot" {
         Some(ActionExtraInfo {
+            extra_proto_fee: 0,
             // 0.0005 USD
             const_proto_fee: 5,
             percentage_proto_fee: Permill::zero(),

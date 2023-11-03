@@ -10,6 +10,7 @@ mod chain;
 mod constants;
 mod context;
 mod gov;
+mod price;
 mod registry;
 mod step;
 mod storage;
@@ -28,6 +29,7 @@ mod index_executor {
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
+    use crate::step::{MultiStep, Simulate as StepSimulate, StepSimulateResult};
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
     use crate::task_deposit::Solution;
@@ -57,9 +59,12 @@ mod index_executor {
         FailedToDestoryTask,
         FailedToUploadTask,
         FailedToUploadSolution,
+        FailedToDecodeSolution,
+        InvalidSolutionData,
         SolutionAlreadyExist,
         FailedToReApplyNonce,
         FailedToReRunTask,
+        FailedToSimulateTask,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
@@ -300,6 +305,35 @@ mod index_executor {
                 .or(Err(Error::FailedToUploadSolution))?;
 
             Ok(())
+        }
+
+        #[ink(message)]
+        pub fn simulate_task(
+            &self,
+            worker: [u8; 32],
+            solution: Vec<u8>,
+        ) -> Result<Vec<StepSimulateResult>> {
+            let solution: Solution =
+                Decode::decode(&mut solution.as_slice()).or(Err(Error::FailedToDecodeSolution))?;
+
+            let signer: [u8; 32] = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
+            let mut simulate_results: Vec<StepSimulateResult> = vec![];
+            for multi_step_input in solution.iter() {
+                let multi_step: MultiStep = multi_step_input
+                    .clone()
+                    .try_into()
+                    .or(Err(Error::InvalidSolutionData))?;
+                let step_simulate_result = multi_step
+                    .simulate(&Context {
+                        signer,
+                        registry: &self.registry,
+                        worker_accounts: self.worker_accounts.clone(),
+                    })
+                    .or(Err(Error::FailedToSimulateTask))?;
+                simulate_results.push(step_simulate_result);
+            }
+
+            Ok(simulate_results)
         }
 
         #[ink(message)]
