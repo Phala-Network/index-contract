@@ -17,3 +17,8 @@ pub const KHALA_PARACHAIN_ID: u32 = 2004;
 #[allow(dead_code)]
 pub const MOONRIVER_PARACHAIN_ID: u32 = 2023;
 pub const SYGMA_ETHEREUM_DOMAIN_ID: u8 = 1;
+
+// Ethereum block time in seconds
+pub const ETHEREUM_BLOCK_TIME: u16 = 15;
+// Polkadot parachain block time in seconds
+pub const PARACHAIN_BLOCK_TIME: u16 = 12;

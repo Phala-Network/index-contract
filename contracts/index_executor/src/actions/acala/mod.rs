@@ -2,9 +2,12 @@ pub mod asset;
 pub mod dex;
 pub mod transfer;
 
+use crate::actions::ActionExtraInfo;
 use crate::call::CallBuilder;
 use crate::chain::Chain;
+use crate::constants::PARACHAIN_BLOCK_TIME;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use sp_runtime::Permill;
 
 pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
     vec![
@@ -14,4 +17,23 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             Box::new(transfer::AcalaTransactor::new()),
         ),
     ]
+}
+
+pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
+    assert!(chain == "Acala");
+    if action == "acala_dex" {
+        Some(ActionExtraInfo {
+            const_proto_fee: 0,
+            percentage_proto_fee: Permill::from_perthousand(3),
+            confirm_time: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "acala_transactor" {
+        Some(ActionExtraInfo {
+            const_proto_fee: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time: PARACHAIN_BLOCK_TIME,
+        })
+    } else {
+        None
+    }
 }
