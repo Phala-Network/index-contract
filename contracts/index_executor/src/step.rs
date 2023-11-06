@@ -171,7 +171,7 @@ pub enum MultiStep {
 }
 
 impl MultiStep {
-    pub fn derive_calls(&mut self, context: &Context) -> Result<Vec<Call>, &'static str> {
+    pub fn derive_calls(&self, context: &Context) -> Result<Vec<Call>, &'static str> {
         if self.as_single_step().spend_amount.is_none() {
             return Err("MissingSpendAmount");
         }
@@ -471,22 +471,23 @@ impl Runner for MultiStep {
     }
 }
 
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct StepSimulateResult {
     pub action_extra_info: ActionExtraInfo,
-    // usd amount is the value / 10000
+    // tx fee will be paied in USD,
+    // the USD amount is the value / 10000
     // potentially use Fixed crates here
     pub tx_fee_in_usd: u32,
 }
 
 pub trait Simulate {
-    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str>;
+    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str>;
 }
 
 impl Simulate for MultiStep {
     #[allow(unused_variables)]
-    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str> {
+    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str> {
         let action_extra_info = match self {
             MultiStep::Single(step) => context
                 .get_action_extra_info(&step.source_chain, &step.exe)
@@ -501,18 +502,22 @@ impl Simulate for MultiStep {
                     extra_info.const_proto_fee += single_extra_step.const_proto_fee;
                     extra_info.percentage_proto_fee =
                         extra_info.percentage_proto_fee + single_extra_step.percentage_proto_fee;
-                    extra_info.confirm_time += single_extra_step.confirm_time;
+                    // Batch txs will happen within same block, so we don't need to accumulate it
+                    extra_info.confirm_time = single_extra_step.confirm_time;
                 }
                 extra_info
             }
         };
+
+        // A minimal amount
+        self.set_spend(1_000_000_000);
+        let calls = self.derive_calls(context)?;
 
         let as_single_step = self.as_single_step();
         let chain = as_single_step
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
         let worker_account = AccountInfo::from(context.signer);
-        let calls = as_single_step.derive_calls(context)?;
 
         pink_extension::debug!("Start to simulate step with calls: {:?}", &calls);
         let tx_fee_in_usd: u32 = match chain.chain_type {
@@ -524,13 +529,20 @@ impl Simulate for MultiStep {
                     include_bytes!("./abi/handler.json"),
                 )
                 .expect("Bad abi data");
+                let options = if as_single_step.spend_asset == chain.native_asset {
+                    Options::with(|opt| {
+                        opt.value = Some(U256::from(as_single_step.spend_amount.unwrap()))
+                    })
+                } else {
+                    Options::default()
+                };
 
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
                     calls.clone(),
                     worker_account.account20.into(),
-                    Options::default(),
+                    options,
                 ))
                 .map_err(|e| {
                     pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);

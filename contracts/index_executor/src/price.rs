@@ -3,7 +3,6 @@
 ///
 /// The key is the asset sygmbol, and the value is the price. Each asset only have one price
 /// related. That means we treat xcPHA and PHA as PHA, because they are the same asset essentially
-
 use alloc::vec::Vec;
 
 // TODO: Get price from local cache

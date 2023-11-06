@@ -64,7 +64,7 @@ mod index_executor {
         SolutionAlreadyExist,
         FailedToReApplyNonce,
         FailedToReRunTask,
-        FailedToSimulateTask,
+        FailedToSimulateSolution,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
@@ -308,7 +308,7 @@ mod index_executor {
         }
 
         #[ink(message)]
-        pub fn simulate_task(
+        pub fn simulate_solution(
             &self,
             worker: [u8; 32],
             solution: Vec<u8>,
@@ -319,7 +319,7 @@ mod index_executor {
             let signer: [u8; 32] = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
             let mut simulate_results: Vec<StepSimulateResult> = vec![];
             for multi_step_input in solution.iter() {
-                let multi_step: MultiStep = multi_step_input
+                let mut multi_step: MultiStep = multi_step_input
                     .clone()
                     .try_into()
                     .or(Err(Error::InvalidSolutionData))?;
@@ -329,7 +329,10 @@ mod index_executor {
                         registry: &self.registry,
                         worker_accounts: self.worker_accounts.clone(),
                     })
-                    .or(Err(Error::FailedToSimulateTask))?;
+                    .map_err(|err| {
+                        println!("Solution simulation failed with error: {}", err);
+                        Error::FailedToSimulateSolution
+                    })?;
                 simulate_results.push(step_simulate_result);
             }
 
@@ -626,6 +629,7 @@ mod index_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::step::{MultiStepInput, StepInput};
         // use dotenv::dotenv;
         // use pink_extension::PinkEnvironment;
         use xcm::v3::{prelude::*, MultiLocation};
@@ -662,6 +666,47 @@ mod index_executor {
                     .encode()
                 )
             )
+        }
+
+        #[ink::test]
+        fn simulate_solution_should_work() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            let worker_key = hex_literal::hex!(
+                "b53f0d7eb89f1497db9badb5eca2d45b7c368551308192ba97f2c34b113dec0a"
+            );
+            let mut executor = deploy_executor();
+            assert_eq!(executor.import_worker_keys(vec![worker_key]), Ok(()));
+            assert_eq!(
+                executor.config_engine("url".to_string(), "key".to_string(), [0; 32].into(), false),
+                Ok(())
+            );
+            assert_eq!(executor.resume_executor(), Ok(()));
+
+            let solution = vec![MultiStepInput::Batch(vec![
+                StepInput {
+                    exe: "ethereum_nativewrapper".to_string(),
+                    source_chain: "Ethereum".to_string(),
+                    dest_chain: "Ethereum".to_string(),
+                    spend_asset: "0x0000000000000000000000000000000000000000".to_string(),
+                    // WETH
+                    receive_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                    recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                },
+                StepInput {
+                    exe: "ethereum_uniswapv2".to_string(),
+                    source_chain: "Ethereum".to_string(),
+                    dest_chain: "Ethereum".to_string(),
+                    spend_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                    // PHA
+                    receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                    recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                },
+            ])];
+
+            let result = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution.encode())
+                .unwrap();
+            println!("simulatio result: {:?}", result);
         }
     }
 }

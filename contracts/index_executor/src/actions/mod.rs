@@ -8,7 +8,7 @@ pub mod moonbeam;
 pub mod phala;
 pub mod polkadot;
 
-#[derive(Clone, Default, scale::Decode, scale::Encode, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Default, scale::Decode, scale::Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct ActionExtraInfo {
     // The fee is a constant amount that will NOT deducted from user spend asset or receive asset
