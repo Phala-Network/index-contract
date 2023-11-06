@@ -139,6 +139,7 @@ impl Registry {
             "Ethereum" => crate::actions::ethereum::create_actions(&chain),
             "Moonbeam" => crate::actions::moonbeam::create_actions(&chain),
             "Phala" | "Khala" => crate::actions::phala::create_actions(&chain),
+            "Polkadot" => crate::actions::polkadot::create_actions(&chain),
             _ => vec![],
         }
     }
