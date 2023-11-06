@@ -475,10 +475,17 @@ impl Runner for MultiStep {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct StepSimulateResult {
     pub action_extra_info: ActionExtraInfo,
-    // tx fee will be paied in USD,
+    // Estimate gas cost for the step on EVM chain
+    pub gas_limit: Option<U256>,
+    // Current suggest gas price on EVM chains
+    pub gas_price: Option<U256>,
+    // Native asset price in USD
+    // the  USD amount is the value / 10000
+    pub native_price: u32,
+    // tx fee will be paied in USD, calculated based on `gas_cost` and `gas_limit`
     // the USD amount is the value / 10000
     // potentially use Fixed crates here
-    pub tx_fee_in_usd: u32,
+    pub tx_fee: u32,
 }
 
 pub trait Simulate {
@@ -520,7 +527,7 @@ impl Simulate for MultiStep {
         let worker_account = AccountInfo::from(context.signer);
 
         pink_extension::debug!("Start to simulate step with calls: {:?}", &calls);
-        let tx_fee_in_usd: u32 = match chain.chain_type {
+        let (gas_limit, gas_price, native_price, tx_fee) = match chain.chain_type {
             ChainType::Evm => {
                 let eth = Eth::new(PinkHttp::new(chain.endpoint));
                 let handler = Contract::from_json(
@@ -552,18 +559,31 @@ impl Simulate for MultiStep {
                 let gas_price = resolve_ready(eth.gas_price()).or(Err("FailedToGetGasPrice"))?;
                 let native_asset_price = crate::price::get_price(&chain.name, &chain.native_asset)
                     .ok_or("MissingPriceData")?;
-                // The usd value is the return amount / 10000
-                // TODO: here we presume the decimals of all EVM native asset is 18, but we should get it from asset info
-                ((gas * gas_price * native_asset_price)
-                    / U256::from(U256::from(10).pow(U256::from(18))))
-                .try_into()
-                .expect("Tx fee overflow")
+                (
+                    Some(gas),
+                    Some(gas_price),
+                    native_asset_price,
+                    // The usd value is the return amount / 10000
+                    // TODO: here we presume the decimals of all EVM native asset is 18, but we should get it from asset info
+                    ((gas * gas_price * native_asset_price)
+                        / U256::from(U256::from(10).pow(U256::from(18))))
+                    .try_into()
+                    .expect("Tx fee overflow"),
+                )
             }
             ChainType::Sub => match calls[0].params.clone() {
                 CallParams::Sub(SubCall { calldata }) => {
-                    // TODO: estimate tx_fee according to calldata size
-                    // 0.001 USD
-                    100
+                    let native_asset_price =
+                        crate::price::get_price(&chain.name, &chain.native_asset)
+                            .ok_or("MissingPriceData")?;
+                    (
+                        None,
+                        None,
+                        native_asset_price,
+                        // TODO: estimate tx_fee according to calldata size
+                        // 0.001 USD
+                        100,
+                    )
                 }
                 _ => return Err("UnexpectedCallType"),
             },
@@ -571,7 +591,10 @@ impl Simulate for MultiStep {
 
         Ok(StepSimulateResult {
             action_extra_info,
-            tx_fee_in_usd,
+            gas_limit,
+            gas_price,
+            native_price,
+            tx_fee,
         })
     }
 }
