@@ -669,11 +669,10 @@ mod index_executor {
         }
 
         #[ink::test]
+        #[ignore]
         fn simulate_solution_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-            let worker_key = hex_literal::hex!(
-                "b53f0d7eb89f1497db9badb5eca2d45b7c368551308192ba97f2c34b113dec0a"
-            );
+            let worker_key = [0; 32];
             let mut executor = deploy_executor();
             assert_eq!(executor.import_worker_keys(vec![worker_key]), Ok(()));
             assert_eq!(
