@@ -3,6 +3,7 @@ pub mod sygma;
 pub mod xtransfer;
 
 use crate::account::AccountType;
+use crate::actions::base::sub_transactor;
 use crate::actions::phala::xtransfer::XTransferDestChain;
 use crate::call::CallBuilder;
 use crate::chain::Chain;
@@ -48,6 +49,14 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
         (
             String::from("khala_bridge_to_ethereum"),
             Box::new(sygma::XTransferSygma::new(SYGMA_ETHEREUM_DOMAIN_ID)),
+        ),
+        (
+            String::from("phala_native_transactor"),
+            Box::new(sub_transactor::Transactor::new(0x28, 0x07)),
+        ),
+        (
+            String::from("khala_native_transactor"),
+            Box::new(sub_transactor::Transactor::new(0x28, 0x07)),
         ),
     ]
 }

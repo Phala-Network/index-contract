@@ -1,6 +1,7 @@
 mod xcm_v2;
 mod xcm_v3;
 
+use crate::actions::base::sub_transactor;
 use crate::chain::Chain;
 use crate::constants::{ASTAR_PARACHAIN_ID, MOONBEAM_PARACHAIN_ID, PHALA_PARACHAIN_ID};
 use crate::{account::AccountType, call::CallBuilder};
@@ -38,6 +39,10 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
                 AccountType::Account32,
                 false,
             )),
+        ),
+        (
+            String::from("polkadot_native_transactor"),
+            Box::new(sub_transactor::Transactor::new(0x05, 0x07)),
         ),
     ]
 }
