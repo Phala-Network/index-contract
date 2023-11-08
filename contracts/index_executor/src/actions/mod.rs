@@ -14,14 +14,14 @@ pub struct ActionExtraInfo {
     // The fee is a constant amount that will NOT deducted from user spend asset or receive asset
     // That means our worker will pay for this during execution, so it should be treat like tx fee
     // that should be deducted from user spend separately
-    // Represent USD: const_proto_fee / 10000
+    // Represent USD: extra_proto_fee_in_usd / 10000
     // We can potentially use Fixed crates here
-    pub extra_proto_fee: u32,
+    pub extra_proto_fee_in_usd: u32,
     // The fee is a constant amount that will deducted from user spend asset or receive asset
-    // Represent USD: const_proto_fee / 10000
+    // Represent USD: const_proto_fee_in_usd / 10000
     // We can potentially use Fixed crates here
-    pub const_proto_fee: u32,
+    pub const_proto_fee_in_usd: u32,
     // The fee that calculated by a percentage scale, will deducted from user spend asset or receive asset
     pub percentage_proto_fee: Permill,
-    pub confirm_time: u16,
+    pub confirm_time_in_sec: u16,
 }

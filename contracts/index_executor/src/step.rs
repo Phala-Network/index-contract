@@ -487,11 +487,11 @@ pub struct StepSimulateResult {
     pub gas_price: Option<U256>,
     // Native asset price in USD
     // the  USD amount is the value / 10000
-    pub native_price: u32,
+    pub native_price_in_usd: u32,
     // tx fee will be paied in USD, calculated based on `gas_cost` and `gas_limit`
     // the USD amount is the value / 10000
     // potentially use Fixed crates here
-    pub tx_fee: u32,
+    pub tx_fee_in_usd: u32,
 }
 
 pub trait Simulate {
@@ -511,12 +511,12 @@ impl Simulate for MultiStep {
                     let single_extra_step = context
                         .get_action_extra_info(&step.source_chain, &step.exe)
                         .ok_or("NoActionFound")?;
-                    extra_info.extra_proto_fee += single_extra_step.extra_proto_fee;
-                    extra_info.const_proto_fee += single_extra_step.const_proto_fee;
+                    extra_info.extra_proto_fee_in_usd += single_extra_step.extra_proto_fee_in_usd;
+                    extra_info.const_proto_fee_in_usd += single_extra_step.const_proto_fee_in_usd;
                     extra_info.percentage_proto_fee =
                         extra_info.percentage_proto_fee + single_extra_step.percentage_proto_fee;
                     // Batch txs will happen within same block, so we don't need to accumulate it
-                    extra_info.confirm_time = single_extra_step.confirm_time;
+                    extra_info.confirm_time_in_sec = single_extra_step.confirm_time_in_sec;
                 }
                 extra_info
             }
@@ -533,7 +533,7 @@ impl Simulate for MultiStep {
         let worker_account = AccountInfo::from(context.signer);
 
         pink_extension::debug!("Start to simulate step with calls: {:?}", &calls);
-        let (gas_limit, gas_price, native_price, tx_fee) = match chain.chain_type {
+        let (gas_limit, gas_price, native_price_in_usd, tx_fee_in_usd) = match chain.chain_type {
             ChainType::Evm => {
                 let eth = Eth::new(PinkHttp::new(chain.endpoint));
                 let handler = Contract::from_json(
@@ -599,8 +599,8 @@ impl Simulate for MultiStep {
             action_extra_info,
             gas_limit,
             gas_price,
-            native_price,
-            tx_fee,
+            native_price_in_usd,
+            tx_fee_in_usd,
         })
     }
 }

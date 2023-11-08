@@ -65,31 +65,31 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Astar" || chain == "AstarEvm");
     if action == "astar_evm_nativewrapper" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "astar_evm_arthswap" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::from_perthousand(3),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "astar_transactor" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "astar_bridge_to_astarevm" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "astar_bridge_to_phala" {
         Some(ActionExtraInfo {

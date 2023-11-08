@@ -330,7 +330,7 @@ mod index_executor {
                         worker_accounts: self.worker_accounts.clone(),
                     })
                     .map_err(|err| {
-                        println!("Solution simulation failed with error: {}", err);
+                        pink_extension::error!("Solution simulation failed with error: {}", err);
                         Error::FailedToSimulateSolution
                     })?;
                 simulate_results.push(step_simulate_result);
@@ -632,6 +632,7 @@ mod index_executor {
         use crate::step::{MultiStepInput, StepInput};
         // use dotenv::dotenv;
         // use pink_extension::PinkEnvironment;
+        use crate::utils::ToArray;
         use xcm::v3::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
@@ -672,7 +673,10 @@ mod index_executor {
         #[ignore]
         fn simulate_solution_should_work() {
             pink_extension_runtime::mock_ext::mock_all_ext();
-            let worker_key = [0; 32];
+            let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+            let secret_key = secret_key.unwrap().1;
+            let secret_bytes = hex::decode(secret_key).unwrap();
+            let worker_key: [u8; 32] = secret_bytes.to_array();
             let mut executor = deploy_executor();
             assert_eq!(executor.import_worker_keys(vec![worker_key]), Ok(()));
             assert_eq!(

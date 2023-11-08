@@ -68,27 +68,27 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Phala" || chain == "Khala");
     if action == "phala_bridge_to_acala" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
             // 0.0005 USD
-            const_proto_fee: 5,
+            const_proto_fee_in_usd: 5,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME * 2,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
         })
     } else if action == "phala_bridge_to_astar" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
             // 0.0005 USD
-            const_proto_fee: 5,
+            const_proto_fee_in_usd: 5,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME * 2,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
         })
     } else if action == "phala_bridge_to_moonbeam" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
             // 0.0005 USD
-            const_proto_fee: 5,
+            const_proto_fee_in_usd: 5,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME * 2,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
         })
     } else if action == "phala_bridge_to_polkadot" {
         Some(ActionExtraInfo {
@@ -99,12 +99,12 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
             // 5 USD
-            const_proto_fee: 5000,
+            const_proto_fee_in_usd: 5000,
             percentage_proto_fee: Permill::zero(),
             // Sygma relayer wait 2 blocks to finialize and 1 block on Phala to confirm
-            confirm_time: PARACHAIN_BLOCK_TIME * 2 + ETHEREUM_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2 + ETHEREUM_BLOCK_TIME,
         })
     } else if action == "phala_native_transactor" {
         Some(ActionExtraInfo {
@@ -114,12 +114,12 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "khala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
             // 5 USD
-            const_proto_fee: 5000,
+            const_proto_fee_in_usd: 5000,
             percentage_proto_fee: Permill::zero(),
             // Sygma relayer wait 2 blocks to finialize and 1 block on Ethereum to confirm
-            confirm_time: PARACHAIN_BLOCK_TIME * 2 + ETHEREUM_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2 + ETHEREUM_BLOCK_TIME,
         })
     } else if action == "khala_native_transactor" {
         Some(ActionExtraInfo {

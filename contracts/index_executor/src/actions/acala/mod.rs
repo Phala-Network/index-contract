@@ -23,17 +23,17 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Acala");
     if action == "acala_dex" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::from_perthousand(3),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "acala_transactor" {
         Some(ActionExtraInfo {
-            extra_proto_fee: 0,
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else {
         None
