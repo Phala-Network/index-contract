@@ -79,6 +79,7 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
     ]
 }
 
+#[allow(clippy::if_same_then_else)]
 pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Ethereum");
     if action == "ethereum_nativewrapper" {

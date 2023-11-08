@@ -553,7 +553,7 @@ impl Simulate for MultiStep {
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
-                    calls.clone(),
+                    calls,
                     worker_account.account20.into(),
                     options,
                 ))
@@ -571,10 +571,9 @@ impl Simulate for MultiStep {
                     native_asset_price,
                     // The usd value is the return amount / 10000
                     // TODO: here we presume the decimals of all EVM native asset is 18, but we should get it from asset info
-                    ((gas * gas_price * native_asset_price)
-                        / U256::from(U256::from(10).pow(U256::from(18))))
-                    .try_into()
-                    .expect("Tx fee overflow"),
+                    ((gas * gas_price * native_asset_price) / 10u128.pow(18))
+                        .try_into()
+                        .expect("Tx fee overflow"),
                 )
             }
             ChainType::Sub => match calls[0].params.clone() {

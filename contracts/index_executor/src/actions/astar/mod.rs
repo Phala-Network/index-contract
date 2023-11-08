@@ -61,6 +61,7 @@ pub fn sub_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> 
     ]
 }
 
+#[allow(clippy::if_same_then_else)]
 pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
     assert!(chain == "Astar" || chain == "AstarEvm");
     if action == "astar_evm_nativewrapper" {
