@@ -681,31 +681,79 @@ mod index_executor {
             );
             assert_eq!(executor.resume_executor(), Ok(()));
 
-            let solution = vec![MultiStepInput::Batch(vec![
-                StepInput {
-                    exe: "ethereum_nativewrapper".to_string(),
-                    source_chain: "Ethereum".to_string(),
-                    dest_chain: "Ethereum".to_string(),
-                    spend_asset: "0x0000000000000000000000000000000000000000".to_string(),
-                    // WETH
-                    receive_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
-                    recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
-                },
-                StepInput {
-                    exe: "ethereum_uniswapv2".to_string(),
-                    source_chain: "Ethereum".to_string(),
-                    dest_chain: "Ethereum".to_string(),
-                    spend_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+            let solution1: Vec<MultiStepInput> = vec![
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: "ethereum_nativewrapper".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0x0000000000000000000000000000000000000000".to_string(),
+                        // WETH
+                        receive_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_uniswapv2".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        // PHA
+                        receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_sygmabridge_to_phala".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Phala".to_string(),
+                        spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        // PHA
+                        receive_asset: "0x0000".to_string(),
+                        recipient:
+                            "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                                .to_string(),
+                    },
+                ]),
+                MultiStepInput::Single(StepInput {
+                    exe: "phala_bridge_to_astar".to_string(),
+                    source_chain: "Phala".to_string(),
+                    dest_chain: "Astar".to_string(),
+                    spend_asset: "0x0000".to_string(),
                     // PHA
-                    receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
-                    recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
-                },
-            ])];
+                    receive_asset: "0x010100cd1f".to_string(),
+                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                        .to_string(),
+                }),
+            ];
 
-            let result = executor
-                .simulate_solution(executor.worker_accounts[0].account32, solution.encode())
+            let result1 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution1.encode())
                 .unwrap();
-            println!("simulatio result: {:?}", result);
+            println!("simulation result1: {:?}", result1);
+
+            let solution2: Vec<MultiStepInput> = vec![
+                MultiStepInput::Single(StepInput {
+                    exe: "khala_bridge_to_ethereum".to_string(),
+                    source_chain: "Khala".to_string(),
+                    dest_chain: "Ethereum".to_string(),
+                    spend_asset: "0x0000".to_string(),
+                    receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                    recipient: "0x5cddb3ad187065e0122f3f46d13ad6ca486e4644".to_string(),
+                }),
+                MultiStepInput::Single(StepInput {
+                    exe: "ethereum_sygmabridge_to_phala".to_string(),
+                    source_chain: "Ethereum".to_string(),
+                    dest_chain: "Phala".to_string(),
+                    spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                    // PHA
+                    receive_asset: "0x0000".to_string(),
+                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                        .to_string(),
+                }),
+            ];
+            let result2 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution2.encode())
+                .unwrap();
+            println!("simulation result2: {:?}", result2);
         }
     }
 }

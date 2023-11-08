@@ -176,7 +176,13 @@ impl MultiStep {
             return Err("MissingSpendAmount");
         }
         let calls = match self {
-            MultiStep::Single(step) => step.derive_calls(context)?,
+            MultiStep::Single(step) => {
+                let mut calls = step.derive_calls(context)?;
+                assert!(calls.len() == 1);
+                calls[0].call_index = Some(0);
+                calls[0].input_call = Some(0);
+                calls
+            }
             MultiStep::Batch(batch_steps) => {
                 if batch_steps.is_empty() {
                     return Err("BatchStepEmpty");

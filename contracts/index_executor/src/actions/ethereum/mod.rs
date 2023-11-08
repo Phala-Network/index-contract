@@ -108,8 +108,8 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
             extra_proto_fee: 2000,
             const_proto_fee: 0,
             percentage_proto_fee: Permill::zero(),
-            // Sygma relayer wait 10 blocks to forward and 1 block on Phala to confirm
-            confirm_time: ETHEREUM_BLOCK_TIME * 10 + PARACHAIN_BLOCK_TIME,
+            // Sygma relayer wait 15 blocks to forward and 1 block on Phala to confirm
+            confirm_time: ETHEREUM_BLOCK_TIME * 15 + PARACHAIN_BLOCK_TIME,
         })
     } else if action == "ethereum_sygmabridge_to_khala" {
         Some(ActionExtraInfo {
@@ -117,8 +117,8 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
             extra_proto_fee: 2000,
             const_proto_fee: 0,
             percentage_proto_fee: Permill::zero(),
-            // Sygma relayer wait 10 blocks to forward and 1 block on Khala to confirm
-            confirm_time: ETHEREUM_BLOCK_TIME * 10 + PARACHAIN_BLOCK_TIME,
+            // Sygma relayer wait 15 blocks to forward and 1 block on Khala to confirm
+            confirm_time: ETHEREUM_BLOCK_TIME * 15 + PARACHAIN_BLOCK_TIME,
         })
     } else {
         None

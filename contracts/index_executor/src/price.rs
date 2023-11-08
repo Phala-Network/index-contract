@@ -9,8 +9,8 @@ use alloc::vec::Vec;
 pub fn get_price(chain: &str, asset: &Vec<u8>) -> Option<u32> {
     // ETH
     if chain == "Ethereum" && asset == &[0; 20] {
-        // 2000 USD
-        Some(20000000)
+        // 1800 USD
+        Some(18000000)
     } else {
         // TODO
         // 0.1 USD

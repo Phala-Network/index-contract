@@ -486,7 +486,7 @@ mod tests {
     use crate::account::AccountInfo;
     use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
-    use crate::step::{Step, StepInput};
+    use crate::step::StepInput;
     use crate::task_fetcher::ActivedTaskFetcher;
     use crate::utils::ToArray;
     use dotenv::dotenv;
@@ -503,7 +503,7 @@ mod tests {
 
         let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
-        let task = ActivedTaskFetcher {
+        let _task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
                 name: String::from("Ethereum"),
@@ -590,7 +590,7 @@ mod tests {
         let worker_key: [u8; 32] =
             hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
         // We already deposit task with scritps/sub-depopsit.js
-        let task = ActivedTaskFetcher {
+        let _task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
                 name: String::from("Khala"),
