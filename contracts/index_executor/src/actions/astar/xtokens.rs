@@ -2,10 +2,7 @@ use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
 use scale::{Decode, Encode};
-use xcm::{
-    v3::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation, WeightLimit},
-    VersionedMultiAsset, VersionedMultiLocation,
-};
+use xcm::{v3::prelude::*, VersionedMultiAsset, VersionedMultiLocation};
 
 #[derive(Clone)]
 pub struct AstarXtokens {
@@ -23,7 +20,6 @@ impl AstarXtokens {
 
 impl CallBuilder for AstarXtokens {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
-        let recipient: [u8; 32] = step.recipient.to_array();
         let asset_location: MultiLocation =
             Decode::decode(&mut step.spend_asset.as_slice()).map_err(|_| "InvalidMultilocation")?;
         let multi_asset = VersionedMultiAsset::V3(MultiAsset {
@@ -34,9 +30,16 @@ impl CallBuilder for AstarXtokens {
             1,
             Junctions::X2(
                 Parachain(self.dest_chain_id),
-                AccountId32 {
-                    network: None,
-                    id: recipient,
+                match step.recipient.len() {
+                    20 => AccountKey20 {
+                        network: None,
+                        key: step.recipient.to_array(),
+                    },
+                    32 => AccountId32 {
+                        network: None,
+                        id: step.recipient.to_array(),
+                    },
+                    _ => return Err("InvalidRecipient"),
                 },
             ),
         ));

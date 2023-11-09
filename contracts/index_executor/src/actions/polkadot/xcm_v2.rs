@@ -3,13 +3,7 @@ use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
 use scale::{Decode, Encode};
-use xcm::{
-    v2::{
-        prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiAssets, MultiLocation,
-        NetworkId,
-    },
-    VersionedMultiAssets, VersionedMultiLocation,
-};
+use xcm::{v2::prelude::*, VersionedMultiAssets, VersionedMultiLocation};
 
 #[derive(Clone)]
 pub struct PolkadotXcm {

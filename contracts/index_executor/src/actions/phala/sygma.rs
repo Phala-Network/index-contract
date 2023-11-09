@@ -4,7 +4,7 @@ use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 use crate::utils::ToArray;
-use xcm::v3::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation, Weight};
+use xcm::v3::{prelude::*, Weight};
 
 use crate::utils::slice_to_generalkey;
 
