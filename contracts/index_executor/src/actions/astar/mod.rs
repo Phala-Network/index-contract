@@ -94,10 +94,11 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "astar_bridge_to_phala" {
         Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
             // 0.0005 USD
-            const_proto_fee: 5,
+            const_proto_fee_in_usd: 5,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
         })
     } else {
         None

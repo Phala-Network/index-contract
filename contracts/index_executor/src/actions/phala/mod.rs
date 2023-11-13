@@ -93,10 +93,11 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_bridge_to_polkadot" {
         Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
             // 5 USD
-            const_proto_fee: 5,
+            const_proto_fee_in_usd: 5,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "phala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
@@ -109,9 +110,10 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "phala_native_transactor" {
         Some(ActionExtraInfo {
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else if action == "khala_bridge_to_ethereum" {
         Some(ActionExtraInfo {
@@ -124,9 +126,10 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         })
     } else if action == "khala_native_transactor" {
         Some(ActionExtraInfo {
-            const_proto_fee: 0,
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
             percentage_proto_fee: Permill::zero(),
-            confirm_time: PARACHAIN_BLOCK_TIME,
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
         })
     } else {
         None
