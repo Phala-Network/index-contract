@@ -1,4 +1,4 @@
-use crate::actions::base::{native_wrapper, uniswapv3};
+use crate::actions::base::{evm_transactor, native_wrapper, uniswapv3};
 
 pub mod xtoken;
 
@@ -65,6 +65,13 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
                 &chain.endpoint,
                 moonbeam_xtoken.into(),
                 xtoken::XTokenDestChain::Relaychain,
+            )),
+        ),
+        (
+            String::from("moonbeam_transactor"),
+            Box::new(evm_transactor::Transactor::new(
+                &chain.endpoint,
+                chain.native_asset.clone(),
             )),
         ),
     ]

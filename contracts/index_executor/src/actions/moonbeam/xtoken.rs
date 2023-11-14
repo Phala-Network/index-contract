@@ -146,7 +146,7 @@ mod tests {
     fn test_transfer_dot_to_polkadot() {
         pink_extension_runtime::mock_ext::mock_all_ext();
 
-        let rpc = "https://moonbeam.api.onfinality.io/public";
+        let rpc: &str = "https://moonbeam.api.onfinality.io/public";
         // Handler on Moonbeam
         let handler_address: H160 =
             H160::from_slice(&hex::decode("B8D20dfb8c3006AA17579887ABF719DA8bDf005B").unwrap());

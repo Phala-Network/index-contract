@@ -2,7 +2,7 @@ pub mod asset;
 mod sub;
 mod xtokens;
 
-use crate::actions::base::{native_wrapper, uniswapv2};
+use crate::actions::base::{evm_transactor, native_wrapper, uniswapv2};
 
 pub type AstarArthSwap = uniswapv2::UniswapV2;
 pub type AstarNativeWrapper = native_wrapper::NativeWrapper;
@@ -54,6 +54,20 @@ pub fn sub_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> 
         (
             String::from("astar_bridge_to_phala"),
             Box::new(xtokens::AstarXtokens::new(PHALA_PARACHAIN_ID)),
+        ),
+        (
+            String::from("astarevm_bridge_to_astar"),
+            Box::new(evm_transactor::Transactor::new(
+                &chain.endpoint,
+                chain.native_asset.clone(),
+            )),
+        ),
+        (
+            String::from("astarevm_transactor"),
+            Box::new(evm_transactor::Transactor::new(
+                &chain.endpoint,
+                chain.native_asset.clone(),
+            )),
         ),
     ]
 }

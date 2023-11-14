@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use pink_subrpc::hasher::{Blake2_256, Hasher};
+use sp_io::hashing::keccak_256;
 use xcm::v3::prelude::*;
 
 pub trait ToArray<T, const N: usize> {
@@ -46,4 +47,15 @@ pub fn slice_to_generalkey(key: &[u8]) -> Junction {
 
 pub fn h160_to_sr25519_pub(addr: &[u8]) -> [u8; 32] {
     Blake2_256::hash(&[b"evm:", addr].concat())
+}
+
+pub fn ss58_to_h160(addr: &[u8]) -> [u8; 20] {
+    let hash = keccak_256(
+        sp_runtime::AccountId32::try_from(addr)
+            .expect("Invalid AccountId")
+            .as_ref(),
+    );
+    let mut h160_address = [0u8; 20];
+    h160_address.copy_from_slice(&hash[12..]);
+    h160_address
 }
