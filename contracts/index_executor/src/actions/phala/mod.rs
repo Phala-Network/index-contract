@@ -52,11 +52,11 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
         ),
         (
             String::from("phala_native_transactor"),
-            Box::new(sub_transactor::Transactor::new(0x28, 0x07)),
+            Box::new(sub_transactor::Transactor::new(0x28, 0x00)),
         ),
         (
             String::from("khala_native_transactor"),
-            Box::new(sub_transactor::Transactor::new(0x28, 0x07)),
+            Box::new(sub_transactor::Transactor::new(0x28, 0x00)),
         ),
     ]
 }

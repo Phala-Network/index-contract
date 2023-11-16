@@ -42,7 +42,7 @@ pub fn create_actions(_chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
         ),
         (
             String::from("polkadot_native_transactor"),
-            Box::new(sub_transactor::Transactor::new(0x05, 0x07)),
+            Box::new(sub_transactor::Transactor::new(0x05, 0x00)),
         ),
     ]
 }
