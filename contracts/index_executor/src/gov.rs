@@ -1,3 +1,4 @@
+use crate::task::TaskId;
 use alloc::string::String;
 use alloc::vec::Vec;
 use pink_web3::{
@@ -12,6 +13,45 @@ use pink_web3::{
 pub struct WorkerGov;
 
 impl WorkerGov {
+    pub fn drop_task(
+        worker_key: [u8; 32],
+        endpoint: String,
+        handler: Address,
+        id: TaskId,
+    ) -> Result<Vec<u8>, &'static str> {
+        let transport = Eth::new(PinkHttp::new(endpoint));
+        let handler_contract =
+            Contract::from_json(transport, handler, crate::constants::HANDLER_ABI)
+                .or(Err("ConstructContractFailed"))?;
+        let worker = KeyPair::from(worker_key);
+
+        let gas = resolve_ready(handler_contract.estimate_gas(
+            "drop",
+            id,
+            worker.address(),
+            Options::default(),
+        ))
+        .or(Err("GasEstimateFailed"))?;
+
+        // Submit the `drop` transaction
+        let tx_id = resolve_ready(handler_contract.signed_call(
+            "drop",
+            id,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+            }),
+            worker,
+        ))
+        .or(Err("DropTaskSubmitFailed"))?;
+        pink_extension::info!(
+            "Submit transaction to do task drop, task {:?} , tx id: {:?}",
+            hex::encode(id),
+            hex::encode(tx_id.clone().as_bytes())
+        );
+
+        Ok(tx_id.as_bytes().to_vec())
+    }
+
     pub fn erc20_approve(
         worker_key: [u8; 32],
         endpoint: String,
@@ -58,10 +98,10 @@ impl WorkerGov {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::ToArray;
     use alloc::string::String;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use index::utils::ToArray;
     use pink_web3::types::H160;
 
     #[test]

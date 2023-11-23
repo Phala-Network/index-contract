@@ -4,7 +4,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use pink_extension::http_req;
+use pink_extension::{http_req, ResultExt};
 use scale::Decode;
 use serde::Deserialize;
 
@@ -96,10 +96,7 @@ impl StorageClient {
 
     /// Return (data, document_id) if success
     pub fn read<T: Decode>(&self, key: &[u8]) -> Result<Option<(T, String)>, &'static str> {
-        let key = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let key = hex::encode(key);
         pink_extension::debug!("read: trying to read storage item, key: {}", key);
 
         let cmd = format!(
@@ -128,9 +125,12 @@ impl StorageClient {
         if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
             Ok(if !response.is_empty() {
                 let data_str = response[0].document.fields.data.string_value.clone();
-                let raw_data = hex::decode(data_str).map_err(|_| "InvalidDataStr")?;
-                let data: T =
-                    T::decode(&mut raw_data.as_slice()).map_err(|_| "DecodeDataFailed")?;
+                let raw_data = hex::decode(data_str)
+                    .log_err("Get unexpected data format from database")
+                    .or(Err("InvalidDataStr"))?;
+                let data: T = T::decode(&mut raw_data.as_slice())
+                    .log_err("Decode failed from data returned from database")
+                    .or(Err("DecodeDataFailed"))?;
                 let document_id = response[0]
                     .document
                     .name
@@ -145,7 +145,7 @@ impl StorageClient {
         } else {
             // Trying decode from EmptyData, this is highly related to the response format of the storage service
             if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
-                pink_extension::debug!("read: no storage item found: {}", key);
+                pink_extension::debug!("read_storage: no storage item found: {}", key);
                 Ok(None)
             } else {
                 // Here we can make sure we got unexpected data
@@ -156,15 +156,9 @@ impl StorageClient {
 
     /// Create a new storage item
     pub fn insert(&self, key: &[u8], data: &[u8]) -> Result<(), &'static str> {
-        let key: String = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let key: String = hex::encode(key);
         pink_extension::debug!("insert: trying to create storage item, key: {:?}", key);
-        let data_str = data
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let data_str = hex::encode(data);
         let cmd = format!(
             r#"{{
                 "fields": {{
@@ -177,23 +171,17 @@ impl StorageClient {
                 }}
             }}"#
         );
-        let api = "documents/index-storage".to_string();
-        let _ = self.send_request("POST", &api[..], &cmd)?;
+        let api = "documents/index-storage";
+        let _ = self.send_request("POST", api, &cmd)?;
 
         Ok(())
     }
 
     /// Update storage data
     pub fn update(&self, key: &[u8], data: &[u8], document: String) -> Result<(), &'static str> {
-        let key: String = key
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let key: String = hex::encode(key);
         pink_extension::debug!("update: trying to update storage item, key: {}", &key);
-        let data_str = data
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
+        let data_str = hex::encode(data);
 
         let cmd = format!(
             r#"{{
@@ -207,16 +195,16 @@ impl StorageClient {
                 }}
             }}"#
         );
-        let api = format!("documents/index-storage/{document}");
-        let _ = self.send_request("PATCH", &api[..], &cmd)?;
+        let api = &format!("documents/index-storage/{document}");
+        let _ = self.send_request("PATCH", api, &cmd)?;
 
         Ok(())
     }
 
     /// Remove a document from remote storage
     pub fn delete(&self, _key: &[u8], document: String) -> Result<(), &'static str> {
-        let api = format!("documents/index-storage/{document}");
-        let _ = self.send_request("DELETE", &api[..], "")?;
+        let api = &format!("documents/index-storage/{document}");
+        let _ = self.send_request("DELETE", api, "")?;
         Ok(())
     }
 }
@@ -244,7 +232,10 @@ mod tests {
             worker: [0; 32],
             status: TaskStatus::Actived,
             source: "Ethereum".to_string(),
+            amount: 0,
+            claim_nonce: None,
             steps: vec![],
+            merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: vec![],

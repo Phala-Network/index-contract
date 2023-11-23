@@ -1,17 +1,24 @@
-#![cfg_attr(not(any(feature = "std", test)), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std, no_main)]
 
 extern crate alloc;
 
 mod account;
+mod actions;
+mod assets;
+mod call;
 mod chain;
+mod constants;
 mod context;
 mod gov;
 mod registry;
-mod steps;
+mod step;
 mod storage;
 mod task;
+mod task_deposit;
+mod task_fetcher;
 mod traits;
 mod tx;
+mod utils;
 
 #[allow(clippy::large_enum_variant)]
 #[ink::contract(env = pink_extension::PinkEnvironment)]
@@ -21,15 +28,17 @@ mod index_executor {
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
-    use crate::steps::claimer::ActivedTaskFetcher;
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
+    use crate::task_fetcher::ActivedTaskFetcher;
     use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
     use ink_env::call::FromAccountId;
     use pink_extension::ResultExt;
     use scale::{Decode, Encode};
     use worker_key_store::KeyStoreRef;
+
+    use pink_web3::ethabi::Address;
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -117,6 +126,13 @@ mod index_executor {
             self.ensure_owner()?;
             self.admin = new_admin;
             Ok(())
+        }
+
+        /// TODO: Debug only, remove before release
+        #[ink(message)]
+        pub fn export_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
+            self.ensure_owner()?;
+            Ok(self.worker_prv_keys.clone())
         }
 
         /// FIXME: Pass the key implicitly
@@ -227,7 +243,10 @@ mod index_executor {
             // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
             self.ensure_paused()?;
 
-            let chain = self.registry.get_chain(chain).ok_or(Error::ChainNotFound)?;
+            let chain = self
+                .registry
+                .get_chain(&chain)
+                .ok_or(Error::ChainNotFound)?;
             if chain.chain_type != ChainType::Evm {
                 return Err(Error::UnexpectedChainType);
             }
@@ -244,6 +263,34 @@ mod index_executor {
         }
 
         #[ink(message)]
+        pub fn worker_drop_task(&self, worker: [u8; 32], chain: String, id: TaskId) -> Result<()> {
+            self.ensure_owner()?;
+            let _ = self.ensure_configured()?;
+
+            // To avoid race condiction happened on `nonce`, we should make sure no task will be executed.
+            self.ensure_paused()?;
+
+            let chain = self
+                .registry
+                .get_chain(&chain)
+                .ok_or(Error::ChainNotFound)?;
+
+            if chain.chain_type != ChainType::Evm {
+                return Err(Error::UnexpectedChainType);
+            }
+            WorkerGov::drop_task(
+                self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?,
+                chain.endpoint,
+                Address::from_slice(&chain.handler_contract),
+                id,
+            )
+            .log_err("failed to submit worker drop task tx")
+            .or(Err(Error::FailedToSendTransaction))?;
+
+            Ok(())
+        }
+
+        #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             self.ensure_running()?;
 
@@ -252,7 +299,7 @@ mod index_executor {
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
-                    self.fetch_task(&client, source_chain, worker)?
+                    self.fetch_task(&client, &source_chain, worker)?
                 }
                 RunningType::Execute => self.execute_task(&client)?,
             };
@@ -294,7 +341,6 @@ mod index_executor {
                     .update(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
-
             Ok(())
         }
 
@@ -312,14 +358,40 @@ mod index_executor {
 
         #[ink(message)]
         pub fn get_all_running_tasks(&self) -> Result<Vec<Task>> {
-            // TODO: read from remote storage
-            Ok(vec![])
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+
+            let mut tasks = Vec::new();
+            let Some((ids, _)) = client
+                .read::<Vec<[u8; 32]>>(b"pending_tasks")
+                .map_err(|_| Error::FailedToReadStorage)? else {
+                    return Ok(tasks)
+                };
+
+            for id in ids.iter() {
+                pink_extension::debug!(
+                    "Trying to read pending task data from remote storage, task id: {:?}",
+                    &hex::encode(id)
+                );
+                let (task, _) = client
+                    .read::<Task>(id)
+                    .map_err(|_| Error::FailedToReadStorage)?
+                    .ok_or(Error::TaskNotFoundInStorage)?;
+
+                tasks.push(task);
+            }
+
+            Ok(tasks)
         }
 
         #[ink(message)]
-        pub fn get_running_task(&self, _task_id: TaskId) -> Result<Option<Task>> {
-            // TODO: read from remote storage
-            Ok(None)
+        pub fn get_running_task(&self, id: TaskId) -> Result<Option<Task>> {
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+            Ok(client
+                .read::<Task>(&id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .map(|(task, _)| task))
         }
 
         /// Returs the interior registry, callable to all
@@ -353,32 +425,39 @@ mod index_executor {
         pub fn fetch_task(
             &self,
             client: &StorageClient,
-            source_chain: String,
+            source_chain: &String,
             // Worker sr25519 public key
             worker: [u8; 32],
         ) -> Result<()> {
+            let signer = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
             // Fetch one actived task that completed initial confirmation from specific chain that belong to current worker
             let actived_task = ActivedTaskFetcher::new(
                 self.registry
-                    .get_chain(source_chain.clone())
+                    .get_chain(source_chain)
                     .ok_or(Error::ChainNotFound)?,
-                AccountInfo::from(self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?),
+                AccountInfo::from(signer),
             )
             .fetch_task()
             .map_err(|_| Error::FailedToFetchTask)?;
             if let Some(mut actived_task) = actived_task {
                 // Initialize task, and save it to on-chain storage
                 actived_task
-                    .init_and_submit(
+                    .init(
                         &Context {
-                            // Don't need signer here
-                            signer: [0; 32],
+                            signer,
                             registry: &self.registry,
                             worker_accounts: self.worker_accounts.clone(),
                         },
                         client,
                     )
-                    .map_err(|_| Error::FailedToInitTask)?;
+                    .map_err(|e| {
+                        pink_extension::info!(
+                            "Initial error {:?}, initialized task data: {:?}",
+                            &e,
+                            &actived_task
+                        );
+                        Error::FailedToInitTask
+                    })?;
                 pink_extension::info!(
                     "An actived task was found on {:?}, initialized task data: {:?}",
                     &source_chain,
@@ -411,7 +490,7 @@ mod index_executor {
                     .ok_or(Error::TaskNotFoundInStorage)?;
 
                 pink_extension::info!(
-                    "Start execute next step of task, execute worker account: {:?}",
+                    "Start execute task, execute worker account: {:?}",
                     &hex::encode(task.worker)
                 );
                 match task.execute(
@@ -431,10 +510,11 @@ mod index_executor {
                         task.destroy(client)
                             .map_err(|_| Error::FailedToDestoryTask)?;
                     }
-                    Err(_) => {
+                    Err(err) => {
                         pink_extension::error!(
-                            "Failed to execute task on step {:?}, task data: {:?}",
+                            "Failed to execute task on step {:?} with error {}, task data: {:?}",
                             task.execute_index,
+                            err,
                             &task
                         );
 
@@ -502,9 +582,8 @@ mod index_executor {
     mod tests {
         use super::*;
         // use dotenv::dotenv;
-        use phala_pallet_common::WrapSlice;
         // use pink_extension::PinkEnvironment;
-        use xcm::latest::{prelude::*, MultiLocation};
+        use xcm::v3::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
             // Deploy Executor
@@ -532,7 +611,7 @@ mod index_executor {
                         1,
                         X2(
                             Parachain(2000),
-                            GeneralKey(WrapSlice(&hex_literal::hex!["0081"]).into())
+                            crate::utils::slice_to_generalkey(&hex_literal::hex!["0081"]),
                         )
                     )
                     .encode()

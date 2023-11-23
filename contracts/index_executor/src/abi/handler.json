@@ -29,6 +29,25 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "worker",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "taskId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ClaimedAndExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "sender",
         "type": "address"
       },
@@ -58,6 +77,25 @@
       }
     ],
     "name": "Deposited",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "worker",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "taskId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Dropped",
     "type": "event"
   },
   {
@@ -190,6 +228,76 @@
   {
     "inputs": [
       {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "callData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "needSettle",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "updateOffset",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "updateLen",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "spendAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spendAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "receiveAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inputCall",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "callIndex",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Handler.Call[]",
+        "name": "calls",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "batchCall",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "taskId",
         "type": "bytes32"
@@ -201,8 +309,76 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "claim_all",
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "taskId",
+        "type": "bytes32"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes",
+            "name": "callData",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "needSettle",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "updateOffset",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "updateLen",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "spendAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "spendAmount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "receiveAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "inputCall",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "callIndex",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct Handler.Call[]",
+        "name": "calls",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "claimAndBatchCall",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -243,6 +419,70 @@
     "name": "deposit",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "taskId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "drop",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "worker",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "taskId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "findActivedTask",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "internalType": "contract IERC20",
+            "name": "token",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes",
+            "name": "recipient",
+            "type": "bytes"
+          },
+          {
+            "internalType": "string",
+            "name": "task",
+            "type": "string"
+          }
+        ],
+        "internalType": "struct Handler.DepositInfo",
+        "name": "depositInfo",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -371,6 +611,19 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address[]",
+        "name": "workers",
+        "type": "address[]"
+      }
+    ],
+    "name": "setMultiWorkers",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

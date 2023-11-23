@@ -2,18 +2,12 @@
 resolver = "2"
 
 members = [
-    "examples/semi_bridge",
-    "examples/system_remark",
     "contracts/index_executor",
     "contracts/key_store",
 ]
 
-exclude = [
-    "index"
-]
-
 # Sneak peek of the new test engine!
 [patch.crates-io]
-serde = { git = "https://github.com/kvinwang/serde.git", branch = "pink" }
+serde = { git = "https://github.com/kvinwang/serde.git", branch = "patched-v1.0.185" }
 
 signature = { git = "https://github.com/RustCrypto/traits.git", tag = "signature-v1.3.1" }

@@ -1,12 +1,23 @@
 use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
-use crate::chain::{ChainType, NonceFetcher};
-use crate::steps::{Step, StepMeta};
+use crate::chain::{Chain, ChainType, NonceFetcher};
+use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
-use alloc::{string::String, vec, vec::Vec};
-use ink::storage::Mapping;
+use crate::tx;
+use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
+use pink_extension::ResultExt;
+use pink_subrpc::{create_transaction, send_transaction, ExtraParam};
 use scale::{Decode, Encode};
+
+use pink_web3::{
+    api::{Eth, Namespace},
+    contract::{Contract, Options},
+    keys::pink::KeyPair,
+    signing::Key,
+    transports::{resolve_ready, PinkHttp},
+    types::H160,
+};
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -25,7 +36,7 @@ pub enum TaskStatus {
 
 pub type TaskId = [u8; 32];
 
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Task {
     // Task id
@@ -36,8 +47,14 @@ pub struct Task {
     pub status: TaskStatus,
     // Source chain name
     pub source: String,
+    // Amount of first spend asset
+    pub amount: u128,
+    // Nonce applied to claim task froom source chain
+    pub claim_nonce: Option<u64>,
     /// All steps to included in the task
     pub steps: Vec<Step>,
+    /// Steps  after merged, those actually will be executed
+    pub merged_steps: Vec<MultiStep>,
     /// Current step index that is executing
     pub execute_index: u8,
     /// Sender address on source chain
@@ -55,7 +72,10 @@ impl Default for Task {
             worker: [0; 32],
             status: TaskStatus::Actived,
             source: String::default(),
+            amount: 0,
+            claim_nonce: None,
             steps: vec![],
+            merged_steps: vec![],
             execute_index: 0,
             sender: vec![],
             recipient: vec![],
@@ -64,13 +84,28 @@ impl Default for Task {
     }
 }
 
+impl sp_std::fmt::Debug for Task {
+    fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
+        f.debug_struct("Task")
+            .field("id", &hex::encode(self.id))
+            .field("worker", &hex::encode(self.worker))
+            .field("status", &self.status)
+            .field("source", &self.source)
+            .field("amount", &self.amount)
+            .field("claim_nonce", &self.claim_nonce)
+            .field("steps", &self.steps)
+            .field("merged_steps", &self.merged_steps)
+            .field("execute_index", &self.execute_index)
+            .field("sender", &hex::encode(&self.sender))
+            .field("recipient", &hex::encode(&self.recipient))
+            .field("retry_counter", &self.retry_counter)
+            .finish()
+    }
+}
+
 impl Task {
     // Initialize task
-    pub fn init_and_submit(
-        &mut self,
-        context: &Context,
-        client: &StorageClient,
-    ) -> Result<(), &'static str> {
+    pub fn init(&mut self, context: &Context, client: &StorageClient) -> Result<(), &'static str> {
         let (mut free_accounts, free_accounts_doc) = client
             .read::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
@@ -78,10 +113,10 @@ impl Task {
             .read::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
-        if client.read::<Task>(&self.id)?.is_some() {
-            // Task already saved, return
-            return Ok(());
-        }
+        pink_extension::debug!(
+            "Trying to lookup storage for task {:?} before initializing.",
+            hex::encode(self.id),
+        );
 
         // Lookup free worker list to find if the worker we expected is free, if it's free remove it or return error
         if let Some(index) = free_accounts.iter().position(|&x| x == self.worker) {
@@ -100,10 +135,15 @@ impl Task {
             return Err("WorkerIsBusy");
         }
 
+        // Apply recipient for each step before merged
+        self.apply_recipient(context)?;
+
+        // Merge steps
+        self.merge_step(context)?;
+
         // Apply worker nonce for each step in task
         self.apply_nonce(0, context, client)?;
-        // Apply recipient for each step in task
-        self.apply_recipient(context)?;
+
         // TODO: query initial balance of worker account and setup to specific step
         self.status = TaskStatus::Initialized;
         self.execute_index = 0;
@@ -122,6 +162,7 @@ impl Task {
             &pending_tasks.encode(),
             pending_tasks_doc,
         )?;
+
         Ok(())
     }
 
@@ -130,14 +171,28 @@ impl Task {
         context: &Context,
         client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
-        // To avoid unnecessary remote check, we check index in advance
-        if self.execute_index as usize == self.steps.len() {
+        // Check claim before executing
+        if !(self.has_claimed(context))? {
+            pink_extension::debug!(
+                "Task {:?} already exist in storage, but hasn't been claimed, try claim it with worker {:?} and return.",
+                hex::encode(self.id),
+                hex::encode(self.worker),
+            );
+            self.claim(context)?;
+            return Ok(self.status.clone());
+        }
+
+        let step_count = self.merged_steps.len();
+        // To avoid unnecessary remote check, we check execute_index in advance
+        if self.execute_index as usize == step_count {
             return Ok(TaskStatus::Completed);
         }
 
-        match self.steps[self.execute_index as usize].check(
+        match self.merged_steps[self.execute_index as usize].has_finished(
             // An executing task must have nonce applied
-            self.steps[self.execute_index as usize].nonce.unwrap(),
+            self.merged_steps[self.execute_index as usize]
+                .get_nonce()
+                .unwrap(),
             context,
         ) {
             // If step already executed successfully, execute next step
@@ -145,21 +200,22 @@ impl Task {
                 self.execute_index += 1;
                 self.retry_counter = 0;
                 // If all step executed successfully, set task as `Completed`
-                if self.execute_index as usize == self.steps.len() {
+                if self.execute_index as usize == step_count {
                     self.status = TaskStatus::Completed;
                     return Ok(self.status.clone());
                 }
 
-                // Settle before execute next step
-                let settle_balance = self.settle(context)?;
+                // Settle last step before execute next step
+                let settle_balance =
+                    self.merged_steps[(self.execute_index - 1) as usize].settle(context)?;
                 pink_extension::debug!(
-                    "Settle balance of last step[{:?}], settle amount: {:?}",
+                    "Finished previous step execution, settle balance of last step[{:?}], settle amount: {:?}",
                     (self.execute_index - 1),
                     settle_balance,
                 );
-                // Update balance that actually can be consumed
-                self.update_balance(settle_balance, context)?;
-                pink_extension::debug!("Finished previous step execution");
+
+                pink_extension::debug!("Update sepnd amount of next executing step");
+                self.merged_steps[self.execute_index as usize].set_spend(settle_balance);
 
                 // FIXME: handle returned error
                 let _ = self.execute_step(context, client)?;
@@ -169,18 +225,10 @@ impl Task {
             // - Step failed to execute
             // - Step has been executed, but off-chain indexer hasn't caught up
             Ok(false) => {
-                // Claim step should be considered separately
-                if let StepMeta::Claim(claim_step) =
-                    &mut self.steps[self.execute_index as usize].meta
-                {
-                    let worker_account = AccountInfo::from(context.signer);
-                    let latest_balance = worker_account.get_balance(
-                        claim_step.chain.clone(),
-                        claim_step.asset.clone(),
-                        context,
-                    )?;
-                    claim_step.b0 = Some(latest_balance);
-                }
+                pink_extension::debug!(
+                    "Current step has not been executed or failed to execute, retry step {:?}",
+                    (self.execute_index),
+                );
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
                 self.retry_counter += 1;
@@ -206,9 +254,11 @@ impl Task {
         client: &StorageClient,
     ) -> Result<TaskStatus, &'static str> {
         // An executing task must have nonce applied
-        let nonce = self.steps[self.execute_index as usize].nonce.unwrap();
+        let nonce = self.merged_steps[self.execute_index as usize]
+            .get_nonce()
+            .unwrap();
 
-        if self.steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+        if self.merged_steps[self.execute_index as usize].can_run(nonce, context, Some(client))
             == Ok(true)
         {
             pink_extension::debug!(
@@ -216,7 +266,7 @@ impl Task {
                 self.execute_index,
                 nonce
             );
-            self.steps[self.execute_index as usize].run(nonce, context)?;
+            self.merged_steps[self.execute_index as usize].run(nonce, context)?;
             self.status = TaskStatus::Executing(self.execute_index, Some(nonce));
         } else {
             pink_extension::debug!("Step[{:?}] not runnable, return", self.execute_index);
@@ -230,7 +280,7 @@ impl Task {
             .read::<Vec<[u8; 32]>>(b"free_accounts")?
             .ok_or("StorageNotConfigured")?;
         let (mut pending_tasks, pending_tasks_doc) = client
-            .read::<Vec<TaskId>>(b"free_accounts")?
+            .read::<Vec<TaskId>>(b"pending_tasks")?
             .ok_or("StorageNotConfigured")?;
 
         if let Some((_, task_doc)) = client.read::<Task>(&self.id)? {
@@ -257,6 +307,90 @@ impl Task {
         Ok(())
     }
 
+    pub fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
+        let step_count = self.steps.len();
+        for (index, step) in self.steps.iter_mut().enumerate() {
+            let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
+            let step_dest_chain = &step.dest_chain(context).ok_or("MissingChain")?;
+            let worker_account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+
+            // For sure last step we should put real recipient, or else the recipient could be either
+            // worker account or handler account
+            step.recipient = if index == step_count - 1 {
+                Some(self.recipient.clone())
+            } else {
+                // If bridge to a EVM chain, asset should be send to Handler account to execute the reset of calls
+                if step.is_bridge_step() {
+                    if step_dest_chain.is_evm_chain() {
+                        Some(step_dest_chain.handler_contract.clone())
+                    } else {
+                        Some(worker_account_info.account32.to_vec())
+                    }
+                } else {
+                    // For non-bridge operatoions, because we don't batch call in Sub chains, so recipient should
+                    // be worker account on source chain, or should be Handler address on source chain
+                    if step_source_chain.is_sub_chain() {
+                        let worker_account = match step_source_chain.chain_type {
+                            ChainType::Evm => worker_account_info.account20.to_vec(),
+                            ChainType::Sub => worker_account_info.account32.to_vec(),
+                        };
+                        Some(worker_account)
+                    } else {
+                        Some(step_source_chain.handler_contract.clone())
+                    }
+                }
+            };
+        }
+        Ok(())
+    }
+
+    pub fn merge_step(&mut self, context: &Context) -> Result<(), &'static str> {
+        let mut merged_steps: Vec<MultiStep> = vec![];
+        let mut batch_steps: Vec<Step> = vec![];
+
+        for (index, step) in self.steps.iter().enumerate() {
+            let step_source_chain = &step.source_chain(context).ok_or("MissingChain")?;
+
+            if step_source_chain.is_sub_chain() {
+                if !batch_steps.is_empty() {
+                    merged_steps.push(MultiStep::Batch(batch_steps.clone()));
+                }
+                merged_steps.push(MultiStep::Single(step.clone()));
+                // clear queue
+                batch_steps = vec![];
+            } else {
+                if batch_steps.is_empty() {
+                    batch_steps.push(step.clone());
+                } else {
+                    // EVM chain hasn't changed
+                    if step_source_chain.name.to_lowercase()
+                        == batch_steps[batch_steps.len() - 1]
+                            .source_chain
+                            .to_lowercase()
+                    {
+                        batch_steps.push(step.clone())
+                    }
+                    // EVM chain changed
+                    else {
+                        // Push batch step
+                        merged_steps.push(MultiStep::Batch(batch_steps.clone()));
+                        // Reshipment batch step
+                        batch_steps = vec![step.clone()];
+                    }
+                }
+                // Save it if this is the last step
+                if index == self.steps.len() - 1 {
+                    merged_steps.push(MultiStep::Batch(batch_steps.clone()));
+                }
+            }
+        }
+
+        // Replace existing task steps
+        self.merged_steps = merged_steps;
+
+        Ok(())
+    }
+
     pub fn reapply_nonce(
         &mut self,
         start_index: u64,
@@ -272,206 +406,193 @@ impl Task {
         context: &Context,
         _client: &StorageClient,
     ) -> Result<(), &'static str> {
-        // Only in last step the recipient with be set as real recipient on destchain,
-        // or else it will be the worker account under the hood
-        let mut nonce_map: Mapping<String, u64> = Mapping::default();
-        for index in start_index as usize..self.steps.len() {
-            let step = &mut self.steps[index];
-            let nonce = match nonce_map.get(&step.chain) {
-                Some(nonce) => nonce,
-                None => {
-                    let chain = context
-                        .registry
-                        .get_chain(step.chain.clone())
-                        .ok_or("MissingChain")?;
-                    let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                    let account = match chain.chain_type {
-                        ChainType::Evm => account_info.account20.to_vec(),
-                        ChainType::Sub => account_info.account32.to_vec(),
-                        // ChainType::Unknown => panic!("chain not supported!"),
-                    };
-                    chain.get_nonce(account).map_err(|_| "FetchNonceFailed")?
-                }
+        let mut nonce_map: BTreeMap<String, u64> = BTreeMap::default();
+
+        // Apply claim nonce if hasn't claimed
+        if self.claim_nonce.is_none() || !self.has_claimed(context)? {
+            let claim_nonce = self.get_nonce(context, &self.source)?;
+            nonce_map.insert(self.source.clone(), claim_nonce + 1);
+            self.claim_nonce = Some(claim_nonce);
+        }
+
+        // Apply nonce for each step
+        for index in start_index as usize..self.merged_steps.len() {
+            let source_chain = self.merged_steps[index].as_single_step().source_chain;
+            let nonce: u64 = match nonce_map.get(&source_chain) {
+                Some(nonce) => *nonce,
+                None => self.get_nonce(context, &source_chain)?,
             };
-            step.nonce = Some(nonce);
+            self.merged_steps[index].set_nonce(nonce);
             // Increase nonce by 1
-            nonce_map.insert(step.chain.clone(), &(nonce + 1));
+            nonce_map.insert(source_chain, nonce + 1);
         }
 
         Ok(())
     }
 
-    fn apply_recipient(&mut self, context: &Context) -> Result<(), &'static str> {
-        let step_count = self.steps.len();
-        for (index, step) in self.steps.iter_mut().enumerate() {
-            match &mut step.meta {
-                StepMeta::Swap(swap_step) => {
-                    swap_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
-                    } else {
-                        let chain = context
-                            .registry
-                            .get_chain(swap_step.chain.clone())
-                            .ok_or("MissingChain")?;
-                        let account_info =
-                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
-                            ChainType::Evm => account_info.account20.to_vec(),
-                            ChainType::Sub => account_info.account32.to_vec(),
-                            // ChainType::Unknown => panic!("chain not supported!"),
-                        })
-                    };
-                }
-                StepMeta::Bridge(bridge_step) => {
-                    bridge_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
-                    } else {
-                        let chain = context
-                            .registry
-                            .get_chain(bridge_step.dest_chain.clone())
-                            .ok_or("MissingChain")?;
-                        let account_info =
-                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
-                            ChainType::Evm => account_info.account20.to_vec(),
-                            ChainType::Sub => account_info.account32.to_vec(),
-                            // ChainType::Unknown => panic!("chain not supported!"),
-                        })
-                    };
-                }
-                StepMeta::Transfer(transfer_step) => {
-                    transfer_step.recipient = if index == (step_count - 1) {
-                        Some(self.recipient.clone())
-                    } else {
-                        let chain = context
-                            .registry
-                            .get_chain(transfer_step.chain.clone())
-                            .ok_or("MissingChain")?;
-                        let account_info =
-                            context.get_account(self.worker).ok_or("WorkerNotFound")?;
-                        Some(match chain.chain_type {
-                            ChainType::Evm => account_info.account20.to_vec(),
-                            ChainType::Sub => account_info.account32.to_vec(),
-                            // ChainType::Unknown => panic!("chain not supported!"),
-                        })
-                    };
-                }
-                _ => {}
+    fn get_nonce(&self, context: &Context, chain: &String) -> Result<u64, &'static str> {
+        let chain: Chain = context.registry.get_chain(chain).ok_or("MissingChain")?;
+        let account_info = context.get_account(self.worker).ok_or("WorkerNotFound")?;
+        let account = match chain.chain_type {
+            ChainType::Evm => account_info.account20.to_vec(),
+            ChainType::Sub => account_info.account32.to_vec(),
+            // ChainType::Unknown => panic!("chain not supported!"),
+        };
+        let nonce = chain
+            .get_nonce(account.clone())
+            .log_err(&format!(
+                "call task get_nonce failed on chain {:?} for account {:?}",
+                chain.name,
+                hex::encode(account)
+            ))
+            .or(Err("FetchNonceFailed"))?;
+        Ok(nonce)
+    }
+
+    fn claim(&mut self, context: &Context) -> Result<Vec<u8>, &'static str> {
+        let chain = context
+            .registry
+            .get_chain(&self.source)
+            .ok_or("MissingChain")?;
+        let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
+
+        match chain.chain_type {
+            ChainType::Evm => {
+                Ok(self.claim_evm_actived_tasks(chain, self.id, context, claim_nonce)?)
+            }
+            ChainType::Sub => {
+                Ok(self.claim_sub_actived_tasks(chain, self.id, context, claim_nonce)?)
             }
         }
-
-        Ok(())
     }
 
-    fn settle(&mut self, context: &Context) -> Result<u128, &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-
-        let last_step = self.steps[(self.execute_index - 1) as usize].clone();
+    fn has_claimed(&self, context: &Context) -> Result<bool, &'static str> {
         let worker_account = AccountInfo::from(context.signer);
-        Ok(match last_step.meta {
-            StepMeta::Claim(claim_step) => {
-                let old_balance = claim_step.b0.ok_or("MisingOriginBalance")?;
-                let latest_balance =
-                    worker_account.get_balance(claim_step.chain, claim_step.asset, context)?;
-                // FIXME: what if some bad guy transfer this asset into worker account
-                latest_balance.saturating_sub(old_balance)
+        let chain = context
+            .registry
+            .get_chain(&self.source)
+            .ok_or("MissingChain")?;
+        let account = match chain.chain_type {
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
+        };
+        let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
+
+        // Check if already claimed success
+        let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
+        if onchain_nonce > claim_nonce {
+            if tx::has_confirmed(&chain.tx_indexer_url, &account, claim_nonce)? {
+                Ok(true)
+            } else {
+                Err("ClaimFailed")
             }
-            StepMeta::Swap(swap_step) => {
-                let old_balance = swap_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance = worker_account.get_balance(
-                    swap_step.chain,
-                    swap_step.receive_asset,
-                    context,
-                )?;
-                latest_balance.saturating_sub(old_balance)
-            }
-            StepMeta::Bridge(bridge_step) => {
-                // Old balance on dest chain
-                let old_balance = bridge_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance =
-                    worker_account.get_balance(bridge_step.dest_chain, bridge_step.to, context)?;
-                latest_balance.saturating_sub(old_balance)
-            }
-            StepMeta::Transfer(transfer_step) => {
-                // Old balance on dest chain
-                let old_balance = transfer_step.b1.ok_or("MisingOriginBalance")?;
-                let latest_balance = worker_account.get_balance(
-                    transfer_step.chain,
-                    transfer_step.asset,
-                    context,
-                )?;
-                latest_balance.saturating_sub(old_balance)
-            }
-        })
+        } else {
+            Ok(false)
+        }
     }
 
-    fn update_balance(
+    fn claim_evm_actived_tasks(
         &mut self,
-        settle_balance: u128,
+        chain: Chain,
+        task_id: TaskId,
         context: &Context,
-    ) -> Result<(), &'static str> {
-        if self.execute_index < 1 {
-            return Err("InvalidExecuteIndex");
-        }
-        let worker_account = AccountInfo::from(context.signer);
-        match &mut self.steps[self.execute_index as usize].meta {
-            StepMeta::Swap(swap_step) => {
-                swap_step.spend = settle_balance.min(swap_step.flow);
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let handler: H160 = H160::from_slice(&chain.handler_contract);
+        let transport = Eth::new(PinkHttp::new(chain.endpoint));
+        let handler = Contract::from_json(transport, handler, crate::constants::HANDLER_ABI)
+            .log_err(&format!(
+                "claim_evm_actived_tasks: failed to instatiate handler {:?} on {:?}",
+                handler, &chain.name
+            ))
+            .or(Err("ConstructContractFailed"))?;
+        let worker = KeyPair::from(context.signer);
 
-                // Update the original balance of worker account
-                let latest_b0 = worker_account.get_balance(
-                    swap_step.chain.clone(),
-                    swap_step.spend_asset.clone(),
-                    context,
-                )?;
-                let latest_b1 = worker_account.get_balance(
-                    swap_step.chain.clone(),
-                    swap_step.receive_asset.clone(),
-                    context,
-                )?;
-                swap_step.b0 = Some(latest_b0);
-                swap_step.b1 = Some(latest_b1);
-            }
-            StepMeta::Bridge(bridge_step) => {
-                bridge_step.amount = settle_balance.min(bridge_step.flow);
+        // We call claimAndBatchCall so that first step will be executed along with the claim operation
+        let first_step = &mut self.merged_steps[0];
+        first_step.set_spend(self.amount);
+        first_step.sync_origin_balance(context)?;
+        let params = (task_id, first_step.derive_calls(context)?);
+        pink_extension::info!("claimAndBatchCall params {:?}", &params);
 
-                // Update bridge asset the original balance of worker account
-                let latest_b0 = worker_account.get_balance(
-                    bridge_step.source_chain.clone(),
-                    bridge_step.from.clone(),
-                    context,
-                )?;
-                let latest_b1 = worker_account.get_balance(
-                    bridge_step.dest_chain.clone(),
-                    bridge_step.to.clone(),
-                    context,
-                )?;
-                bridge_step.b0 = Some(latest_b0);
-                bridge_step.b1 = Some(latest_b1);
-            }
-            StepMeta::Transfer(transfer_step) => {
-                transfer_step.amount = settle_balance.min(transfer_step.flow);
+        // Estiamte gas before submission
+        let gas = resolve_ready(handler.estimate_gas(
+            "claimAndBatchCall",
+            params.clone(),
+            worker.address(),
+            Options::default(),
+        ))
+        .log_err(&format!(
+            "claim_evm_actived_tasks: failed to estimate gas cost with params: {:?}",
+            &params
+        ))
+        .or(Err("GasEstimateFailed"))?;
 
-                // sender's balance
-                let latest_b0 = worker_account.get_balance(
-                    transfer_step.chain.clone(),
-                    transfer_step.asset.clone(),
-                    context,
-                )?;
-                // recipeint's balance
-                let latest_b1 = worker_account.get_balance(
-                    transfer_step.chain.clone(),
-                    transfer_step.asset.clone(),
-                    context,
-                )?;
-                transfer_step.b0 = Some(latest_b0);
-                transfer_step.b1 = Some(latest_b1);
-            }
-            _ => return Err("UnexpectedStep"),
-        }
-        Ok(())
+        // Submit the claim transaction
+        let tx_id = resolve_ready(handler.signed_call(
+            "claimAndBatchCall",
+            params,
+            Options::with(|opt| {
+                opt.gas = Some(gas);
+                opt.nonce = Some(nonce.into());
+            }),
+            worker,
+        ))
+        .log_err(&format!(
+            "claim_evm_actived_tasks: failed to submit tx with nonce: {:?}",
+            &nonce
+        ))
+        .or(Err("ClaimSubmitFailed"))?;
+
+        // Merge nonce to let check for first step work properly
+        first_step.set_nonce(self.claim_nonce.unwrap());
+
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on {:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone().as_bytes())
+        );
+        Ok(tx_id.as_bytes().to_vec())
+    }
+
+    fn claim_sub_actived_tasks(
+        &self,
+        chain: Chain,
+        task_id: TaskId,
+        context: &Context,
+        nonce: u64,
+    ) -> Result<Vec<u8>, &'static str> {
+        let signed_tx = create_transaction(
+            &context.signer,
+            "phala",
+            &chain.endpoint,
+            // Pallet id of `pallet-index`
+            *chain
+                .handler_contract
+                .first()
+                .ok_or("ClaimMissingPalletId")?,
+            // Call index of `claim_task`
+            0x03u8,
+            task_id,
+            ExtraParam {
+                tip: 0,
+                nonce: Some(nonce),
+                era: None,
+            },
+        )
+        .log_err("claim_sub_actived_tasks: failed to create signed transaction")
+        .or(Err("ClaimInvalidSignature"))?;
+        let tx_id = send_transaction(&chain.endpoint, &signed_tx)
+            .log_err("claim_sub_actived_tasks: failed to submit transaction to execute task claim")
+            .or(Err("ClaimSubmitFailed"))?;
+        pink_extension::info!(
+            "Submit transaction to claim task {:?} on ${:?}, tx id: {:?}",
+            hex::encode(task_id),
+            &chain.name,
+            hex::encode(tx_id.clone())
+        );
+        Ok(tx_id)
     }
 }
 
@@ -479,13 +600,202 @@ impl Task {
 mod tests {
     use super::*;
     use crate::account::AccountInfo;
-    use crate::chain::{Chain, ChainType};
+    use crate::chain::{BalanceFetcher, Chain, ChainType};
     use crate::registry::Registry;
-    use crate::steps::claimer::ActivedTaskFetcher;
+    use crate::step::StepJson;
+    use crate::task_fetcher::ActivedTaskFetcher;
+    use crate::utils::ToArray;
     use dotenv::dotenv;
     use hex_literal::hex;
-    use pink_extension::chain_extension::AccountId;
+    use pink_web3::contract::tokens::Tokenize;
     use primitive_types::H160;
+
+    #[test]
+    // Remove when `handler address is not hardcoded
+    #[ignore]
+    fn test_fetch_task_from_evm() {
+        dotenv().ok();
+
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_address: H160 = hex!("f60dB2d02af3f650798b59CB6D453b78f2C1BC90").into();
+        let task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Ethereum"),
+                chain_type: ChainType::Evm,
+                endpoint: String::from(
+                    "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+                ),
+                native_asset: vec![0],
+                foreign_asset: None,
+                handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+                tx_indexer_url: Default::default(),
+            },
+            worker: AccountInfo {
+                account20: worker_address.into(),
+                account32: [0; 32],
+            },
+        }
+        .fetch_task()
+        .unwrap()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+        assert_eq!(
+            task.steps[1].spend_amount.unwrap(),
+            100_000_000_000_000_000_000 as u128
+        );
+        assert_eq!(task.steps[2].spend_amount.unwrap(), 12_000_000);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_evm_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_key: [u8; 32] =
+            hex::decode("994efb9f9df9af03ad27553744a6492bfd8d1b22aa203769e75e200043110a48")
+                .unwrap()
+                .to_array();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        let goerli = Chain {
+            id: 0,
+            name: String::from("Goerli"),
+            chain_type: ChainType::Evm,
+            endpoint: String::from(
+                "https://eth-goerli.g.alchemy.com/v2/lLqSMX_1unN9Xrdy_BB9LLZRgbrXwZv2",
+            ),
+            native_asset: vec![0],
+            foreign_asset: None,
+            handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
+            tx_indexer_url: Default::default(),
+        };
+
+        let context = Context {
+            signer: mock_worker_key,
+            registry: &Registry {
+                chains: vec![goerli],
+            },
+            worker_accounts: vec![],
+        };
+        let mut task = Task::default();
+        task.id = hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+            .unwrap()
+            .to_array();
+        task.claim_nonce = Some(nonce);
+
+        // Send claim transaction
+        // https://goerli.etherscan.io/tx/0x7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa
+        assert_eq!(
+            task.claim(&context).unwrap(),
+            hex::decode("7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa")
+                .unwrap()
+        );
+
+        // Wait 60 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(60000));
+
+        assert_eq!(task.has_claimed(&context).unwrap(), true);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_fetch_task_from_sub() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // Worker public key
+        let worker_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // We already deposit task with scritps/sub-depopsit.js
+        let task = ActivedTaskFetcher {
+            chain: Chain {
+                id: 0,
+                name: String::from("Khala"),
+                chain_type: ChainType::Sub,
+                endpoint: String::from("http://127.0.0.1:30444"),
+                native_asset: vec![0],
+                foreign_asset: None,
+                handler_contract: hex!("00").into(),
+                tx_indexer_url: Default::default(),
+            },
+            worker: AccountInfo {
+                account20: [0; 20],
+                account32: worker_key,
+            },
+        }
+        .fetch_task()
+        .unwrap()
+        .unwrap();
+        assert_eq!(task.steps.len(), 3);
+        assert_eq!(task.steps[1].spend_amount.unwrap(), 301_000_000_000_000);
+        assert_eq!(
+            task.steps[2].spend_amount.unwrap(),
+            1_000_000_000_000_000_000 as u128
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn test_claim_task_from_sub_chain() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        // This key is just for test, never put real money in it.
+        let mock_worker_prv_key: [u8; 32] =
+            hex!("3a531c56b5441c165d2975d186d0c816c4e181da33e89e6ae751fceb77ea970b").into();
+        let mock_worker_pub_key: [u8; 32] =
+            hex!("2eaaf908adda6391e434ff959973019fb374af1076edd4fec55b5e6018b1a955").into();
+        // Current transaction count of the mock worker account
+        let nonce = 0;
+        // Encoded MultiLocation::here()
+        let pha: Vec<u8> = hex!("010100cd1f").into();
+        let khala = Chain {
+            id: 0,
+            name: String::from("Khala"),
+            chain_type: ChainType::Sub,
+            endpoint: String::from("http://127.0.0.1:30444"),
+            native_asset: pha.clone(),
+            foreign_asset: None,
+            handler_contract: hex!("79").into(),
+            tx_indexer_url: Default::default(),
+        };
+
+        let context = Context {
+            signer: mock_worker_prv_key,
+            registry: &Registry {
+                chains: vec![khala.clone()],
+            },
+            worker_accounts: vec![],
+        };
+        let mut task = Task::default();
+        task.id = hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+            .unwrap()
+            .to_array();
+        task.claim_nonce = Some(nonce);
+
+        // Send claim transaction, we already deposit task with scritps/sub-depopsit.js
+        assert_eq!(
+            task.claim(&context).unwrap(),
+            hex::decode("7a0a6ba48285ffb7c0d00e11ad684aa60b30ac6d4b2cce43c6a0fe3f75791caa")
+                .unwrap()
+        );
+
+        // Wait 60 seconds to let transaction confirmed
+        std::thread::sleep(std::time::Duration::from_millis(60000));
+
+        assert_eq!(task.has_claimed(&context).unwrap(), true);
+
+        // After claim, asset sent from pallet-index account to worker account
+        assert_eq!(
+            khala.get_balance(pha, mock_worker_pub_key.into()).unwrap() - 301_000_000_000_000u128
+                > 0,
+            true
+        );
+    }
 
     #[ink::test]
     fn test_get_evm_account_nonce() {
@@ -519,18 +829,7 @@ mod tests {
         dotenv().ok();
         pink_extension_runtime::mock_ext::mock_all_ext();
         // Secret key of test account `//Alice`
-        let sk_alice = hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
-        // Prepare executor account
-        let executor_key =
-            pink_web3::keys::pink::KeyPair::derive_keypair(b"executor").private_key();
-        let executor_pub: [u8; 32] = pink_extension::ext()
-            .get_public_key(
-                pink_extension::chain_extension::SigType::Sr25519,
-                &executor_key,
-            )
-            .try_into()
-            .unwrap();
-        let contract_id: AccountId = executor_pub.into();
+        let _sk_alice = hex!("e5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a");
 
         // Prepare worker accounts
         let mut worker_accounts: Vec<AccountInfo> = vec![];
@@ -579,7 +878,7 @@ mod tests {
         assert_eq!(task.steps.len(), 3);
 
         // Init task
-        assert_eq!(task.init_and_submit(
+        assert_eq!(task.init(
             &Context {
                 signer: [0; 32],
                 registry: &Registry {
@@ -611,6 +910,9 @@ mod tests {
             &client,
         ), Ok(()));
 
+        // Wait 3 seconds
+        std::thread::sleep(std::time::Duration::from_millis(3000));
+
         // Now let's query if the task is exist in rollup storage with another rollup client
         let another_client = StorageClient::new("another url".to_string(), "key".to_string());
         let onchain_task = another_client.read::<Task>(&task.id).unwrap().unwrap().0;
@@ -623,5 +925,708 @@ mod tests {
         assert_eq!(onchain_task.steps[0].nonce, Some(0));
         assert_eq!(onchain_task.steps[1].nonce, Some(1));
         assert_eq!(onchain_task.steps[2].nonce, Some(2));
+    }
+
+    fn build_steps() -> Vec<Step> {
+        vec![
+            // moonbeam_stellaswap
+            StepJson {
+                exe_type: String::from("swap"),
+                exe: String::from("moonbeam_stellaswap"),
+                source_chain: String::from("Moonbeam"),
+                dest_chain: String::from("Moonbeam"),
+                spend_asset: String::from("0xAcc15dC74880C9944775448304B263D191c6077F"),
+                receive_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
+            }
+            .try_into()
+            .unwrap(),
+            // moonbeam_stellaswap
+            StepJson {
+                exe_type: String::from("swap"),
+                exe: String::from("moonbeam_stellaswap"),
+                source_chain: String::from("Moonbeam"),
+                dest_chain: String::from("Moonbeam"),
+                spend_asset: String::from("0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080"),
+                receive_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
+            }
+            .try_into()
+            .unwrap(),
+            // moonbeam_bridge_to_phala
+            StepJson {
+                exe_type: String::from("bridge"),
+                exe: String::from("moonbeam_bridge_to_phala"),
+                source_chain: String::from("Moonbeam"),
+                dest_chain: String::from("Phala"),
+                spend_asset: String::from("0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED"),
+                receive_asset: String::from("0x0000"),
+            }
+            .try_into()
+            .unwrap(),
+            // phala_bridge_to_astar
+            StepJson {
+                exe_type: String::from("bridge"),
+                exe: String::from("phala_bridge_to_astar"),
+                source_chain: String::from("Phala"),
+                dest_chain: String::from("Astar"),
+                spend_asset: String::from("0x0000"),
+                receive_asset: String::from("0x010100cd1f"),
+            }
+            .try_into()
+            .unwrap(),
+            // astar_bridge_to_astar_evm
+            StepJson {
+                exe_type: String::from("bridge"),
+                exe: String::from("astar_bridge_to_astarevm"),
+                source_chain: String::from("Astar"),
+                dest_chain: String::from("AstarEvm"),
+                spend_asset: String::from("0x010100cd1f"),
+                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
+            }
+            .try_into()
+            .unwrap(),
+            // astar_arthswap
+            StepJson {
+                exe_type: String::from("swap"),
+                exe: String::from("astar_evm_arthswap"),
+                source_chain: String::from("AstarEvm"),
+                dest_chain: String::from("AstarEvm"),
+                spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000006"),
+                receive_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
+            }
+            .try_into()
+            .unwrap(),
+            // astar_arthswap
+            StepJson {
+                exe_type: String::from("swap"),
+                exe: String::from("astar_evm_arthswap"),
+                source_chain: String::from("AstarEvm"),
+                dest_chain: String::from("AstarEvm"),
+                spend_asset: String::from("0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF"),
+                receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+            }
+            .try_into()
+            .unwrap(),
+        ]
+    }
+
+    #[test]
+    fn test_apply_recipient() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_key = [0x11; 32];
+        let steps = build_steps();
+        let mut task = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps,
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+        let context = Context {
+            signer: worker_key,
+            worker_accounts: vec![AccountInfo::from(worker_key)],
+            registry: &Registry::new(),
+        };
+
+        task.apply_recipient(&context).unwrap();
+
+        // moonbeam_stellaswap
+        assert_eq!(
+            task.steps[0].recipient,
+            Some(
+                context
+                    .registry
+                    .get_chain(&String::from("Moonbeam"))
+                    .unwrap()
+                    .handler_contract
+            )
+        );
+        // moonbeam_stellaswap
+        assert_eq!(
+            task.steps[1].recipient,
+            Some(
+                context
+                    .registry
+                    .get_chain(&String::from("Moonbeam"))
+                    .unwrap()
+                    .handler_contract
+            )
+        );
+        // moonbeam_bridge_to_phala
+        assert_eq!(
+            task.steps[2].recipient,
+            Some(AccountInfo::from(worker_key).account32.to_vec())
+        );
+        // phala_bridge_to_astar
+        assert_eq!(
+            task.steps[3].recipient,
+            Some(AccountInfo::from(worker_key).account32.to_vec())
+        );
+        // astar_bridge_to_astar_evm
+        assert_eq!(
+            task.steps[4].recipient,
+            Some(
+                context
+                    .registry
+                    .get_chain(&String::from("AstarEvm"))
+                    .unwrap()
+                    .handler_contract
+            )
+        );
+        // astar_arthswap
+        assert_eq!(
+            task.steps[5].recipient,
+            Some(
+                context
+                    .registry
+                    .get_chain(&String::from("AstarEvm"))
+                    .unwrap()
+                    .handler_contract
+            )
+        );
+        // astar_arthswap
+        assert_eq!(task.steps[6].recipient, Some(task.recipient));
+    }
+
+    #[test]
+    fn test_merge_step() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_key = [0x11; 32];
+        let steps = build_steps();
+        let mut task = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+        let context = Context {
+            signer: worker_key,
+            worker_accounts: vec![AccountInfo::from(worker_key)],
+            registry: &Registry::new(),
+        };
+
+        task.apply_recipient(&context).unwrap();
+        task.merge_step(&context).unwrap();
+
+        assert_eq!(task.merged_steps.len(), 4);
+        assert!(task.merged_steps[0].is_batch_step());
+        match &task.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[1].is_single_step());
+        match &task.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[2].is_single_step());
+        match &task.merged_steps[2] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Astar");
+                assert_eq!(step.dest_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+        assert!(task.merged_steps[3].is_batch_step());
+        match &task.merged_steps[3] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task1 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone().as_slice()[3..].to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+
+        task1.apply_recipient(&context).unwrap();
+        task1.merge_step(&context).unwrap();
+        assert_eq!(task1.merged_steps.len(), 3);
+        assert!(task1.merged_steps[0].is_single_step());
+        match &task1.merged_steps[0] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+        assert!(task1.merged_steps[1].is_single_step());
+        match &task1.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Astar");
+                assert_eq!(step.dest_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+        assert!(task1.merged_steps[2].is_batch_step());
+        match &task1.merged_steps[2] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task2 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: steps.clone().as_slice()[..4].to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+
+        task2.apply_recipient(&context).unwrap();
+        task2.merge_step(&context).unwrap();
+
+        assert_eq!(task2.merged_steps.len(), 2);
+        assert!(task2.merged_steps[0].is_batch_step());
+        match &task2.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task2.merged_steps[1].is_single_step());
+        match &task2.merged_steps[1] {
+            MultiStep::Single(step) => {
+                assert_eq!(step.source_chain, "Phala");
+                assert_eq!(step.dest_chain, "Astar");
+            }
+            _ => assert!(false),
+        };
+
+        let mut task3 = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0,
+            claim_nonce: None,
+            steps: [
+                &steps.clone().as_slice()[..3],
+                &steps.clone().as_slice()[5..],
+            ]
+            .concat()
+            .to_vec(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+
+        task3.apply_recipient(&context).unwrap();
+        task3.merge_step(&context).unwrap();
+
+        assert_eq!(task3.merged_steps.len(), 2);
+        assert!(task3.merged_steps[0].is_batch_step());
+        match &task3.merged_steps[0] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 3);
+                assert_eq!(batch_steps[0].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[1].source_chain, "Moonbeam");
+                assert_eq!(batch_steps[2].dest_chain, "Phala");
+            }
+            _ => assert!(false),
+        };
+        assert!(task3.merged_steps[1].is_batch_step());
+        match &task3.merged_steps[1] {
+            MultiStep::Batch(batch_steps) => {
+                assert_eq!(batch_steps.len(), 2);
+                assert_eq!(batch_steps[0].source_chain, "AstarEvm");
+                assert_eq!(batch_steps[1].source_chain, "AstarEvm");
+            }
+            _ => assert!(false),
+        };
+    }
+
+    #[test]
+    fn test_calldata_generation() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let worker_key = [0x11; 32];
+        let steps = build_steps();
+        let mut task = Task {
+            id: [1; 32],
+            worker: AccountInfo::from(worker_key).account32,
+            status: TaskStatus::Actived,
+            source: "Moonbeam".to_string(),
+            amount: 0xf0f1f2f3f4f5f6f7f8f9,
+            claim_nonce: None,
+            steps: steps.clone(),
+            merged_steps: vec![],
+            execute_index: 0,
+            sender: vec![],
+            recipient: hex::decode("A29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20").unwrap(),
+            retry_counter: 0,
+        };
+        let context = Context {
+            signer: worker_key,
+            worker_accounts: vec![AccountInfo::from(worker_key)],
+            registry: &Registry::new(),
+        };
+
+        task.apply_recipient(&context).unwrap();
+        task.merge_step(&context).unwrap();
+
+        let mut calls = vec![];
+
+        for step in task.merged_steps.iter_mut() {
+            // Simulate settlement balance update
+            step.set_spend(0xf0f1f2f3f4f5f6f7f8f9);
+            calls.append(&mut step.derive_calls(&context).unwrap());
+        }
+        assert_eq!(calls.len(), 2 * 3 + 1 + 1 + 2 * 2);
+
+        // Origin Step means Steps before merge
+
+        // ========== First Merged Step =============
+        // calls[0] and calls[1] build according to origin Step 0,
+        // and origin Step 0 don't relay any previous steps happened
+        // on the same chain
+        assert_eq!(calls[0].input_call, Some(0));
+        assert_eq!(calls[1].input_call, Some(0));
+        // calls[2] and calls[3] build according to origin Step 1,
+        // and origin Step 1 relay Step 0 as input, so take last call
+        // of Step 0 as input call
+        assert_eq!(calls[2].input_call, Some(1));
+        assert_eq!(calls[3].input_call, Some(1));
+        // calls[4] and calls[5] build according to origin Step 2,
+        // and origin Step 2 relay Step 1 as input, so take last call
+        // of Step 1 as input call
+        assert_eq!(calls[4].input_call, Some(3));
+        assert_eq!(calls[5].input_call, Some(3));
+
+        // ========== Second Merged Step =============
+        // calls[0] and calls[1] build according to origin Step 5,
+        // and origin Step 5 don't relay any previous steps heppened
+        // on the same chain
+        assert_eq!(calls[0].input_call, Some(0));
+        assert_eq!(calls[1].input_call, Some(0));
+        // calls[2] and calls[3] build according to origin Step 6,
+        // and origin Step 6 relay Step 5 as input, so take last call
+        // of Step 5 as input call
+        assert_eq!(calls[2].input_call, Some(1));
+        assert_eq!(calls[3].input_call, Some(1));
+    }
+
+    #[test]
+    fn test_calldata() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        use crate::call::{Call, CallParams, EvmCall};
+        use pink_web3::types::{Address, U256};
+
+        let handler: H160 =
+            H160::from_slice(&hex::decode("B30A27eE79514614dc363CE0aABb0B939b9deAeD").unwrap());
+        let transport = Eth::new(PinkHttp::new("https://rpc.api.moonbeam.network"));
+        let handler =
+            Contract::from_json(transport, handler, crate::constants::HANDLER_ABI).unwrap();
+        let task_id: [u8; 32] =
+            hex::decode("1125000000000000000000000000000000000000000000000000000000000000")
+                .unwrap()
+                .to_array();
+        // We call claimAndBatchCall so that first step will be executed along with the claim operation
+
+        let params = (
+            task_id,
+            vec![
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 112, 8, 90, 9,
+                            211, 13, 111, 140, 78, 207, 110, 225, 1, 32, 209, 132, 115, 131, 187,
+                            87, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 13, 224, 182, 179, 167, 100, 0, 0,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: false,
+                        update_offset: U256::from(36),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(1000000000000000000_u128),
+                        receive_asset: Address::from_slice(
+                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(0),
+                    call_index: Some(0),
+                },
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("70085a09d30d6f8c4ecf6ee10120d1847383bb57")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            56, 237, 23, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 13, 224, 182, 179, 167, 100, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99,
+                            94, 168, 104, 4, 32, 15, 128, 193, 110, 168, 237, 220, 60, 116, 154,
+                            84, 169, 195, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 14, 240, 187, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 172, 193, 93, 199, 72, 128,
+                            201, 148, 71, 117, 68, 131, 4, 178, 99, 209, 145, 198, 7, 127, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 31, 202, 203, 210, 24,
+                            237, 192, 235, 162, 15, 194, 48, 140, 119, 128, 128,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: true,
+                        update_offset: U256::from(4),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("acc15dc74880c9944775448304b263d191c6077f")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(1000000000000000000_u128),
+                        receive_asset: Address::from_slice(
+                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(0),
+                    call_index: Some(1),
+                },
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 112, 8, 90, 9,
+                            211, 13, 111, 140, 78, 207, 110, 225, 1, 32, 209, 132, 115, 131, 187,
+                            87, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: false,
+                        update_offset: U256::from(36),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(0),
+                        receive_asset: Address::from_slice(
+                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(1),
+                    call_index: Some(2),
+                },
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("70085a09d30d6f8c4ecf6ee10120d1847383bb57")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            56, 237, 23, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 94, 168,
+                            104, 4, 32, 15, 128, 193, 110, 168, 237, 220, 60, 116, 154, 84, 169,
+                            195, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 101, 14, 240, 189, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 31, 202, 203, 210,
+                            24, 237, 192, 235, 162, 15, 194, 48, 140, 119, 128, 128, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 99, 210, 78, 204, 142, 184,
+                            167, 181, 208, 128, 62, 144, 15, 123, 108, 237,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: true,
+                        update_offset: U256::from(4),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("ffffffff1fcacbd218edc0eba20fc2308c778080")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(0),
+                        receive_asset: Address::from_slice(
+                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(1),
+                    call_index: Some(3),
+                },
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            9, 94, 167, 179, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: false,
+                        update_offset: U256::from(36),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(0),
+                        receive_asset: Address::from_slice(
+                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(3),
+                    call_index: Some(4),
+                },
+                Call {
+                    params: CallParams::Evm(EvmCall {
+                        target: Address::from_slice(
+                            hex::decode("0000000000000000000000000000000000000804")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        calldata: vec![
+                            185, 248, 19, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255,
+                            255, 99, 210, 78, 204, 142, 184, 167, 181, 208, 128, 62, 144, 15, 123,
+                            108, 237, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            1, 101, 160, 188, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 7, 243, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 34, 1, 4, 219, 160, 103, 127, 194, 116, 255, 172, 204, 15, 161,
+                            3, 10, 102, 177, 113, 209, 218, 146, 38, 210, 187, 157, 21, 38, 84,
+                            230, 167, 70, 242, 118, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        ],
+                        value: U256::from(0),
+
+                        need_settle: false,
+                        update_offset: U256::from(36),
+                        update_len: U256::from(32),
+                        spend_asset: Address::from_slice(
+                            hex::decode("ffffffff63d24ecc8eb8a7b5d0803e900f7b6ced")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                        spend_amount: U256::from(0),
+                        receive_asset: Address::from_slice(
+                            hex::decode("0000000000000000000000000000000000000000")
+                                .unwrap()
+                                .as_slice(),
+                        ),
+                    }),
+                    input_call: Some(3),
+                    call_index: Some(5),
+                },
+            ],
+        );
+
+        let claim_func = handler
+            .abi()
+            .function("claimAndBatchCall")
+            .map_err(|_| "NoFunctionFound")
+            .unwrap();
+        let calldata = claim_func
+            .encode_input(&params.into_tokens())
+            .map_err(|_| "EncodeParamError")
+            .unwrap();
+        println!("claim calldata: {:?}", hex::encode(calldata));
     }
 }

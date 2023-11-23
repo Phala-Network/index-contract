@@ -1,8 +1,10 @@
-use alloc::{string::String, vec, vec::Vec};
-use index::account::{
+use crate::actions::base::account::{
     AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData,
 };
-use index::assets::*;
+use crate::assets::get_assetid_by_location;
+
+use alloc::{string::String, vec, vec::Vec};
+
 use pink_extension::ResultExt;
 use pink_subrpc::{
     get_next_nonce, get_ss58addr_version, get_storage,
@@ -17,8 +19,7 @@ use pink_web3::{
     types::{Address, U256},
     Web3,
 };
-use scale::Encode;
-use xcm::v1::MultiLocation;
+use xcm::v3::MultiLocation;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -59,6 +60,14 @@ impl Chain {
             }
             ChainType::Sub => asset == &self.native_asset,
         }
+    }
+
+    pub fn is_evm_chain(&self) -> bool {
+        self.chain_type == ChainType::Evm
+    }
+
+    pub fn is_sub_chain(&self) -> bool {
+        self.chain_type == ChainType::Sub
     }
 }
 
@@ -111,8 +120,8 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     let web3 = Web3::new(transport);
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
-                        .log_err("Fetch data [evm native balance] failed")
-                        .map_err(|_| "FetchDataFailed")?;
+                        .log_err("chain::get_balance: fetch data [evm native balance] failed")
+                        .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 } else {
                     let eth = Eth::new(transport);
@@ -129,8 +138,8 @@ impl BalanceFetcher for Chain {
                         Options::default(),
                         None,
                     ))
-                    .log_err("Fetch data [evm erc20 balance] failed")
-                    .map_err(|_| "FetchDataFailed")?;
+                    .log_err("chain::get_balance: fetch data [evm erc20 balance] failed")
+                    .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 }
             }
@@ -145,13 +154,13 @@ impl BalanceFetcher for Chain {
                         ),
                         None,
                     )
-                    .log_err("Read storage [sub native balance] failed")
-                    .map_err(|_| "FetchDataFailed")?
+                    .log_err("chain::get_balance, read storage [sub native balance] failed")
+                    .or(Err("FetchDataFailed"))?
                     {
                         let account_info: AccountInfo<Index, AccountData<Balance>> =
                             scale::Decode::decode(&mut raw_storage.as_slice())
-                                .log_err("Decode storage [sub native balance] failed")
-                                .map_err(|_| "DecodeStorageFailed")?;
+                                .log_err("chain::get_balance, decode storage [sub native balance] failed")
+                                .or(Err("DecodeStorageFailed"))?;
                         Ok(account_info.data.free)
                     } else {
                         Ok(0u128)
@@ -162,54 +171,57 @@ impl BalanceFetcher for Chain {
                             .map_err(|_| "InvalidMultilocation")?;
                     match self.foreign_asset {
                         Some(ForeignAssetModule::PalletAsset) => {
-                            let asset_id = Location2Assetid::new()
-                                .get_assetid(self.name.clone(), &asset_location)
-                                .ok_or("AssetNotRecognized")?;
+                            let asset_id = get_assetid_by_location(&self.name, &asset_location);
+                            if asset_id.is_empty() {
+                                return Err("AssetNotRecognized");
+                            }
+
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
                                     &storage_prefix("Assets", "Account")[..],
-                                    &asset_id.to_le_bytes(),
+                                    &asset_id,
                                     &public_key,
                                 ),
                                 None,
                             )
                             .log_err(
-                                "Read storage [sub foreign asset balance] from pallet-asset failed",
+                                "chain::get_balance: read storage [sub foreign asset balance] from pallet-asset failed",
                             )
-                            .map_err(|_| "FetchDataFailed")?
+                            .or(Err("FetchDataFailed"))?
                             {
                                 let account_info: AssetAccount<Balance, Balance, ()> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
-                                    .log_err("Decode storage [sub foreign asset balance] from pallet-asset failed")
-                                        .map_err(|_| "DecodeStorageFailed")?;
+                                    .log_err("chain::get_balance: decode storage [sub foreign asset balance] from pallet-asset failed")
+                                        .or(Err("DecodeStorageFailed"))?;
                                 Ok(account_info.balance)
                             } else {
                                 Ok(0u128)
                             }
                         }
                         Some(ForeignAssetModule::OrmlToken) => {
-                            let attrs = AcalaAssetMap::get_asset_attrs(&asset_location)
-                                .ok_or("AssetNotRecognized")?;
-                            let currency_id = CurrencyId::Token(attrs.0);
+                            let currency_id = get_assetid_by_location(&self.name, &asset_location);
+                            if currency_id.is_empty() {
+                                return Err("AssetNotRecognized");
+                            }
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Twox64Concat>(
                                     &storage_prefix("Tokens", "Accounts")[..],
                                     &public_key,
-                                    &currency_id.encode(),
+                                    &currency_id,
                                 ),
                                 None,
                             )
                             .log_err(
-                                "Read storage [sub foreign asset balance] from orml-token failed",
+                                "chain::get_balance: read storage [sub foreign asset balance] from orml-token failed",
                             )
-                            .map_err(|_| "FetchDataFailed")?
+                            .or(Err("FetchDataFailed"))?
                             {
                                 let account_info: OrmlTokenAccountData<Balance> =
                                     scale::Decode::decode(&mut raw_storage.as_slice())
-                                    .log_err("Decode storage [sub foreign asset balance] from orml-token failed")
-                                        .map_err(|_| "DecodeStorageFailed")?;
+                                    .log_err("chain::get_balance: decode storage [sub foreign asset balance] from orml-token failed")
+                                        .or(Err("DecodeStorageFailed"))?;
                                 Ok(account_info.free)
                             } else {
                                 Ok(0u128)
@@ -229,8 +241,7 @@ mod tests {
     use dotenv::dotenv;
     use hex_literal::hex;
     use scale::Encode;
-    use sp_runtime::{traits::ConstU32, WeakBoundedVec};
-    use xcm::v1::{prelude::*, MultiLocation};
+    use xcm::v3::{prelude::*, MultiLocation};
 
     #[test]
     fn test_get_evm_account_nonce() {
@@ -346,10 +357,7 @@ mod tests {
                 1,
                 X2(
                     Parachain(2000),
-                    GeneralKey(WeakBoundedVec::<u8, ConstU32<32>>::force_from(
-                        vec![0x00, 0x80],
-                        None,
-                    )),
+                    crate::utils::slice_to_generalkey(&vec![0x00, 0x80]),
                 ),
             )
             .encode(),
