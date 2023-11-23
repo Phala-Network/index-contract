@@ -1,4 +1,5 @@
 use super::account::AccountInfo;
+use crate::actions::ActionExtraInfo;
 use crate::{call::CallBuilder, registry::Registry};
 use alloc::{boxed::Box, string::String, vec::Vec};
 
@@ -23,5 +24,9 @@ impl<'a> Context<'a> {
             .iter()
             .position(|e| e.0.to_lowercase() == exe.to_lowercase())
             .map(|idx| dyn_clone::clone_box(&*actions[idx].1))
+    }
+
+    pub fn get_action_extra_info(&self, chain: &str, action: &str) -> Option<ActionExtraInfo> {
+        self.registry.get_action_extra_info(chain, action)
     }
 }

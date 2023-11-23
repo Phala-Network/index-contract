@@ -1,3 +1,4 @@
+use crate::actions::ActionExtraInfo;
 use crate::chain::{BalanceFetcher, Chain, ChainType};
 use crate::utils::ToArray;
 use alloc::vec;
@@ -170,12 +171,18 @@ pub enum MultiStep {
 }
 
 impl MultiStep {
-    pub fn derive_calls(&mut self, context: &Context) -> Result<Vec<Call>, &'static str> {
+    pub fn derive_calls(&self, context: &Context) -> Result<Vec<Call>, &'static str> {
         if self.as_single_step().spend_amount.is_none() {
             return Err("MissingSpendAmount");
         }
         let calls = match self {
-            MultiStep::Single(step) => step.derive_calls(context)?,
+            MultiStep::Single(step) => {
+                let mut calls = step.derive_calls(context)?;
+                assert!(calls.len() == 1);
+                calls[0].call_index = Some(0);
+                calls[0].input_call = Some(0);
+                calls
+            }
             MultiStep::Batch(batch_steps) => {
                 if batch_steps.is_empty() {
                     return Err("BatchStepEmpty");
@@ -363,7 +370,7 @@ impl Runner for MultiStep {
                     pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
                     "FailedToEstimateGas"
                 })?;
-                pink_extension::debug!("Estimated step gas error: {:?}", gas);
+                pink_extension::debug!("Estimated step gas: {:?}", gas);
 
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(
@@ -467,6 +474,133 @@ impl Runner for MultiStep {
             return Ok(true);
         }
         Ok(false)
+    }
+}
+
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct StepSimulateResult {
+    pub action_extra_info: ActionExtraInfo,
+    // Estimate gas cost for the step on EVM chain
+    pub gas_limit: Option<U256>,
+    // Current suggest gas price on EVM chains
+    pub gas_price: Option<U256>,
+    // Native asset price in USD
+    // the  USD amount is the value / 10000
+    pub native_price_in_usd: u32,
+    // tx fee will be paied in USD, calculated based on `gas_cost` and `gas_limit`
+    // the USD amount is the value / 10000
+    // potentially use Fixed crates here
+    pub tx_fee_in_usd: u32,
+}
+
+pub trait Simulate {
+    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str>;
+}
+
+impl Simulate for MultiStep {
+    #[allow(unused_variables)]
+    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str> {
+        let action_extra_info = match self {
+            MultiStep::Single(step) => context
+                .get_action_extra_info(&step.source_chain, &step.exe)
+                .ok_or("NoActionFound")?,
+            MultiStep::Batch(batch_steps) => {
+                let mut extra_info = ActionExtraInfo::default();
+                for step in batch_steps.iter() {
+                    let single_extra_step = context
+                        .get_action_extra_info(&step.source_chain, &step.exe)
+                        .ok_or("NoActionFound")?;
+                    extra_info.extra_proto_fee_in_usd += single_extra_step.extra_proto_fee_in_usd;
+                    extra_info.const_proto_fee_in_usd += single_extra_step.const_proto_fee_in_usd;
+                    extra_info.percentage_proto_fee =
+                        extra_info.percentage_proto_fee + single_extra_step.percentage_proto_fee;
+                    // Batch txs will happen within same block, so we don't need to accumulate it
+                    extra_info.confirm_time_in_sec = single_extra_step.confirm_time_in_sec;
+                }
+                extra_info
+            }
+        };
+
+        // A minimal amount
+        self.set_spend(1_000_000_000);
+        let calls = self.derive_calls(context)?;
+
+        let as_single_step = self.as_single_step();
+        let chain = as_single_step
+            .source_chain(context)
+            .ok_or("MissingSourceChain")?;
+        let worker_account = AccountInfo::from(context.signer);
+
+        pink_extension::debug!("Start to simulate step with calls: {:?}", &calls);
+        let (gas_limit, gas_price, native_price_in_usd, tx_fee_in_usd) = match chain.chain_type {
+            ChainType::Evm => {
+                let eth = Eth::new(PinkHttp::new(chain.endpoint));
+                let handler = Contract::from_json(
+                    eth.clone(),
+                    chain.handler_contract.to_array().into(),
+                    include_bytes!("./abi/handler.json"),
+                )
+                .expect("Bad abi data");
+                let options = if as_single_step.spend_asset == chain.native_asset {
+                    Options::with(|opt| {
+                        opt.value = Some(U256::from(as_single_step.spend_amount.unwrap()))
+                    })
+                } else {
+                    Options::default()
+                };
+
+                // Estiamte gas before submission
+                let gas = resolve_ready(handler.estimate_gas(
+                    "batchCall",
+                    calls,
+                    worker_account.account20.into(),
+                    options,
+                ))
+                .map_err(|e| {
+                    pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
+                    "FailedToEstimateGas"
+                })?;
+
+                let gas_price = resolve_ready(eth.gas_price()).or(Err("FailedToGetGasPrice"))?;
+                let native_asset_price = crate::price::get_price(&chain.name, &chain.native_asset)
+                    .ok_or("MissingPriceData")?;
+                (
+                    Some(gas),
+                    Some(gas_price),
+                    native_asset_price,
+                    // The usd value is the return amount / 10000
+                    // TODO: here we presume the decimals of all EVM native asset is 18, but we should get it from asset info
+                    ((gas * gas_price * native_asset_price) / 10u128.pow(18))
+                        .try_into()
+                        .expect("Tx fee overflow"),
+                )
+            }
+            ChainType::Sub => match calls[0].params.clone() {
+                CallParams::Sub(SubCall { calldata }) => {
+                    let native_asset_price =
+                        crate::price::get_price(&chain.name, &chain.native_asset)
+                            .ok_or("MissingPriceData")?;
+                    (
+                        None,
+                        None,
+                        native_asset_price,
+                        // TODO: estimate tx_fee according to calldata size
+                        // 0.001 USD
+                        100,
+                    )
+                }
+                _ => return Err("UnexpectedCallType"),
+            },
+        };
+
+        Ok(StepSimulateResult {
+            action_extra_info,
+            gas_limit,
+            gas_price,
+            native_price_in_usd,
+            tx_fee_in_usd,
+        })
     }
 }
 

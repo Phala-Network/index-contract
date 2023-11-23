@@ -175,7 +175,7 @@ mod tests {
         pink_extension_runtime::mock_ext::mock_all_ext();
         let client: StorageClient = StorageClient::new("url".to_string(), "key".to_string());
         let worker_address: H160 = hex!("bf526928373748b00763875448ee905367d97f96").into();
-        let task = ActivedTaskFetcher {
+        let _task = ActivedTaskFetcher {
             chain: Chain {
                 id: 0,
                 name: String::from("Moonbeam"),

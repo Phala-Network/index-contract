@@ -1,4 +1,5 @@
 //#[allow(clippy::large_enum_variant)]
+use crate::actions::ActionExtraInfo;
 use crate::{
     call::CallBuilder,
     chain::{Chain, ChainType, ForeignAssetModule},
@@ -141,6 +142,18 @@ impl Registry {
             "Phala" | "Khala" => crate::actions::phala::create_actions(&chain),
             "Polkadot" => crate::actions::polkadot::create_actions(&chain),
             _ => vec![],
+        }
+    }
+
+    pub fn get_action_extra_info(&self, chain: &str, action: &str) -> Option<ActionExtraInfo> {
+        match chain {
+            "Acala" => crate::actions::acala::get_extra_info(chain, action),
+            "AstarEvm" => crate::actions::astar::get_extra_info(chain, action),
+            "Astar" => crate::actions::astar::get_extra_info(chain, action),
+            "Ethereum" => crate::actions::ethereum::get_extra_info(chain, action),
+            "Moonbeam" => crate::actions::moonbeam::get_extra_info(chain, action),
+            "Phala" | "Khala" => crate::actions::phala::get_extra_info(chain, action),
+            _ => None,
         }
     }
 }

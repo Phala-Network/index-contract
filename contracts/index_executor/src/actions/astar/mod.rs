@@ -3,12 +3,15 @@ mod sub;
 mod xtokens;
 
 use crate::actions::base::{native_wrapper, uniswapv2};
+use crate::actions::ActionExtraInfo;
+use sp_runtime::Permill;
 
 pub type AstarArthSwap = uniswapv2::UniswapV2;
 pub type AstarNativeWrapper = native_wrapper::NativeWrapper;
 
 use crate::call::CallBuilder;
 use crate::chain::Chain;
+use crate::constants::PARACHAIN_BLOCK_TIME;
 use crate::constants::PHALA_PARACHAIN_ID;
 use crate::utils::ToArray;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
@@ -56,4 +59,48 @@ pub fn sub_create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> 
             Box::new(xtokens::AstarXtokens::new(PHALA_PARACHAIN_ID)),
         ),
     ]
+}
+
+#[allow(clippy::if_same_then_else)]
+pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
+    assert!(chain == "Astar" || chain == "AstarEvm");
+    if action == "astar_evm_nativewrapper" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "astar_evm_arthswap" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::from_perthousand(3),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "astar_transactor" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "astar_bridge_to_astarevm" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "astar_bridge_to_phala" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            // 0.0005 USD
+            const_proto_fee_in_usd: 5,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
+        })
+    } else {
+        None
+    }
 }

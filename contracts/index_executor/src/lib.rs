@@ -10,6 +10,7 @@ mod chain;
 mod constants;
 mod context;
 mod gov;
+mod price;
 mod registry;
 mod step;
 mod storage;
@@ -28,6 +29,7 @@ mod index_executor {
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
+    use crate::step::{MultiStep, Simulate as StepSimulate, StepSimulateResult};
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
     use crate::task_deposit::Solution;
@@ -57,9 +59,12 @@ mod index_executor {
         FailedToDestoryTask,
         FailedToUploadTask,
         FailedToUploadSolution,
+        FailedToDecodeSolution,
+        InvalidSolutionData,
         SolutionAlreadyExist,
         FailedToReApplyNonce,
         FailedToReRunTask,
+        FailedToSimulateSolution,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
@@ -300,6 +305,38 @@ mod index_executor {
                 .or(Err(Error::FailedToUploadSolution))?;
 
             Ok(())
+        }
+
+        #[ink(message)]
+        pub fn simulate_solution(
+            &self,
+            worker: [u8; 32],
+            solution: Vec<u8>,
+        ) -> Result<Vec<StepSimulateResult>> {
+            let solution: Solution =
+                Decode::decode(&mut solution.as_slice()).or(Err(Error::FailedToDecodeSolution))?;
+
+            let signer: [u8; 32] = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
+            let mut simulate_results: Vec<StepSimulateResult> = vec![];
+            for multi_step_input in solution.iter() {
+                let mut multi_step: MultiStep = multi_step_input
+                    .clone()
+                    .try_into()
+                    .or(Err(Error::InvalidSolutionData))?;
+                let step_simulate_result = multi_step
+                    .simulate(&Context {
+                        signer,
+                        registry: &self.registry,
+                        worker_accounts: self.worker_accounts.clone(),
+                    })
+                    .map_err(|err| {
+                        pink_extension::error!("Solution simulation failed with error: {}", err);
+                        Error::FailedToSimulateSolution
+                    })?;
+                simulate_results.push(step_simulate_result);
+            }
+
+            Ok(simulate_results)
         }
 
         #[ink(message)]
@@ -592,8 +629,10 @@ mod index_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::step::{MultiStepInput, StepInput};
         // use dotenv::dotenv;
         // use pink_extension::PinkEnvironment;
+        use crate::utils::ToArray;
         use xcm::v3::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
@@ -628,6 +667,97 @@ mod index_executor {
                     .encode()
                 )
             )
+        }
+
+        #[ink::test]
+        #[ignore]
+        fn simulate_solution_should_work() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+            let secret_key = secret_key.unwrap().1;
+            let secret_bytes = hex::decode(secret_key).unwrap();
+            let worker_key: [u8; 32] = secret_bytes.to_array();
+            let mut executor = deploy_executor();
+            assert_eq!(executor.import_worker_keys(vec![worker_key]), Ok(()));
+            assert_eq!(
+                executor.config_engine("url".to_string(), "key".to_string(), [0; 32].into(), false),
+                Ok(())
+            );
+            assert_eq!(executor.resume_executor(), Ok(()));
+
+            let solution1: Vec<MultiStepInput> = vec![
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: "ethereum_nativewrapper".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0x0000000000000000000000000000000000000000".to_string(),
+                        // WETH
+                        receive_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_uniswapv2".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        // PHA
+                        receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_sygmabridge_to_phala".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Phala".to_string(),
+                        spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        // PHA
+                        receive_asset: "0x0000".to_string(),
+                        recipient:
+                            "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                                .to_string(),
+                    },
+                ]),
+                MultiStepInput::Single(StepInput {
+                    exe: "phala_bridge_to_astar".to_string(),
+                    source_chain: "Phala".to_string(),
+                    dest_chain: "Astar".to_string(),
+                    spend_asset: "0x0000".to_string(),
+                    // PHA
+                    receive_asset: "0x010100cd1f".to_string(),
+                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                        .to_string(),
+                }),
+            ];
+
+            let result1 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution1.encode())
+                .unwrap();
+            println!("simulation result1: {:?}", result1);
+
+            let solution2: Vec<MultiStepInput> = vec![
+                MultiStepInput::Single(StepInput {
+                    exe: "khala_bridge_to_ethereum".to_string(),
+                    source_chain: "Khala".to_string(),
+                    dest_chain: "Ethereum".to_string(),
+                    spend_asset: "0x0000".to_string(),
+                    receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                    recipient: "0x5cddb3ad187065e0122f3f46d13ad6ca486e4644".to_string(),
+                }),
+                MultiStepInput::Single(StepInput {
+                    exe: "ethereum_sygmabridge_to_phala".to_string(),
+                    source_chain: "Ethereum".to_string(),
+                    dest_chain: "Phala".to_string(),
+                    spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                    // PHA
+                    receive_asset: "0x0000".to_string(),
+                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                        .to_string(),
+                }),
+            ];
+            let result2 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution2.encode())
+                .unwrap();
+            println!("simulation result2: {:?}", result2);
         }
     }
 }

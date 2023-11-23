@@ -2,12 +2,15 @@ use crate::actions::base::{native_wrapper, uniswapv2, uniswapv3};
 pub mod sygma;
 
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use sp_runtime::Permill;
 pub type EthereumUniswapV2 = uniswapv2::UniswapV2;
 pub type EthereumUniswapV3 = uniswapv3::UniswapV3;
 pub type EthereumNativeWrapper = native_wrapper::NativeWrapper;
 
+use crate::actions::ActionExtraInfo;
 use crate::call::CallBuilder;
 use crate::chain::Chain;
+use crate::constants::{ETHEREUM_BLOCK_TIME, PARACHAIN_BLOCK_TIME};
 use crate::utils::ToArray;
 use core::str::FromStr;
 use pink_web3::ethabi::Address;
@@ -74,4 +77,51 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             )),
         ),
     ]
+}
+
+#[allow(clippy::if_same_then_else)]
+pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
+    assert!(chain == "Ethereum");
+    if action == "ethereum_nativewrapper" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: ETHEREUM_BLOCK_TIME,
+        })
+    } else if action == "ethereum_uniswapv2" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::from_perthousand(3),
+            confirm_time_in_sec: ETHEREUM_BLOCK_TIME,
+        })
+    } else if action == "ethereum_uniswapv3" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: ETHEREUM_BLOCK_TIME,
+        })
+    } else if action == "ethereum_sygmabridge_to_phala" {
+        Some(ActionExtraInfo {
+            // 0.2 USD
+            extra_proto_fee_in_usd: 2000,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            // Sygma relayer wait 15 blocks to forward and 1 block on Phala to confirm
+            confirm_time_in_sec: ETHEREUM_BLOCK_TIME * 15 + PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "ethereum_sygmabridge_to_khala" {
+        Some(ActionExtraInfo {
+            // 0.2 USD
+            extra_proto_fee_in_usd: 2000,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            // Sygma relayer wait 15 blocks to forward and 1 block on Khala to confirm
+            confirm_time_in_sec: ETHEREUM_BLOCK_TIME * 15 + PARACHAIN_BLOCK_TIME,
+        })
+    } else {
+        None
+    }
 }
