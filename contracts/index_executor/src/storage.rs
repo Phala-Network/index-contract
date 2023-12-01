@@ -270,19 +270,12 @@ mod tests {
         // Modify task status
         task.status = TaskStatus::Completed;
         // Update task data on remote storage
-        assert_eq!(
-            client.update(&task.id, &task.encode(), document_id),
-            Ok(())
-        );
+        assert_eq!(client.update(&task.id, &task.encode(), document_id), Ok(()));
         // Read again
-        let (updated_storage_task, document_id) =
-            client.read::<Task>(&task.id).unwrap().unwrap();
+        let (updated_storage_task, document_id) = client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(updated_storage_task.status, TaskStatus::Completed);
         // Delete task data from remote storage
-        assert_eq!(
-            client.delete(&updated_storage_task.id, document_id),
-            Ok(())
-        );
+        assert_eq!(client.delete(&updated_storage_task.id, document_id), Ok(()));
         // Veify task existence
         assert_eq!(client.read::<Task>(&task.id).unwrap(), None);
     }

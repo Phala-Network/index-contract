@@ -159,16 +159,13 @@ mod index_executor {
         #[ink(message)]
         pub fn config_engine(
             &mut self,
-            storage_url: String,
-            storage_key: String,
+            db_url: String,
+            db_token: String,
             keystore_account: AccountId,
             import_key: bool,
         ) -> Result<()> {
             self.ensure_owner()?;
-            self.config = Some(Config {
-                storage_url,
-                storage_key,
-            });
+            self.config = Some(Config { db_url, db_token });
 
             // Import worker private key form keystore contract, make sure executor already set in keystore contract
             if import_key {
@@ -193,14 +190,14 @@ mod index_executor {
             &mut self,
             chain: String,
             endpoint: String,
-            indexer: String,
+            indexer_url: String,
         ) -> Result<()> {
             self.ensure_owner()?;
 
             if let Some(index) = self.registry.chains.iter().position(|x| x.name == chain) {
                 // Update the value at the found index
                 self.registry.chains[index].endpoint = endpoint;
-                self.registry.chains[index].tx_indexer = indexer;
+                self.registry.chains[index].tx_indexer_url = indexer_url;
             }
             Ok(())
         }
@@ -287,7 +284,7 @@ mod index_executor {
         pub fn upload_solution(&self, id: TaskId, solution: Vec<u8>) -> Result<()> {
             self.ensure_running()?;
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
             if client
@@ -364,7 +361,7 @@ mod index_executor {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             let (mut task, task_doc) = client
-                .read_storage::<Task>(&id)
+                .read::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -408,12 +405,12 @@ mod index_executor {
         #[ink(message)]
         pub fn get_all_running_tasks(&self) -> Result<Vec<Task>> {
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             let mut tasks: Vec<Task> = Vec::new();
             for worker_account in self.worker_accounts.iter() {
                 if let Some((task_id, _)) = client
-                    .read_storage::<TaskId>(&worker_account.account32)
+                    .read::<TaskId>(&worker_account.account32)
                     .map_err(|_| Error::FailedToReadStorage)?
                 {
                     pink_extension::debug!(
@@ -421,7 +418,7 @@ mod index_executor {
                         &hex::encode(task_id)
                     );
                     let (task, _) = client
-                        .read_storage::<Task>(&task_id)
+                        .read::<Task>(&task_id)
                         .map_err(|_| Error::FailedToReadStorage)?
                         .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -435,9 +432,9 @@ mod index_executor {
         #[ink(message)]
         pub fn get_task(&self, id: TaskId) -> Result<Option<Task>> {
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             Ok(client
-                .read_storage::<Task>(&id)
+                .read::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .map(|(task, _)| task))
         }
@@ -446,11 +443,11 @@ mod index_executor {
         pub fn get_solution(&self, id: TaskId) -> Result<Option<Vec<u8>>> {
             self.ensure_running()?;
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
             Ok(client
-                .read_storage::<Solution>(&solution_id)
+                .read::<Solution>(&solution_id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .map(|(solution, _)| solution.encode()))
         }

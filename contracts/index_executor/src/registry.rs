@@ -39,7 +39,7 @@ impl Registry {
                     foreign_asset: None,
                     handler_contract: hex::decode("d693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c")
                         .expect("InvalidLocation"),
-                        tx_indexer_url: "https://squid.subsquid.io/graph-ethereum/graphql".to_string(),
+                    tx_indexer_url: "https://squid.subsquid.io/graph-ethereum/graphql".to_string(),
                 },
                 Chain {
                     id: 1,

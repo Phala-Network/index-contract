@@ -90,7 +90,7 @@ impl ActivedTaskFetcher {
         // Read solution from db
         let solution_id = [b"solution".to_vec(), task_id.to_vec()].concat();
         let (solution, _) = client
-            .read_storage::<Solution>(&solution_id)
+            .read::<Solution>(&solution_id)
             .map_err(|_| "FailedToReadStorage")?
             .ok_or("NoSolutionFound")?;
         pink_extension::debug!(
@@ -184,7 +184,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("f778f213B618bBAfCF827b2a5faE93966697E4B5").into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),

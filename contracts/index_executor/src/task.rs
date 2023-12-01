@@ -162,12 +162,13 @@ impl Task {
         }
 
         let step_count = self.merged_steps.len();
-        match self.merged_steps[self.execute_index as usize].check(
+        match self.merged_steps[self.execute_index as usize].can_run(
             // An executing task must have nonce applied
             self.merged_steps[self.execute_index as usize]
                 .get_nonce()
                 .unwrap(),
             context,
+            None,
         ) {
             // If step already executed successfully, execute next step
             Ok(true) => {
@@ -782,11 +783,7 @@ mod tests {
         // Now let's query if the task is exist in rollup storage with another rollup client
         let another_client: StorageClient =
             StorageClient::new("another url".to_string(), "key".to_string());
-        let onchain_task = another_client
-            .read::<Task>(&task.id)
-            .unwrap()
-            .unwrap()
-            .0;
+        let onchain_task = another_client.read::<Task>(&task.id).unwrap().unwrap().0;
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(
             onchain_task.worker,

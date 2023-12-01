@@ -3,7 +3,6 @@ use super::storage::StorageClient;
 use alloc::vec::Vec;
 use xcm::v3::MultiLocation;
 
-
 pub trait Runner {
     /// Check if a job can be executed.
     /// If the transaction already sent to blockchain, e.g. can be found in memory pool,
