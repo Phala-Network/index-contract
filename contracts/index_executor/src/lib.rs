@@ -319,6 +319,8 @@ mod index_executor {
                     .clone()
                     .try_into()
                     .or(Err(Error::InvalidSolutionData))?;
+                // A minimal amount
+                multi_step.set_spend(1_000_000_000);
                 let step_simulate_result = multi_step
                     .simulate(&Context {
                         signer,

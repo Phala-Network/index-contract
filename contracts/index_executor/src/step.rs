@@ -495,12 +495,12 @@ pub struct StepSimulateResult {
 }
 
 pub trait Simulate {
-    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str>;
+    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str>;
 }
 
 impl Simulate for MultiStep {
     #[allow(unused_variables)]
-    fn simulate(&mut self, context: &Context) -> Result<StepSimulateResult, &'static str> {
+    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str> {
         let action_extra_info = match self {
             MultiStep::Single(step) => context
                 .get_action_extra_info(&step.source_chain, &step.exe)
@@ -522,8 +522,6 @@ impl Simulate for MultiStep {
             }
         };
 
-        // A minimal amount
-        self.set_spend(1_000_000_000);
         let calls = self.derive_calls(context)?;
 
         let as_single_step = self.as_single_step();

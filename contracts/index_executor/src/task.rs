@@ -2,7 +2,8 @@ use super::account::AccountInfo;
 use super::context::Context;
 use super::traits::Runner;
 use crate::chain::{Chain, ChainType, NonceFetcher};
-use crate::step::MultiStep;
+use crate::price;
+use crate::step::{MultiStep, Simulate as StepSimulate};
 use crate::storage::StorageClient;
 use crate::tx;
 
@@ -53,6 +54,8 @@ pub struct Task {
     pub source: String,
     // Amount of first spend asset
     pub amount: u128,
+    // Fee represented by spend asset calculated when claim
+    pub fee: Option<u128>,
     // Nonce applied to claim task froom source chain
     pub claim_nonce: Option<u64>,
     // Transaction hash of claim operation
@@ -79,6 +82,7 @@ impl Default for Task {
             status: TaskStatus::Actived,
             source: String::default(),
             amount: 0,
+            fee: None,
             claim_nonce: None,
             claim_tx: None,
             merged_steps: vec![],
@@ -383,14 +387,21 @@ impl Task {
             .map_err(|_| "ConstructContractFailed")?;
         let worker = KeyPair::from(context.signer);
 
+        let fee = self.calculate_fee(context)?;
+        if fee >= self.amount {
+            return Err("TooExpensive");
+        }
+
+        self.fee = Some(fee);
         // We call claimAndBatchCall so that first step will be executed along with the claim operation
         let first_step = &mut self.merged_steps[0];
-        first_step.set_spend(self.amount);
+        // FIXME: We definitely need to consider the minimal amount allowed
+        first_step.set_spend(self.amount - fee);
         first_step.sync_origin_balance(context)?;
         let calls = first_step.derive_calls(context)?;
         pink_extension::debug!("Calls will be executed along with claim: {:?}", &calls);
 
-        let params = (task_id, calls);
+        let params = (task_id, U256::from(fee), calls);
         // Estiamte gas before submission
         let gas = resolve_ready(handler.estimate_gas(
             "claimAndBatchCall",
@@ -480,6 +491,35 @@ impl Task {
         first_step.set_spend(self.amount);
         Ok(tx_id)
     }
+
+    fn calculate_fee(&self, context: &Context) -> Result<u128, &'static str> {
+        let mut fee_in_usd: u32 = 0;
+        for step in self.merged_steps.iter() {
+            let mut simulate_step = step.clone(); // A minimal amount
+            simulate_step.set_spend(1_000_000_000);
+            let step_simulate_result = simulate_step
+                .simulate(context)
+                .map_err(|_| "SimulateRrror")?;
+
+            // We only need to collect tx fee and extra protocol fee, those fee are actually paied by worker
+            // during execution
+            fee_in_usd += step_simulate_result.tx_fee_in_usd
+                + step_simulate_result
+                    .action_extra_info
+                    .extra_proto_fee_in_usd;
+        }
+
+        let asset_location = self.merged_steps[0].as_single_step().spend_asset;
+        let asset_info = context
+            .registry
+            .get_asset(&self.source, &asset_location)
+            .ok_or("MissingAssetInfo")?;
+        let asset_price =
+            price::get_price(&self.source, &asset_location).ok_or("MissingPriceData")?;
+        Ok(10u128.pow(asset_info.decimals as u32) * fee_in_usd as u128
+            / asset_price as u128
+            / 10000)
+    }
 }
 
 #[cfg(test)]
@@ -558,6 +598,7 @@ mod tests {
             signer: mock_worker_key,
             registry: &Registry {
                 chains: vec![goerli],
+                assets: vec![],
             },
             worker_accounts: vec![],
         };
@@ -643,6 +684,7 @@ mod tests {
             signer: mock_worker_prv_key,
             registry: &Registry {
                 chains: vec![khala.clone()],
+                assets: vec![],
             },
             worker_accounts: vec![],
         };
@@ -771,6 +813,7 @@ mod tests {
                             tx_indexer_url: Default::default(),
                         }
                     ],
+                    assets: vec![],
                 },
                 worker_accounts: worker_accounts.clone(),
             },
@@ -899,6 +942,7 @@ mod tests {
             status: TaskStatus::Actived,
             source: "Moonbeam".to_string(),
             amount: 0xf0f1f2f3f4f5f6f7f8f9,
+            fee: None,
             claim_nonce: None,
             claim_tx: None,
             merged_steps: merged_steps.clone(),

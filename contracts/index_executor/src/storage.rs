@@ -233,6 +233,7 @@ mod tests {
             status: TaskStatus::Actived,
             source: "Ethereum".to_string(),
             amount: 0,
+            fee: None,
             claim_nonce: None,
             claim_tx: None,
             merged_steps: vec![],

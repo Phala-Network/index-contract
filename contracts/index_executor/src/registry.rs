@@ -15,8 +15,18 @@ use alloc::{
 
 #[derive(Clone, scale::Encode, scale::Decode, Debug)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
+pub struct Asset {
+    pub chain: String,
+    pub symbol: String,
+    pub location: Vec<u8>,
+    pub decimals: u8,
+}
+
+#[derive(Clone, scale::Encode, scale::Decode, Debug)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout,))]
 pub struct Registry {
     pub chains: Vec<Chain>,
+    pub assets: Vec<Asset>,
 }
 
 impl Default for Registry {
@@ -119,6 +129,7 @@ impl Registry {
                     tx_indexer_url: "https://squid.subsquid.io/graph-polkadot/graphql".to_string(),
                 },
             ],
+            assets: vec![],
         }
     }
 
@@ -128,6 +139,14 @@ impl Registry {
             .iter()
             .position(|c| &c.name == name)
             .map(|idx| chains[idx].clone())
+    }
+
+    pub fn get_asset(&self, chain: &String, location: &Vec<u8>) -> Option<Asset> {
+        let assets = &self.assets;
+        assets
+            .iter()
+            .position(|c| &c.chain == chain && &c.location == location)
+            .map(|idx| assets[idx].clone())
     }
 
     pub fn create_actions(&self, chain: &String) -> Vec<(String, Box<dyn CallBuilder>)> {

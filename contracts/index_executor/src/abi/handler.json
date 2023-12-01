@@ -329,6 +329,11 @@
         "type": "bytes32"
       },
       {
+        "internalType": "uint256",
+        "name": "fee",
+        "type": "uint256"
+      },
+      {
         "components": [
           {
             "internalType": "address",
@@ -448,64 +453,13 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "taskId",
-        "type": "bytes32"
-      }
-    ],
-    "name": "drop",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "worker",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "taskId",
-        "type": "bytes32"
-      }
-    ],
-    "name": "findActivedTask",
+    "inputs": [],
+    "name": "feeAccount",
     "outputs": [
       {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "sender",
-            "type": "address"
-          },
-          {
-            "internalType": "contract IERC20",
-            "name": "token",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "bytes",
-            "name": "recipient",
-            "type": "bytes"
-          },
-          {
-            "internalType": "string",
-            "name": "task",
-            "type": "string"
-          }
-        ],
-        "internalType": "struct Handler.DepositInfo",
-        "name": "depositInfo",
-        "type": "tuple"
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -664,6 +618,13 @@
   },
   {
     "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "paused",
     "outputs": [
       {
@@ -691,6 +652,19 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_feeAccount",
+        "type": "address"
+      }
+    ],
+    "name": "setFeeAccount",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -743,6 +717,13 @@
       }
     ],
     "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
