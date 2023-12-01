@@ -386,7 +386,6 @@ mod index_executor {
                     .update(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
-
             Ok(())
         }
 

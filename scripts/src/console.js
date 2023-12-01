@@ -15,9 +15,6 @@ const PhalaSDKTypes = PhalaSdk.types;
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const { loadContractFile, createContract, delay } = require('./utils');
 
-const ERC20ABI = require('./ERC20ABI.json');
-const HandlerABI = require('./HandlerABI.json');
-
 // TODO: load from config file
 const SOURCE_CHAINS = ['Moonbeam', 'AstarEvm'];
 const EXE_WORKER = '0x04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276';
@@ -180,11 +177,7 @@ executor
 
         {
             // costs estimation
-<<<<<<< HEAD
             let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address, {cert},
-=======
-            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
->>>>>>> origin/main
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
@@ -202,15 +195,6 @@ executor
                 opt.resume
             ).signAndSend(pair, { nonce: -1 });
             console.log(`✅ Config executor`)
-<<<<<<< HEAD
-=======
-        }
-
-        await delay(10*1000);   // 10 seconds
-        {
-            await executor.query.configStorage(cert, {});
-            console.log(`✅ Config storage`)
->>>>>>> origin/main
         }
 
         if (opt.resume !== false) {

@@ -360,7 +360,7 @@ impl Task {
         // Check if already claimed success
         let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
         if onchain_nonce > claim_nonce {
-            if tx::check_tx(&chain.tx_indexer_url, &account, claim_nonce)? {
+            if tx::has_confirmed(&chain.tx_indexer_url, &account, claim_nonce)? {
                 Ok(true)
             } else {
                 Err("ClaimFailed")

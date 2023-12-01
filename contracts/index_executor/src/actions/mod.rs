@@ -1,5 +1,4 @@
 use sp_runtime::Permill;
-
 pub mod acala;
 pub mod astar;
 pub mod base;

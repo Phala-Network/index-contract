@@ -34,8 +34,8 @@ impl Registry {
                     name: "Ethereum".to_string(),
                     endpoint: "https://rpc.ankr.com/eth".to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
+                    native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
+                        .to_vec(),
                     foreign_asset: None,
                     handler_contract: hex::decode("d693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c")
                         .expect("InvalidLocation"),
@@ -58,8 +58,8 @@ impl Registry {
                     name: "AstarEvm".to_string(),
                     endpoint: "https://astar.public.blastapi.io".to_string(),
                     chain_type: ChainType::Evm,
-                    native_asset: hex::decode("0000000000000000000000000000000000000000")
-                        .expect("InvalidLocation"),
+                    native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
+                        .to_vec(),
                     foreign_asset: None,
                     handler_contract: hex::decode("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5")
                         .expect("InvalidLocation"),

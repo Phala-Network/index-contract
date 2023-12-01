@@ -448,7 +448,7 @@ impl Runner for MultiStep {
             ChainType::Evm => worker_account.account20.to_vec(),
             ChainType::Sub => worker_account.account32.to_vec(),
         };
-        if tx::check_tx(&source_chain.tx_indexer_url, &account, nonce)? {
+        if tx::has_confirmed(&source_chain.tx_indexer_url, &account, nonce)? {
             // If is a bridge operation, check balance change on dest chain
             if as_single_step.is_bridge_step() {
                 pink_extension::info!(
