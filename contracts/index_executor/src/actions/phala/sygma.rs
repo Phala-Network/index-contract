@@ -4,7 +4,7 @@ use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 
 use crate::utils::ToArray;
-use xcm::v3::{prelude::*, AssetId, Fungibility, Junctions, MultiAsset, MultiLocation, Weight};
+use xcm::v3::{prelude::*, Weight};
 
 use crate::utils::slice_to_generalkey;
 
@@ -24,7 +24,7 @@ impl XTransferSygma {
 
 impl CallBuilder for XTransferSygma {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
-        let recipient: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
+        let recipient: [u8; 32] = step.recipient.to_array();
         let asset_location: MultiLocation =
             Decode::decode(&mut step.spend_asset.as_slice()).map_err(|_| "InvalidMultilocation")?;
         let multi_asset = MultiAsset {
@@ -84,7 +84,7 @@ mod tests {
                 spend_asset: pha_location.encode(),
                 receive_asset: pha_location.encode(),
                 sender: None,
-                recipient: Some(recipient),
+                recipient,
                 // Spend 1.1 PHA, 0.1 as fee, expect to receive 1 PHA
                 spend_amount: Some(1_100_000_000_000 as u128),
                 origin_balance: None,

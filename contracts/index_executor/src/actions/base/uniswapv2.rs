@@ -34,7 +34,7 @@ impl CallBuilder for UniswapV2 {
     fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset0 = Address::from_slice(&step.spend_asset);
         let asset1 = Address::from_slice(&step.receive_asset);
-        let to = Address::from_slice(&step.recipient.ok_or("MissingRecipient")?);
+        let to = Address::from_slice(&step.recipient);
         let path = vec![asset0, asset1];
         let amount_out = U256::from(1);
         let amount_in = U256::from(step.spend_amount.ok_or("MissingSpendAmount")?);

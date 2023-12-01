@@ -1,4 +1,4 @@
-use crate::step::StepInput;
+use crate::step::MultiStepInput;
 use crate::task::Task;
 use alloc::{string::String, vec::Vec};
 use pink_web3::{
@@ -9,7 +9,7 @@ use pink_web3::{
 use scale::{Decode, Encode};
 use xcm::v3::AssetId as XcmAssetId;
 
-pub type Solution = Vec<StepInput>;
+pub type Solution = Vec<MultiStepInput>;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -49,7 +49,7 @@ impl Detokenize for EvmDepositData {
                             solution: None,
                         }),
                         _ => Err(PinkError::InvalidOutputType(String::from(
-                            "Return type dismatch",
+                            "Return type mismatch",
                         ))),
                     }
                 }
@@ -90,7 +90,7 @@ impl TryFrom<EvmDepositData> for DepositData {
             sender: value.sender.as_bytes().into(),
             amount: value.amount.try_into().expect("Amount overflow"),
             recipient: value.recipient,
-            solution: value.solution.ok_or("MiisingSolution")?,
+            solution: value.solution.ok_or("MissingSolution")?,
         })
     }
 }
@@ -136,10 +136,10 @@ impl DepositData {
             ..Default::default()
         };
 
-        for step_input in solution.iter() {
+        for multi_step_input in solution.iter() {
             uninitialized_task
-                .steps
-                .push(step_input.clone().try_into()?);
+                .merged_steps
+                .push(multi_step_input.clone().try_into()?);
         }
 
         Ok(uninitialized_task)

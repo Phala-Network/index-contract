@@ -5,11 +5,14 @@ pub mod xtoken;
 pub type MoonbeamStellaSwap = uniswapv3::UniswapV3;
 pub type MoonbeamNativeWrapper = native_wrapper::NativeWrapper;
 
+use crate::actions::ActionExtraInfo;
 use crate::call::CallBuilder;
 use crate::chain::Chain;
+use crate::constants::PARACHAIN_BLOCK_TIME;
 use crate::constants::*;
 use crate::utils::ToArray;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use sp_runtime::Permill;
 
 pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
     let stellaswap_routerv3: [u8; 20] = hex::decode("e6d0ED3759709b743707DcfeCAe39BC180C981fe")
@@ -68,4 +71,58 @@ pub fn create_actions(chain: &Chain) -> Vec<(String, Box<dyn CallBuilder>)> {
             )),
         ),
     ]
+}
+
+#[allow(clippy::if_same_then_else)]
+pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
+    assert!(chain == "Moonbeam");
+    if action == "moonbeam_nativewrapper" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "moonbeam_stellaswap" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            const_proto_fee_in_usd: 0,
+            percentage_proto_fee: Permill::from_perthousand(3),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME,
+        })
+    } else if action == "moonbeam_bridge_to_acala" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            // 0.0005 USD
+            const_proto_fee_in_usd: 5,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
+        })
+    } else if action == "moonbeam_bridge_to_astar" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            // 0.0005 USD
+            const_proto_fee_in_usd: 5,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
+        })
+    } else if action == "moonbeam_bridge_to_phala" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            // 0.0005 USD
+            const_proto_fee_in_usd: 5,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
+        })
+    } else if action == "moonbeam_bridge_to_polkadot" {
+        Some(ActionExtraInfo {
+            extra_proto_fee_in_usd: 0,
+            // 0.0005 USD
+            const_proto_fee_in_usd: 5,
+            percentage_proto_fee: Permill::zero(),
+            confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2,
+        })
+    } else {
+        None
+    }
 }
