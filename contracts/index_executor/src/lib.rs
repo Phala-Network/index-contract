@@ -71,10 +71,10 @@ mod index_executor {
     #[derive(Clone, Encode, Decode, Debug)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, StorageLayout))]
     pub struct Config {
-        /// The storage provider url
-        storage_url: String,
-        /// Secret key of storage provider
-        storage_key: String,
+        /// The URL of google firebase db
+        db_url: String,
+        /// The access token of google firebase db
+        db_token: String,
     }
 
     /// Event emitted when executor is configured.
@@ -184,7 +184,6 @@ mod index_executor {
             Ok(())
         }
 
-        #[ink(message)]
         pub fn update_registry(
             &mut self,
             chain: String,
@@ -287,7 +286,7 @@ mod index_executor {
 
             let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
             if client
-                .read_storage::<Solution>(&solution_id)
+                .read::<Solution>(&solution_id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .is_some()
             {
@@ -295,7 +294,7 @@ mod index_executor {
             }
 
             client
-                .alloc_storage(&solution_id, &solution)
+                .insert(&solution_id, &solution)
                 .log_err("failed to upload solution")
                 .or(Err(Error::FailedToUploadSolution))?;
 
@@ -307,7 +306,7 @@ mod index_executor {
             self.ensure_running()?;
 
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
             match running_type {
                 RunningType::Fetch(source_chain, worker) => {
@@ -326,7 +325,7 @@ mod index_executor {
         pub fn retry(&self, id: TaskId) -> Result<()> {
             self.ensure_running()?;
             let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.storage_url.clone(), config.storage_key.clone());
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             let (mut task, task_doc) = client
                 .read_storage::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
@@ -350,9 +349,10 @@ mod index_executor {
                     .map_err(|_| Error::FailedToReRunTask)?;
                 // Upload task data to storage
                 client
-                    .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                    .update(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
+
             Ok(())
         }
 
@@ -484,7 +484,7 @@ mod index_executor {
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient, worker: [u8; 32]) -> Result<()> {
             if let Some((id, _)) = client
-                .read_storage::<TaskId>(&worker)
+                .read::<TaskId>(&worker)
                 .map_err(|_| Error::FailedToReadStorage)?
             {
                 pink_extension::debug!(
@@ -492,7 +492,7 @@ mod index_executor {
                     &hex::encode(id)
                 );
                 let (mut task, task_doc) = client
-                    .read_storage::<Task>(&id)
+                    .read::<Task>(&id)
                     .map_err(|_| Error::FailedToReadStorage)?
                     .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -541,7 +541,7 @@ mod index_executor {
                     }
                 }
                 client
-                    .update_storage(task.id.as_ref(), &task.encode(), task_doc)
+                    .update(task.id.as_ref(), &task.encode(), task_doc)
                     .map_err(|_| Error::FailedToUploadTask)?;
             } else {
                 pink_extension::debug!(

@@ -2,7 +2,6 @@ use crate::actions::base::account::{
     AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData,
 };
 use crate::assets::get_assetid_by_location;
-
 use alloc::{string::String, vec, vec::Vec};
 
 use pink_extension::ResultExt;
@@ -48,7 +47,7 @@ pub struct Chain {
     pub native_asset: Vec<u8>,
     pub foreign_asset: Option<ForeignAssetModule>,
     pub handler_contract: Vec<u8>,
-    pub tx_indexer: String,
+    pub tx_indexer_url: String,
 }
 
 impl Chain {
@@ -175,7 +174,6 @@ impl BalanceFetcher for Chain {
                             if asset_id.is_empty() {
                                 return Err("AssetNotRecognized");
                             }
-
                             if let Some(raw_storage) = get_storage(
                                 &self.endpoint,
                                 &storage_double_map_prefix::<Blake2_128Concat, Blake2_128Concat>(
@@ -258,7 +256,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             goerli
@@ -281,7 +279,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             khala
@@ -308,7 +306,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         // Get native asset balance
         assert_eq!(
@@ -346,7 +344,7 @@ mod tests {
             native_asset: MultiLocation::new(1, X1(Parachain(2004))).encode(),
             foreign_asset: Some(ForeignAssetModule::PalletAsset),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         let karura = Chain {
             id: 2,
@@ -363,7 +361,7 @@ mod tests {
             .encode(),
             foreign_asset: Some(ForeignAssetModule::OrmlToken),
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         // Get native asset (PHA on Khala)
         assert_eq!(

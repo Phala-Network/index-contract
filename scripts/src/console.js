@@ -180,7 +180,11 @@ executor
 
         {
             // costs estimation
+<<<<<<< HEAD
             let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address, {cert},
+=======
+            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
+>>>>>>> origin/main
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
@@ -198,6 +202,15 @@ executor
                 opt.resume
             ).signAndSend(pair, { nonce: -1 });
             console.log(`✅ Config executor`)
+<<<<<<< HEAD
+=======
+        }
+
+        await delay(10*1000);   // 10 seconds
+        {
+            await executor.query.configStorage(cert, {});
+            console.log(`✅ Config storage`)
+>>>>>>> origin/main
         }
 
         if (opt.resume !== false) {

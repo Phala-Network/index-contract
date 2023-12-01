@@ -291,7 +291,7 @@ impl MultiStep {
 impl Runner for MultiStep {
     // By checking the nonce of the worker account on the chain source chain we can indicate whether
     // the transaction revalant to the step has been executed.
-    fn runnable(
+    fn can_run(
         &self,
         nonce: u64,
         context: &Context,

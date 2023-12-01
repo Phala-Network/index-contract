@@ -5,6 +5,7 @@ use crate::chain::{Chain, ChainType, NonceFetcher};
 use crate::step::{MultiStep, Step};
 use crate::storage::StorageClient;
 use crate::tx;
+
 use alloc::{string::String, vec, vec::Vec};
 use ink::storage::Mapping;
 use scale::{Decode, Encode};
@@ -116,7 +117,7 @@ impl Task {
     // Initialize task
     pub fn init(&mut self, context: &Context, client: &StorageClient) -> Result<(), &'static str> {
         if let Some((task, _)) = client
-            .read_storage::<Task>(&self.id)
+            .read::<Task>(&self.id)
             .map_err(|_| "FailedToReadStorage")?
         {
             pink_extension::debug!(
@@ -124,13 +125,13 @@ impl Task {
                 hex::encode(self.id)
             );
             if client
-                .read_storage::<TaskId>(&self.worker)
+                .read::<TaskId>(&self.worker)
                 .map_err(|_| "FailedToReadStorage")?
                 .is_none()
                 // Still need to check status in case task actually has completed
                 && task.status == TaskStatus::Initialized
             {
-                client.alloc_storage(&self.worker, &self.id.encode())?;
+                client.insert(&self.worker, &self.id.encode())?;
             }
         } else {
             // Apply recipient for each step before merged
@@ -146,8 +147,8 @@ impl Task {
             self.status = TaskStatus::Initialized;
             self.execute_index = 0;
 
-            client.alloc_storage(self.id.as_ref(), &self.encode())?;
-            client.alloc_storage(&self.worker, &self.id.encode())?;
+            client.insert(self.id.as_ref(), &self.encode())?;
+            client.insert(&self.worker, &self.id.encode())?;
         }
 
         Ok(())
@@ -242,7 +243,7 @@ impl Task {
             .get_nonce()
             .unwrap();
 
-        if self.merged_steps[self.execute_index as usize].runnable(nonce, context, Some(client))
+        if self.merged_steps[self.execute_index as usize].can_run(nonce, context, Some(client))
             == Ok(true)
         {
             pink_extension::debug!(
@@ -267,9 +268,9 @@ impl Task {
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
         let (_, running_task_doc) = client
-            .read_storage::<TaskId>(&self.worker)?
+            .read::<TaskId>(&self.worker)?
             .ok_or("TaskNotBeingExecuted")?;
-        client.remove_storage(&self.worker, running_task_doc)?;
+        client.delete(&self.worker, running_task_doc)?;
 
         Ok(())
     }
@@ -452,7 +453,7 @@ impl Task {
         // Check if already claimed success
         let onchain_nonce = worker_account.get_nonce(&self.source, context)?;
         if onchain_nonce > claim_nonce {
-            if tx::check_tx(&chain.tx_indexer, &account, claim_nonce)? {
+            if tx::check_tx(&chain.tx_indexer_url, &account, claim_nonce)? {
                 Ok(true)
             } else {
                 Err("ClaimFailed")
@@ -608,7 +609,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: worker_address.into(),
@@ -649,7 +650,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: hex!("056C0E37d026f9639313C281250cA932C9dbe921").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
 
         let context = Context {
@@ -699,7 +700,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: hex!("00").into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: [0; 20],
@@ -740,7 +741,7 @@ mod tests {
             native_asset: pha.clone(),
             foreign_asset: None,
             handler_contract: hex!("79").into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
 
         let context = Context {
@@ -792,7 +793,7 @@ mod tests {
             native_asset: vec![0],
             foreign_asset: None,
             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-            tx_indexer: Default::default(),
+            tx_indexer_url: Default::default(),
         };
         assert_eq!(
             goerli
@@ -837,7 +838,7 @@ mod tests {
                 native_asset: vec![0],
                 foreign_asset: None,
                 handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                tx_indexer: Default::default(),
+                tx_indexer_url: Default::default(),
             },
             worker: AccountInfo {
                 account20: pre_mock_executor_address.into(),
@@ -863,7 +864,7 @@ mod tests {
                             native_asset: vec![0],
                             foreign_asset: None,
                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                            tx_indexer: Default::default(),
+                            tx_indexer_url: Default::default(),
                         },
                         Chain {
                             id: 2,
@@ -873,7 +874,7 @@ mod tests {
                             native_asset: vec![0],
                             foreign_asset: None,
                             handler_contract: "0x056C0E37d026f9639313C281250cA932C9dbe921".into(),
-                            tx_indexer: Default::default(),
+                            tx_indexer_url: Default::default(),
                         }
                     ],
                 },
@@ -889,7 +890,7 @@ mod tests {
         let another_client: StorageClient =
             StorageClient::new("another url".to_string(), "key".to_string());
         let onchain_task = another_client
-            .read_storage::<Task>(&task.id)
+            .read::<Task>(&task.id)
             .unwrap()
             .unwrap()
             .0;
