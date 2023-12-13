@@ -149,6 +149,19 @@ impl Registry {
                     location: hex::decode("0000").expect("InvalidLocation"),
                     decimals: 12,
                 },
+                Asset {
+                    chain: "Moonbeam".to_string(),
+                    symbol: "GLMR".to_string(),
+                    location: hex::decode("0000000000000000000000000000000000000802")
+                        .expect("InvalidLocation"),
+                    decimals: 18,
+                },
+                Asset {
+                    chain: "AstarEvm".to_string(),
+                    symbol: "ASTR".to_string(),
+                    location: [0; 20].to_vec(),
+                    decimals: 18,
+                },
             ],
         }
     }

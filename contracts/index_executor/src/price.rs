@@ -11,6 +11,18 @@ pub fn get_price(chain: &str, asset: &Vec<u8>) -> Option<u32> {
     if chain == "Ethereum" && asset == &[0; 20] {
         // 2000 USD
         Some(20000000)
+    }
+    // ASTR
+    else if chain == "AstarEvm" && asset == &[0; 20] {
+        // 0.07 USD
+        Some(700)
+    }
+    // GLMR
+    else if chain == "Moonbeam"
+        && asset == &hex_literal::hex!("0000000000000000000000000000000000000802")
+    {
+        // 0.3 USD
+        Some(3000)
     } else {
         // TODO
         // 0.1 USD
