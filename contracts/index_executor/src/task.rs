@@ -338,12 +338,18 @@ impl Task {
             .unwrap_or(Err("MissingChain"))?;
         let claim_nonce = self.claim_nonce.ok_or("MissingClaimNonce")?;
 
+        let fee: u128 = self.calculate_fee(context)?;
+        if fee >= self.amount {
+            return Err("TooExpensive");
+        }
+        self.fee = Some(fee);
+
         match chain.chain_type {
             ChainType::Evm => {
-                Ok(self.claim_evm_actived_tasks(chain, self.id, context, claim_nonce)?)
+                Ok(self.claim_evm_actived_tasks(chain, self.id, fee, context, claim_nonce)?)
             }
             ChainType::Sub => {
-                Ok(self.claim_sub_actived_tasks(chain, self.id, context, claim_nonce)?)
+                Ok(self.claim_sub_actived_tasks(chain, self.id, fee, context, claim_nonce)?)
             }
         }
     }
@@ -378,6 +384,7 @@ impl Task {
         &mut self,
         chain: Chain,
         task_id: TaskId,
+        fee: u128,
         context: &Context,
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
@@ -387,12 +394,6 @@ impl Task {
             .map_err(|_| "ConstructContractFailed")?;
         let worker = KeyPair::from(context.signer);
 
-        let fee = self.calculate_fee(context)?;
-        if fee >= self.amount {
-            return Err("TooExpensive");
-        }
-
-        self.fee = Some(fee);
         // We call claimAndBatchCall so that first step will be executed along with the claim operation
         let first_step = &mut self.merged_steps[0];
         // FIXME: We definitely need to consider the minimal amount allowed
@@ -457,6 +458,7 @@ impl Task {
         &mut self,
         chain: Chain,
         task_id: TaskId,
+        fee: u128,
         context: &Context,
         nonce: u64,
     ) -> Result<Vec<u8>, &'static str> {
@@ -471,7 +473,7 @@ impl Task {
                 .ok_or("ClaimMissingPalletId")?,
             // Call index of `claim_task`
             0x03u8,
-            task_id,
+            (task_id, fee),
             ExtraParam {
                 tip: 0,
                 nonce: Some(nonce),
