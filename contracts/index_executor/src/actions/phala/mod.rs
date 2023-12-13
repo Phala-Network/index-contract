@@ -103,7 +103,7 @@ pub fn get_extra_info(chain: &str, action: &str) -> Option<ActionExtraInfo> {
         Some(ActionExtraInfo {
             extra_proto_fee_in_usd: 0,
             // 5 USD
-            const_proto_fee_in_usd: 5000,
+            const_proto_fee_in_usd: 50000,
             percentage_proto_fee: Permill::zero(),
             // Sygma relayer wait 2 blocks to finialize and 1 block on Phala to confirm
             confirm_time_in_sec: PARACHAIN_BLOCK_TIME * 2 + ETHEREUM_BLOCK_TIME,

@@ -129,7 +129,27 @@ impl Registry {
                     tx_indexer_url: "https://squid.subsquid.io/graph-polkadot/graphql".to_string(),
                 },
             ],
-            assets: vec![],
+            assets: vec![
+                Asset {
+                    chain: "Ethereum".to_string(),
+                    symbol: "PHA".to_string(),
+                    location: hex::decode("6c5bA91642F10282b576d91922Ae6448C9d52f4E")
+                        .expect("InvalidLocation"),
+                    decimals: 18,
+                },
+                Asset {
+                    chain: "Phala".to_string(),
+                    symbol: "PHA".to_string(),
+                    location: hex::decode("0000").expect("InvalidLocation"),
+                    decimals: 12,
+                },
+                Asset {
+                    chain: "Khala".to_string(),
+                    symbol: "PHA".to_string(),
+                    location: hex::decode("0000").expect("InvalidLocation"),
+                    decimals: 12,
+                },
+            ],
         }
     }
 

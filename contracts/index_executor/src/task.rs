@@ -497,9 +497,10 @@ impl Task {
         for step in self.merged_steps.iter() {
             let mut simulate_step = step.clone(); // A minimal amount
             simulate_step.set_spend(1_000_000_000);
-            let step_simulate_result = simulate_step
-                .simulate(context)
-                .map_err(|_| "SimulateRrror")?;
+            let step_simulate_result = simulate_step.simulate(context).map_err(|e| {
+                pink_extension::error!("Some error occurred when simulating: {:?}", e);
+                "SimulateRrror"
+            })?;
 
             // We only need to collect tx fee and extra protocol fee, those fee are actually paied by worker
             // during execution
@@ -516,9 +517,7 @@ impl Task {
             .ok_or("MissingAssetInfo")?;
         let asset_price =
             price::get_price(&self.source, &asset_location).ok_or("MissingPriceData")?;
-        Ok(10u128.pow(asset_info.decimals as u32) * fee_in_usd as u128
-            / asset_price as u128
-            / 10000)
+        Ok(10u128.pow(asset_info.decimals as u32) * fee_in_usd as u128 / asset_price as u128)
     }
 }
 
@@ -992,5 +991,63 @@ mod tests {
         // and origin Step 6 relay Step 5 as input, so take last call
         // of Step 5 as input call
         assert_eq!(calls[6].input_call, Some(0));
+    }
+
+    #[test]
+    #[ignore]
+    fn test_fee_calculation() {
+        dotenv().ok();
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let worker_key: [u8; 32] = secret_bytes.to_array();
+
+        let context = Context {
+            signer: worker_key,
+            registry: &Registry::default(),
+            worker_accounts: vec![],
+        };
+        let mut task = Task::default();
+        task.id = hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+            .unwrap()
+            .to_array();
+        task.merged_steps = vec![
+            MultiStep::Single(
+                StepInput {
+                    exe: String::from("khala_bridge_to_ethereum"),
+                    source_chain: String::from("Khala"),
+                    dest_chain: String::from("Ethereum"),
+                    spend_asset: String::from("0x0000"),
+                    receive_asset: String::from("0x6c5bA91642F10282b576d91922Ae6448C9d52f4E"),
+                    recipient: String::from(
+                        "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    ),
+                }
+                .try_into()
+                .unwrap(),
+            ),
+            MultiStep::Single(
+                StepInput {
+                    exe: String::from("ethereum_sygmabridge_to_phala"),
+                    source_chain: String::from("Ethereum"),
+                    dest_chain: String::from("Phala"),
+                    spend_asset: String::from("0x6c5bA91642F10282b576d91922Ae6448C9d52f4E"),
+                    receive_asset: String::from("0x00"),
+                    recipient: String::from(
+                        "0x1111111111111111111111111111111111111111111111111111111111111111",
+                    ),
+                }
+                .try_into()
+                .unwrap(),
+            ),
+        ];
+        task.source = "Khala".to_string();
+
+        println!(
+            "fee of Khala/PHA -> Phala/PHA is {}",
+            task.calculate_fee(&context).unwrap()
+        );
     }
 }
