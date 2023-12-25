@@ -498,7 +498,13 @@ impl Task {
         let mut fee_in_usd: u32 = 0;
         for step in self.merged_steps.iter() {
             let mut simulate_step = step.clone(); // A minimal amount
-            simulate_step.set_spend(1_000_000_000);
+            let asset_location = simulate_step.as_single_step().spend_asset;
+            let asset_info = context
+                .registry
+                .get_asset(&self.source, &asset_location)
+                .ok_or("MissingAssetInfo")?;
+            // Set spend asset 0.0001
+            simulate_step.set_spend(1 * 10u128.pow(asset_info.decimals as u32) / 10000);
             let step_simulate_result = simulate_step.simulate(context).map_err(|e| {
                 pink_extension::error!("Some error occurred when simulating: {:?}", e);
                 "SimulateRrror"
@@ -1015,40 +1021,32 @@ mod tests {
         task.id = hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
             .unwrap()
             .to_array();
-        task.merged_steps = vec![
-            MultiStep::Single(
-                StepInput {
-                    exe: String::from("khala_bridge_to_ethereum"),
-                    source_chain: String::from("Khala"),
-                    dest_chain: String::from("Ethereum"),
-                    spend_asset: String::from("0x0000"),
-                    receive_asset: String::from("0x6c5bA91642F10282b576d91922Ae6448C9d52f4E"),
-                    recipient: String::from(
-                        "0x1111111111111111111111111111111111111111111111111111111111111111",
-                    ),
-                }
-                .try_into()
-                .unwrap(),
-            ),
-            MultiStep::Single(
-                StepInput {
-                    exe: String::from("ethereum_sygmabridge_to_phala"),
-                    source_chain: String::from("Ethereum"),
-                    dest_chain: String::from("Phala"),
-                    spend_asset: String::from("0x6c5bA91642F10282b576d91922Ae6448C9d52f4E"),
-                    receive_asset: String::from("0x00"),
-                    recipient: String::from(
-                        "0x1111111111111111111111111111111111111111111111111111111111111111",
-                    ),
-                }
-                .try_into()
-                .unwrap(),
-            ),
-        ];
-        task.source = "Khala".to_string();
+        task.merged_steps = vec![MultiStep::Batch(vec![
+            StepInput {
+                exe: String::from("moonbeam_nativewrapper"),
+                source_chain: String::from("Moonbeam"),
+                dest_chain: String::from("Moonbeam"),
+                spend_asset: String::from("0x0000000000000000000000000000000000000802"),
+                receive_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+            }
+            .try_into()
+            .unwrap(),
+            StepInput {
+                exe: String::from("moonbeam_stellaswap"),
+                source_chain: String::from("Moonbeam"),
+                dest_chain: String::from("Moonbeam"),
+                spend_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                receive_asset: String::from("0xffffffff1fcacbd218edc0eba20fc2308c778080"),
+                recipient: String::from("0xa29d4e0f035cb50c0d78c8cebb56ca292616ab20"),
+            }
+            .try_into()
+            .unwrap(),
+        ])];
+        task.source = "Moonbeam".to_string();
 
         println!(
-            "fee of Khala/PHA -> Phala/PHA is {}",
+            "fee of Moonbeam/GLMR -> Moonbeam/xcDOT is {}",
             task.calculate_fee(&context).unwrap()
         );
     }

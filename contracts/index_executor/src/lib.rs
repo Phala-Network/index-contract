@@ -69,6 +69,7 @@ mod index_executor {
         UnexpectedChainType,
         ExecutorPaused,
         ExecutorNotPaused,
+        MissingAssetInfo,
     }
 
     type Result<T> = core::result::Result<T, Error>;
@@ -313,14 +314,24 @@ mod index_executor {
                 Decode::decode(&mut solution.as_slice()).or(Err(Error::FailedToDecodeSolution))?;
 
             let signer: [u8; 32] = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
+            let context = Context {
+                signer,
+                worker_accounts: self.worker_accounts.clone(),
+                registry: &self.registry,
+            };
             let mut simulate_results: Vec<StepSimulateResult> = vec![];
             for multi_step_input in solution.iter() {
                 let mut multi_step: MultiStep = multi_step_input
                     .clone()
                     .try_into()
                     .or(Err(Error::InvalidSolutionData))?;
-                // A minimal amount
-                multi_step.set_spend(1_000_000_000);
+                let asset_location = multi_step.as_single_step().spend_asset;
+                let asset_info = context
+                    .registry
+                    .get_asset(&multi_step.as_single_step().source_chain, &asset_location)
+                    .ok_or(Error::MissingAssetInfo)?;
+                // Set spend asset 0.0001
+                multi_step.set_spend(1 * 10u128.pow(asset_info.decimals as u32) / 10000);
                 let step_simulate_result = multi_step
                     .simulate(&Context {
                         signer,
