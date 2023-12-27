@@ -203,6 +203,15 @@ mod index_executor {
             Ok(())
         }
 
+        pub fn register_asset(
+            &mut self,
+            asset: crate::registry::Asset,
+        ) -> Result<()> {
+            self.ensure_owner()?;
+            self.registry.assets.push(asset);
+            Ok(())
+        }
+
         #[ink(message)]
         pub fn pause_executor(&mut self) -> Result<()> {
             self.ensure_owner()?;

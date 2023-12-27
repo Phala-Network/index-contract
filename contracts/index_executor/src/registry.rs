@@ -54,12 +54,12 @@ impl Registry {
                 Chain {
                     id: 1,
                     name: "Moonbeam".to_string(),
-                    endpoint: "https://moonbeam.api.onfinality.io/public".to_string(),
+                    endpoint: "https://rpc.api.moonbeam.network".to_string(),
                     chain_type: ChainType::Evm,
                     native_asset: hex::decode("0000000000000000000000000000000000000802")
                         .expect("InvalidLocation"),
                     foreign_asset: None,
-                    handler_contract: hex::decode("B8D20dfb8c3006AA17579887ABF719DA8bDf005B")
+                    handler_contract: hex::decode("8351BAE38E3D590063544A99A95BF4fe5379110b")
                         .expect("InvalidLocation"),
                     tx_indexer_url: "https://squid.subsquid.io/graph-moonbeam/graphql".to_string(),
                 },
@@ -71,7 +71,7 @@ impl Registry {
                     native_asset: hex_literal::hex!("0000000000000000000000000000000000000000")
                         .to_vec(),
                     foreign_asset: None,
-                    handler_contract: hex::decode("bEA1C40ecf9c4603ec25264860B9b6623Ff733F5")
+                    handler_contract: hex::decode("AE1Ab0a83de66a545229d39E874237fbaFe05714")
                         .expect("InvalidLocation"),
                     tx_indexer_url: "https://squid.subsquid.io/graph-astar/graphql".to_string(),
                 },

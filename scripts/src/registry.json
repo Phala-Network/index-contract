@@ -1,0 +1,565 @@
+{
+    "chains": [
+        {
+            "name": "Ethereum",
+            "chainId": 1,
+            "chainType": "evm",
+            "foeignAsset": "N/A",
+            "isTest": false,
+            "nativeAsset": "0x0000000000000000000000000000000000000000",
+            "handlerContract": "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c",
+            "endpoint": "https://rpc.ankr.com/eth",
+            "txIndexerURL": "https://squid.subsquid.io/graph-ethereum/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Moonbeam",
+            "chainId": 1,
+            "chainType": "evm",
+            "foeignAsset": "N/A",
+            "isTest": false,
+            "nativeAsset": "0x0000000000000000000000000000000000000802",
+            "handlerContract": "0x8351BAE38E3D590063544A99A95BF4fe5379110b",
+            "endpoint": "https://rpc.api.moonbeam.network",
+            "txIndexerURL": "https://squid.subsquid.io/graph-moonbeam/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "AstarEvm",
+            "chainId": 1,
+            "chainType": "evm",
+            "foeignAsset": "N/A",
+            "isTest": false,
+            "nativeAsset": "0x0000000000000000000000000000000000000000",
+            "handlerContract": "0xAE1Ab0a83de66a545229d39E874237fbaFe05714",
+            "endpoint": "https://astar.public.blastapi.io",
+            "txIndexerURL": "https://squid.subsquid.io/graph-astar/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Astar",
+            "chainId": 2004,
+            "chainType": "sub",
+            "foeignAsset": "PalletAsset",
+            "isTest": false,
+            "nativeAsset": "0x010100591f",
+            "handlerContract": "0x",
+            "endpoint": "https://astar.public.blastapi.io",
+            "txIndexerURL": "https://squid.subsquid.io/graph-astar/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Khala",
+            "chainId": 2006,
+            "chainType": "sub",
+            "foeignAsset": "PalletAsset",
+            "isTest": false,
+            "nativeAsset": "0x0000",
+            "handlerContract": "0x79",
+            "endpoint": "https://khala-api.phala.network/rpc",
+            "txIndexerURL": "https://squid.subsquid.io/graph-khala/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Phala",
+            "chainId": 2035,
+            "chainType": "sub",
+            "foeignAsset": "PalletAsset",
+            "isTest": false,
+            "nativeAsset": "0x0000",
+            "handlerContract": "0x79",
+            "endpoint": "https://api.phala.network/rpc",
+            "txIndexerURL": "https://squid.subsquid.io/graph-phala/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Acala",
+            "chainId": 2000,
+            "chainType": "sub",
+            "foeignAsset": "OrmlToken",
+            "isTest": false,
+            "nativeAsset": "0x010200411f06080000",
+            "handlerContract": "0x",
+            "endpoint": "https://acala-rpc.dwellir.com",
+            "txIndexerURL": "https://squid.subsquid.io/graph-acala/graphql",
+            "explorerURL": "",
+            "icon": ""
+        },
+        {
+            "name": "Polkadot",
+            "chainId": 1,
+            "chainType": "sub",
+            "foeignAsset": "PalletAsset",
+            "isTest": false,
+            "nativeAsset": "0x0000",
+            "handlerContract": "0x",
+            "endpoint": "https://polkadot.api.onfinality.io/public",
+            "txIndexerURL": "https://squid.subsquid.io/graph-polkadot/graphql",
+            "explorerURL": "",
+            "icon": ""
+        }
+    ],
+    "assets": [
+        {
+            "name": "Ether",
+            "symbol": "ETH",
+            "decimals": 18,
+            "location": "0x0000000000000000000000000000000000000000",
+            "chainName": "Ethereum",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "Wrap Ether",
+            "symbol": "WETH",
+            "decimals": 18,
+            "location": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+            "chainName": "Ethereum",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "USD Token",
+            "symbol": "USDT",
+            "decimals": 6,
+            "location": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+            "chainName": "Ethereum",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "USD Coin",
+            "symbol": "USDC",
+            "decimals": 6,
+            "location": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+            "chainName": "Ethereum",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "Phala Token",
+            "symbol": "PHA",
+            "decimals": 18,
+            "location": "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E",
+            "chainName": "Ethereum",
+            "existentialDeposit": [
+                {
+                    "Khala": "0.001",
+                    "Phala": "0.001"
+                }
+            ],
+            "icon": ""
+        },
+        {
+            "name": "GLMR",
+            "symbol": "GLMR",
+            "decimals": 18,
+            "location": "0x0000000000000000000000000000000000000802",
+            "chainName": "Moonbeam",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "Wrap GLMR",
+            "symbol": "WGLMR",
+            "decimals": 18,
+            "location": "0xAcc15dC74880C9944775448304B263D191c6077F",
+            "chainName": "Moonbeam",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "xcDOT",
+            "symbol": "xcDOT",
+            "decimals": 10,
+            "location": "0xFfFFfFff1FcaCBd218EDc0EbA20Fc2308C778080",
+            "chainName": "Moonbeam",
+            "existentialDeposit": [
+                {
+                    "Polkadot": "0.001"
+                }
+            ],
+            "icon": ""
+        },
+        {
+            "name": "xcASTR",
+            "symbol": "xcASTR",
+            "decimals": 18,
+            "location": "0xFfFFFfffA893AD19e540E172C10d78D4d479B5Cf",
+            "chainName": "Moonbeam",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "xcPHA",
+            "symbol": "xcPHA",
+            "decimals": 12,
+            "location": "0xFFFfFfFf63d24eCc8eB8a7b5D0803e900F7b6cED",
+            "chainName": "Moonbeam",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "ASTR",
+            "symbol": "ASTR",
+            "decimals": 18,
+            "location": "0x0000000000000000000000000000000000000000",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "WASTR",
+            "symbol": "WASTR",
+            "decimals": 18,
+            "location": "0xaeaaf0e2c81af264101b9129c00f4440ccf0f720",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "PHA",
+            "symbol": "PHA",
+            "decimals": 12,
+            "location": "0xFFFFFFFF00000000000000010000000000000006",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [
+                {
+                    "Phala": "0.001"
+                }
+            ],
+            "icon": ""
+        },
+        {
+            "name": "GLMR",
+            "symbol": "GLMR",
+            "decimals": 18,
+            "location": "0xFFFFFFFF00000000000000010000000000000003",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "DOT",
+            "symbol": "DOT",
+            "decimals": 10,
+            "location": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "USDT",
+            "symbol": "USDT",
+            "decimals": 6,
+            "location": "0xFFFFFFFF000000000000000000000001000007C0",
+            "chainName": "AstarEvm",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "Phala Token",
+            "symbol": "PHA",
+            "decimals": 12,
+            "location": "0x0000",
+            "chainName": "Phala",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "Phala Token",
+            "symbol": "PHA",
+            "decimals": 12,
+            "location": "0x0000",
+            "chainName": "Khala",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "DOT",
+            "symbol": "DOT",
+            "decimals": 10,
+            "location": "0x0000",
+            "chainName": "Polkadot",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "GLMR",
+            "symbol": "GLMR",
+            "decimals": 18,
+            "location": "0x03010200511f040a",
+            "chainName": "Astar",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "ASTR",
+            "symbol": "ASTR",
+            "decimals": 18,
+            "location": "0x010100591f",
+            "chainName": "Astar",
+            "existentialDeposit": [],
+            "icon": ""
+        },
+        {
+            "name": "PHA",
+            "symbol": "PHA",
+            "decimals": 12,
+            "location": "0x010100cd1f",
+            "chainName": "Astar",
+            "existentialDeposit": [],
+            "icon": ""
+        }
+    ],
+    "bridges": [
+        {
+            "name": "Ethereum2Phala",
+            "action": "ethereum_sygmabridge_to_phala",
+            "sourceChain": "Ethereum",
+            "destChain": "Phala",
+            "pairs": [
+                {
+                    "asset0": "Ethereum/PHA",
+                    "asset1": "Phala/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Phala2Ethereum",
+            "action": "phala_bridge_to_ethereum",
+            "sourceChain": "Phala",
+            "destChain": "Ethereum",
+            "pairs": [
+                {
+                    "asset0": "Phala/PHA",
+                    "asset1": "Ethereum/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Phala2Moonbeam",
+            "action": "phala_bridge_to_moonbeam",
+            "sourceChain": "Phala",
+            "destChain": "Moonbeam",
+            "pairs": [
+                {
+                    "asset0": "Phala/PHA",
+                    "asset1": "Moonbeam/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Phala2Astar",
+            "action": "phala_bridge_to_astar",
+            "sourceChain": "Phala",
+            "destChain": "Astar",
+            "pairs": [
+                {
+                    "asset0": "Phala/PHA",
+                    "asset1": "Astar/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Moonbeam2Phala",
+            "action": "moonbeam_bridge_to_phala",
+            "sourceChain": "Moonbeam",
+            "destChain": "Phala",
+            "pairs": [
+                {
+                    "asset0": "Moonbeam/PHA",
+                    "asset1": "Phala/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Moonbeam2Astar",
+            "action": "moonbeam_bridge_to_astar",
+            "sourceChain": "Moonbeam",
+            "destChain": "Astar",
+            "pairs": [
+                {
+                    "asset0": "Moonbeam/GLMR",
+                    "asset1": "Astar/GLMR",
+                    "reserve0": "",
+                    "reserve1": ""
+                },
+                {
+                    "asset0": "Moonbeam/ASTR",
+                    "asset1": "Astar/ASTR",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Astar2AstarEvm",
+            "action": "astar_bridge_to_astarevm",
+            "sourceChain": "Astar",
+            "destChain": "AstarEvm",
+            "pairs": [
+                {
+                    "asset0": "Astar/ASTR",
+                    "asset1": "AstarEvm/ASTR",
+                    "reserve0": "",
+                    "reserve1": ""
+                },
+                {
+                    "asset0": "Astar/GLMR",
+                    "asset1": "AstarEvm/GLMR",
+                    "reserve0": "",
+                    "reserve1": ""
+                },
+                {
+                    "asset0": "Astar/PHA",
+                    "asset1": "AstarEvm/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Ethereum2Khala",
+            "action": "ethereum_sygmabridge_to_khala",
+            "sourceChain": "Ethereum",
+            "destChain": "Khala",
+            "pairs": [
+                {
+                    "asset0": "Ethereum/PHA",
+                    "asset1": "Khala/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        },
+        {
+            "name": "Astar2Phala",
+            "action": "astar_bridge_to_phala",
+            "sourceChain": "Astar",
+            "destChain": "Phala",
+            "pairs": [
+                {
+                    "asset0": "Astar/PHA",
+                    "asset1": "Phala/PHA",
+                    "reserve0": "",
+                    "reserve1": ""
+                }
+            ]
+        }
+    ],
+    "dexes": [
+        {
+            "name": "UniswapV2",
+            "action": "ethereum_uniswapv2",
+            "chainName": "Ethereum",
+            "pairs": [
+                {
+                    "asset0": "Ethereum/WETH",
+                    "asset1": "Ethereum/PHA"
+                },
+                {
+                    "asset0": "Ethereum/WETH",
+                    "asset1": "Ethereum/USDT"
+                },
+                {
+                    "asset0": "Ethereum/WETH",
+                    "asset1": "Ethereum/USDC"
+                }
+            ]
+        },
+        {
+            "name": "UniswapV3",
+            "action": "ethereum_uniswapv3",
+            "chainName": "Ethereum",
+            "pairs": []
+        },
+        {
+            "name": "StellaSwap",
+            "action": "moonbeam_stellaswap",
+            "chainName": "Moonbeam",
+            "pairs": [
+                {
+                    "asset0": "Moonbeam/WGLMR",
+                    "asset1": "Moonbeam/xcDOT"
+                },
+                {
+                    "asset0": "Moonbeam/xcPHA",
+                    "asset1": "Moonbeam/xcDOT"
+                },
+                {
+                    "asset0": "Moonbeam/xcASTR",
+                    "asset1": "Moonbeam/xcDOT"
+                }
+            ]
+        },
+        {
+            "name": "ArthSwap",
+            "action": "astar_evm_arthswap",
+            "chainName": "AstarEvm",
+            "pairs": [
+                {
+                    "asset0": "AstarEvm/WASTR",
+                    "asset1": "AstarEvm/DOT"
+                },
+                {
+                    "asset0": "AstarEvm/WASTR",
+                    "asset1": "AstarEvm/GLMR"
+                },
+                {
+                    "asset0": "AstarEvm/WASTR",
+                    "asset1": "AstarEvm/PHA"
+                }
+            ]
+        },
+        {
+            "name": "EthereumWETH9",
+            "action": "ethereum_nativewrapper",
+            "chainName": "Ethereum",
+            "pairs": [
+                {
+                    "asset0": "Ethereum/ETH",
+                    "asset1": "Ethereum/WETH"
+                }
+            ]
+        },
+        {
+            "name": "MoonbeamWETH9",
+            "action": "moonbeam_nativewrapper",
+            "chainName": "Moonbeam",
+            "pairs": [
+                {
+                    "asset0": "Moonbeam/GLMR",
+                    "asset1": "Moonbeam/WGLMR"
+                }
+            ]
+        },
+        {
+            "name": "AstarEvmWETH9",
+            "action": "astar_evm_nativewrapper",
+            "chainName": "AstarEvm",
+            "pairs": [
+                {
+                    "asset0": "AstarEvm/ASTR",
+                    "asset1": "AstarEvm/WASTR"
+                }
+            ]
+        }
+    ]
+}
