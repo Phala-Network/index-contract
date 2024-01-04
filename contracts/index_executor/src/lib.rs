@@ -392,6 +392,7 @@ mod index_executor {
                     worker_accounts: self.worker_accounts.clone(),
                     registry: &self.registry,
                 };
+                task.retry_counter = 0;
                 task.reapply_nonce(execute_index as u64, &context, &client)
                     .map_err(|_| Error::FailedToReApplyNonce)?;
                 pink_extension::info!(

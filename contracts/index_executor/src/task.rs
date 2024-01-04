@@ -166,13 +166,12 @@ impl Task {
         }
 
         let step_count = self.merged_steps.len();
-        match self.merged_steps[self.execute_index as usize].can_run(
+        match self.merged_steps[self.execute_index as usize].has_finished(
             // An executing task must have nonce applied
             self.merged_steps[self.execute_index as usize]
                 .get_nonce()
                 .unwrap(),
             context,
-            None,
         ) {
             // If step already executed successfully, execute next step
             Ok(true) => {

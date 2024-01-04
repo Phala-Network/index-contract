@@ -2,7 +2,7 @@ use crate::actions::base::account::{
     AccountData, AccountInfo, AssetAccount, Balance, Index, OrmlTokenAccountData,
 };
 use crate::assets::get_assetid_by_location;
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 
 use pink_extension::ResultExt;
 use pink_subrpc::{
@@ -52,13 +52,7 @@ pub struct Chain {
 
 impl Chain {
     pub fn is_native(&self, asset: &Vec<u8>) -> bool {
-        match self.chain_type {
-            ChainType::Evm => {
-                // A little bit tricky here
-                asset == &vec![0]
-            }
-            ChainType::Sub => asset == &self.native_asset,
-        }
+        asset == &self.native_asset
     }
 
     pub fn is_evm_chain(&self) -> bool {
@@ -119,13 +113,13 @@ impl BalanceFetcher for Chain {
                 if self.is_native(&asset) {
                     let web3 = Web3::new(transport);
                     let balance = resolve_ready(web3.eth().balance(evm_account, None))
-                        .log_err("chain::get_balance: fetch data [evm native balance] failed")
+                    .log_err(&format!("chain::get_balance: fetch data [evm native balance] failed, chain: {:?}, asset: {:?}", self.name, hex::encode(&asset)))
                         .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 } else {
                     let eth = Eth::new(transport);
                     let asset_account20: [u8; 20] =
-                        asset.try_into().map_err(|_| "InvalidAddress")?;
+                        asset.clone().try_into().map_err(|_| "InvalidAddress")?;
                     let token_address: Address = asset_account20.into();
                     let token =
                         Contract::from_json(eth, token_address, include_bytes!("./abi/erc20.json"))
@@ -137,7 +131,7 @@ impl BalanceFetcher for Chain {
                         Options::default(),
                         None,
                     ))
-                    .log_err("chain::get_balance: fetch data [evm erc20 balance] failed")
+                    .log_err(&format!("chain::get_balance: fetch data [evm erc20 balance] failed, chain: {:?}, asset: {:?}", self.name, hex::encode(&asset)))
                     .or(Err("FetchDataFailed"))?;
                     balance.try_into().map_err(|_| "BalanceOverflow")
                 }
