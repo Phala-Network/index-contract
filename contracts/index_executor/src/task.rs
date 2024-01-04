@@ -211,7 +211,7 @@ impl Task {
                 );
                 // Since we don't actually understand what happened, retry is the only choice.
                 // To avoid we retry too many times, we involved `retry_counter`
-                if self.retry_counter < 10 {
+                if self.retry_counter < 100 {
                     self.retry_counter += 1;
                     // FIXME: handle returned error
                     let _ = self.execute_step(context, client)?;
@@ -499,9 +499,10 @@ impl Task {
         for step in self.merged_steps.iter() {
             let mut simulate_step = step.clone(); // A minimal amount
             let asset_location = simulate_step.as_single_step().spend_asset;
+            let source_chain = simulate_step.as_single_step().source_chain;
             let asset_info = context
                 .registry
-                .get_asset(&self.source, &asset_location)
+                .get_asset(&source_chain, &asset_location)
                 .ok_or("MissingAssetInfo")?;
             // Set spend asset 0.0001
             simulate_step.set_spend(1 * 10u128.pow(asset_info.decimals as u32) / 10000);

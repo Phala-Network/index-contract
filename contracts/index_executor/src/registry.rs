@@ -132,6 +132,13 @@ impl Registry {
             assets: vec![
                 Asset {
                     chain: "Ethereum".to_string(),
+                    symbol: "ETH".to_string(),
+                    location: hex::decode("0000000000000000000000000000000000000000")
+                        .expect("InvalidLocation"),
+                    decimals: 18,
+                },
+                Asset {
+                    chain: "Ethereum".to_string(),
                     symbol: "PHA".to_string(),
                     location: hex::decode("6c5bA91642F10282b576d91922Ae6448C9d52f4E")
                         .expect("InvalidLocation"),
@@ -160,6 +167,12 @@ impl Registry {
                     chain: "AstarEvm".to_string(),
                     symbol: "ASTR".to_string(),
                     location: [0; 20].to_vec(),
+                    decimals: 18,
+                },
+                Asset {
+                    chain: "Astar".to_string(),
+                    symbol: "ASTR".to_string(),
+                    location: hex::decode("010100591f").expect("InvalidLocation"),
                     decimals: 18,
                 },
             ],

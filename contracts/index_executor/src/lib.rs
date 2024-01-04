@@ -187,7 +187,8 @@ mod index_executor {
             Ok(())
         }
 
-        pub fn update_registry(
+        #[ink(message)]
+        pub fn update_chain_info(
             &mut self,
             chain: String,
             endpoint: String,
@@ -203,10 +204,8 @@ mod index_executor {
             Ok(())
         }
 
-        pub fn register_asset(
-            &mut self,
-            asset: crate::registry::Asset,
-        ) -> Result<()> {
+        #[ink(message)]
+        pub fn register_asset(&mut self, asset: crate::registry::Asset) -> Result<()> {
             self.ensure_owner()?;
             self.registry.assets.push(asset);
             Ok(())
@@ -505,7 +504,7 @@ mod index_executor {
             .map_err(|_| Error::FailedToFetchTask)?;
             let Some(mut actived_task) = actived_task else {
                 pink_extension::debug!("No actived task found from {:?}", &source_chain);
-                return Ok(())
+                return Ok(());
             };
 
             // Initialize task, and save it to on-chain storage
@@ -752,25 +751,85 @@ mod index_executor {
                 .unwrap();
             println!("simulation result1: {:?}", result1);
 
-            let solution2: Vec<MultiStepInput> = vec![
-                MultiStepInput::Single(StepInput {
-                    exe: "khala_bridge_to_ethereum".to_string(),
-                    source_chain: "Khala".to_string(),
-                    dest_chain: "Ethereum".to_string(),
-                    spend_asset: "0x0000".to_string(),
-                    receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
-                    recipient: "0x5cddb3ad187065e0122f3f46d13ad6ca486e4644".to_string(),
-                }),
-                MultiStepInput::Single(StepInput {
-                    exe: "ethereum_sygmabridge_to_phala".to_string(),
-                    source_chain: "Ethereum".to_string(),
-                    dest_chain: "Phala".to_string(),
-                    spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
-                    // PHA
-                    receive_asset: "0x0000".to_string(),
-                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
-                        .to_string(),
-                }),
+            let solution2: Solution = vec![
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: String::from("moonbeam_nativewrapper"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0x0000000000000000000000000000000000000802"),
+                        receive_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_stellaswap"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                        receive_asset: String::from("0xffffffff1fcacbd218edc0eba20fc2308c778080"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_stellaswap"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0xffffffff1fcacbd218edc0eba20fc2308c778080"),
+                        receive_asset: String::from("0xffffffffa893ad19e540e172c10d78d4d479b5cf"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_bridge_to_astar"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Astar"),
+                        spend_asset: String::from("0xffffffffa893ad19e540e172c10d78d4d479b5cf"),
+                        receive_asset: String::from("0x010100591f"),
+                        recipient: String::from(
+                            "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331",
+                        ),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ]),
+                MultiStepInput::Single(
+                    StepInput {
+                        exe: String::from("astar_bridge_to_astarevm"),
+                        source_chain: String::from("Astar"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0x010100591f"),
+                        receive_asset: String::from("0x0000000000000000000000000000000000000000"),
+                        recipient: String::from("0x5cddb3ad187065e0122f3f46d13ad6ca486e4644"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ),
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: String::from("astar_evm_nativewrapper"),
+                        source_chain: String::from("AstarEvm"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0x0000000000000000000000000000000000000000"),
+                        receive_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+                        recipient: String::from("0xAE1Ab0a83de66a545229d39E874237fbaFe05714"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("astar_evm_arthswap"),
+                        source_chain: String::from("AstarEvm"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+                        receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+                        recipient: String::from("0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ]),
             ];
             let result2 = executor
                 .simulate_solution(executor.worker_accounts[0].account32, solution2.encode())
