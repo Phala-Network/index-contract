@@ -339,6 +339,7 @@ impl Runner for MultiStep {
 
     fn run(&mut self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let as_single_step = self.as_single_step();
+        let spend_amount = as_single_step.spend_amount.ok_or("MissingSpendAmount")?;
         let chain = as_single_step
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
@@ -353,18 +354,25 @@ impl Runner for MultiStep {
         let tx_id = match chain.chain_type {
             ChainType::Evm => {
                 let handler = Contract::from_json(
-                    Eth::new(PinkHttp::new(chain.endpoint)),
+                    Eth::new(PinkHttp::new(&chain.endpoint)),
                     chain.handler_contract.to_array().into(),
                     include_bytes!("./abi/handler.json"),
                 )
                 .expect("Bad abi data");
 
+                let is_spend_native = chain.is_native(&as_single_step.spend_asset);
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
                     calls.clone(),
                     worker_account.account20.into(),
-                    Options::default(),
+                    Options::with(|opt| {
+                        opt.value = if is_spend_native {
+                            Some(U256::from(spend_amount))
+                        } else {
+                            None
+                        }
+                    }),
                 ))
                 .map_err(|e| {
                     pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
@@ -379,6 +387,11 @@ impl Runner for MultiStep {
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));
+                        opt.value = if is_spend_native {
+                            Some(U256::from(spend_amount))
+                        } else {
+                            None
+                        }
                     }),
                     KeyPair::from(signer),
                 ))
