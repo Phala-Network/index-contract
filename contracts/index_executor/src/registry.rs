@@ -170,6 +170,13 @@ impl Registry {
                     decimals: 18,
                 },
                 Asset {
+                    chain: "AstarEvm".to_string(),
+                    symbol: "GLMR".to_string(),
+                    location: hex::decode("FFFFFFFF00000000000000010000000000000003")
+                        .expect("InvalidLocation"),
+                    decimals: 18,
+                },
+                Asset {
                     chain: "Astar".to_string(),
                     symbol: "ASTR".to_string(),
                     location: hex::decode("010100591f").expect("InvalidLocation"),

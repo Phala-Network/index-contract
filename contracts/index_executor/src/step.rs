@@ -617,5 +617,42 @@ impl Simulate for MultiStep {
 
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
+    use crate::registry::Registry;
+    use crate::step::StepInput;
+
+    #[test]
+    #[ignore]
+    fn test_batch_call_spend_erc20() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let worker_key: [u8; 32] = secret_bytes.to_array();
+
+        let context = Context {
+            signer: worker_key,
+            registry: &Registry::default(),
+            worker_accounts: vec![],
+        };
+
+        let mut step: MultiStep = MultiStepInput::Batch(vec![StepInput {
+            exe: String::from("astar_evm_arthswap"),
+            source_chain: String::from("AstarEvm"),
+            dest_chain: String::from("AstarEvm"),
+            spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+            receive_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+            recipient: String::from("0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20"),
+        }
+        .try_into()
+        .unwrap()])
+        .try_into()
+        .unwrap();
+        // 0.01 GLMR
+        step.set_spend(1_000_000_000_000_000);
+
+        println!("Simulate tx: {:?}", step.simulate(&context));
+        println!("Submit tx to run step: {:?}", hex::encode(&step.run(2, &context).unwrap()));
+    }
 }
