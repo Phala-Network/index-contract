@@ -82,7 +82,7 @@ impl Tokenizable for Call {
                 tokens.push(U256::from(input_call).into_token());
                 tokens.push(U256::from(call_index).into_token());
             }
-            _ => None.expect("Illegal Call"),
+            _ => panic!("Illegal Call"),
         }
         Token::Tuple(tokens)
     }

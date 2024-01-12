@@ -504,7 +504,7 @@ impl Task {
                 .get_asset(&source_chain, &asset_location)
                 .ok_or("MissingAssetInfo")?;
             // Set spend asset 0.0001
-            simulate_step.set_spend(1 * 10u128.pow(asset_info.decimals as u32) / 10000);
+            simulate_step.set_spend(10u128.pow(asset_info.decimals as u32) / 10000);
             let step_simulate_result = simulate_step.simulate(context).map_err(|e| {
                 pink_extension::error!("Some error occurred when simulating: {:?}", e);
                 "SimulateRrror"

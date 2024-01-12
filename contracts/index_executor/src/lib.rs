@@ -339,7 +339,7 @@ mod index_executor {
                     .get_asset(&multi_step.as_single_step().source_chain, &asset_location)
                     .ok_or(Error::MissingAssetInfo)?;
                 // Set spend asset 0.0001
-                multi_step.set_spend(1 * 10u128.pow(asset_info.decimals as u32) / 10000);
+                multi_step.set_spend(10u128.pow(asset_info.decimals as u32) / 10000);
                 let step_simulate_result = multi_step
                     .simulate(&Context {
                         signer,

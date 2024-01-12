@@ -653,6 +653,9 @@ mod tests {
         step.set_spend(1_000_000_000_000_000);
 
         println!("Simulate tx: {:?}", step.simulate(&context));
-        println!("Submit tx to run step: {:?}", hex::encode(&step.run(2, &context).unwrap()));
+        println!(
+            "Submit tx to run step: {:?}",
+            hex::encode(&step.run(2, &context).unwrap())
+        );
     }
 }
