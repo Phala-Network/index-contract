@@ -5,7 +5,6 @@ use super::asset::{AcalaAssets, CurrencyId, TokenType as AcalaTokenType};
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
 use crate::utils::ToArray;
-use alloc::{vec, vec::Vec};
 use scale::{Compact, Decode, Encode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;
@@ -23,10 +22,10 @@ impl AcalaTransactor {
 }
 
 impl CallBuilder for AcalaTransactor {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset_location = MultiLocation::decode(&mut step.spend_asset.as_slice())
             .map_err(|_| "FailedToScaleDecode")?;
-        let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
+        let bytes: [u8; 32] = step.recipient.to_array();
         let recipient = MultiAddress::Id(AccountId::from(bytes));
         let asset_attrs = AcalaAssets::get_asset_attrs(&asset_location).ok_or("BadAsset")?;
         let currency_id = CurrencyId::Token(asset_attrs.0);
@@ -35,7 +34,7 @@ impl CallBuilder for AcalaTransactor {
 
         match asset_type {
             AcalaTokenType::Utility => {
-                Ok(vec![Call {
+                Ok(Call {
                     params: CallParams::Sub(SubCall {
                         calldata: SubExtrinsic {
                             // Balance
@@ -47,7 +46,7 @@ impl CallBuilder for AcalaTransactor {
                     }),
                     input_call: None,
                     call_index: None,
-                }])
+                })
             }
             _ => {
                 let currency_id = match asset_type {
@@ -57,7 +56,7 @@ impl CallBuilder for AcalaTransactor {
                     }
                     _ => currency_id,
                 };
-                Ok(vec![Call {
+                Ok(Call {
                     params: CallParams::Sub(SubCall {
                         calldata: SubExtrinsic {
                             // Currencies
@@ -69,7 +68,7 @@ impl CallBuilder for AcalaTransactor {
                     }),
                     input_call: None,
                     call_index: None,
-                }])
+                })
             }
         }
     }

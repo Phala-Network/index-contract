@@ -24,7 +24,18 @@ impl AstarAssets {
                     // PHA
                     (
                         18446744073709551622_u128,
-                        MultiLocation::new(1, X1(Parachain(2035))),
+                        MultiLocation::new(1, X1(Parachain(crate::constants::PHALA_PARACHAIN_ID))),
+                    ),
+                    // GLMR
+                    (
+                        18446744073709551619_u128,
+                        MultiLocation::new(
+                            1,
+                            X2(
+                                Parachain(crate::constants::MOONBEAM_PARACHAIN_ID),
+                                PalletInstance(10),
+                            ),
+                        ),
                     ),
                 ],
             )],
@@ -33,8 +44,19 @@ impl AstarAssets {
                 vec![
                     // PHA
                     (
-                        MultiLocation::new(1, X1(Parachain(2035))),
+                        MultiLocation::new(1, X1(Parachain(crate::constants::PHALA_PARACHAIN_ID))),
                         18446744073709551622_u128,
+                    ),
+                    // GLMR
+                    (
+                        MultiLocation::new(
+                            1,
+                            X2(
+                                Parachain(crate::constants::MOONBEAM_PARACHAIN_ID),
+                                PalletInstance(10),
+                            ),
+                        ),
+                        18446744073709551619_u128,
                     ),
                 ],
             )],

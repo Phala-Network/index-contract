@@ -4,9 +4,8 @@ use xcm::v3::prelude::*;
 use super::asset::AstarAssets;
 use crate::call::{Call, CallBuilder, CallParams, SubCall, SubExtrinsic};
 use crate::step::Step;
-use crate::utils::ToArray;
-use alloc::{string::String, vec, vec::Vec};
-use pink_subrpc::hasher::{Blake2_256, Hasher};
+use crate::utils::{h160_to_sr25519_pub, ToArray};
+use alloc::{string::String, vec::Vec};
 use scale::{Compact, Decode, Encode};
 
 type MultiAddress = sp_runtime::MultiAddress<AccountId, u32>;
@@ -27,17 +26,11 @@ impl AstarSubToEvmTransactor {
     }
 }
 
-impl AstarSubToEvmTransactor {
-    fn h160_to_sr25519_pub(&self, addr: &[u8]) -> [u8; 32] {
-        Blake2_256::hash(&[b"evm:", addr].concat())
-    }
-}
-
 impl CallBuilder for AstarSubToEvmTransactor {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
-        let bytes: [u8; 20] = step.recipient.clone().ok_or("MissingRecipient")?.to_array();
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
+        let bytes: [u8; 20] = step.recipient.to_array();
         let mut new_step = step;
-        new_step.recipient = Some(self.h160_to_sr25519_pub(&bytes).to_vec());
+        new_step.recipient = h160_to_sr25519_pub(&bytes).to_vec();
         self.transactor.build_call(new_step)
     }
 }
@@ -57,15 +50,15 @@ impl AstarTransactor {
 }
 
 impl CallBuilder for AstarTransactor {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let asset_location = MultiLocation::decode(&mut step.spend_asset.as_slice())
             .map_err(|_| "FailedToScaleDecode")?;
-        let bytes: [u8; 32] = step.recipient.ok_or("MissingRecipient")?.to_array();
+        let bytes: [u8; 32] = step.recipient.to_array();
         let recipient = MultiAddress::Id(AccountId::from(bytes));
         let amount = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
 
         if step.spend_asset == self.native {
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Sub(SubCall {
                     calldata: SubExtrinsic {
                         // Balance
@@ -77,12 +70,12 @@ impl CallBuilder for AstarTransactor {
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         } else {
             let asset_id = AstarAssets::new()
                 .get_assetid(&String::from("Astar"), &asset_location)
                 .ok_or("AssetNotFound")?;
-            Ok(vec![Call {
+            Ok(Call {
                 params: CallParams::Sub(SubCall {
                     calldata: SubExtrinsic {
                         // palletAsset
@@ -94,7 +87,7 @@ impl CallBuilder for AstarTransactor {
                 }),
                 input_call: None,
                 call_index: None,
-            }])
+            })
         }
     }
 }
@@ -123,23 +116,22 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("Astar"),
                 spend_asset: astr_location.encode(),
                 receive_asset: astr_location.encode(),
                 sender: None,
-                recipient: Some(recipient),
+                recipient,
                 // 0.1 ASTR
                 spend_amount: Some(1_00_000_000_000_000_000 as u128),
                 origin_balance: None,
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,
@@ -182,23 +174,22 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
-                exe_type: String::from(""),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("Astar"),
                 spend_asset: pha_location.encode(),
                 receive_asset: pha_location.encode(),
                 sender: None,
-                recipient: Some(recipient),
+                recipient,
                 // 0.1 PHA
                 spend_amount: Some(1_00_000_000_000 as u128),
                 origin_balance: None,
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,
@@ -239,23 +230,22 @@ mod tests {
         let secret_bytes = hex::decode(secret_key).unwrap();
         let signer: [u8; 32] = secret_bytes.to_array();
 
-        let calls = transactor
+        let call = transactor
             .build_call(Step {
-                exe_type: String::from("bridge"),
                 exe: String::from(""),
                 source_chain: String::from("Astar"),
                 dest_chain: String::from("AstarEvm"),
                 spend_asset: pha_location.encode(),
                 receive_asset: pha_location.encode(),
                 sender: None,
-                recipient: Some(h160_recipient),
+                recipient: h160_recipient,
                 // 0.1 PHA
                 spend_amount: Some(1_00_000_000_000 as u128),
                 origin_balance: None,
                 nonce: None,
             })
             .unwrap();
-        match &calls[0].params {
+        match &call.params {
             CallParams::Sub(sub_call) => {
                 let signed_tx = create_transaction_with_calldata(
                     &signer,

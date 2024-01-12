@@ -68,6 +68,12 @@
         "internalType": "bytes",
         "name": "recipient",
         "type": "bytes"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "task",
+        "type": "string"
       }
     ],
     "name": "Deposited",
@@ -143,25 +149,6 @@
         "internalType": "address",
         "name": "",
         "type": "address"
-      }
-    ],
-    "name": "_activedTaskIndexs",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       },
       {
         "internalType": "uint256",
@@ -196,9 +183,14 @@
         "type": "address"
       },
       {
-        "internalType": "address",
+        "internalType": "contract IERC20",
         "name": "token",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
       },
       {
         "internalType": "bytes",
@@ -206,9 +198,9 @@
         "type": "bytes"
       },
       {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
+        "internalType": "string",
+        "name": "task",
+        "type": "string"
       }
     ],
     "stateMutability": "view",
@@ -269,11 +261,6 @@
           },
           {
             "internalType": "address",
-            "name": "spender",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "spendAsset",
             "type": "address"
           },
@@ -305,7 +292,7 @@
     ],
     "name": "batchCall",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -327,11 +314,6 @@
         "internalType": "bytes32",
         "name": "taskId",
         "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "fee",
-        "type": "uint256"
       },
       {
         "components": [
@@ -367,11 +349,6 @@
           },
           {
             "internalType": "address",
-            "name": "spender",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
             "name": "spendAsset",
             "type": "address"
           },
@@ -403,7 +380,7 @@
     ],
     "name": "claimAndBatchCall",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -432,11 +409,16 @@
         "internalType": "bytes32",
         "name": "taskId",
         "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "task",
+        "type": "string"
       }
     ],
     "name": "deposit",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -450,19 +432,6 @@
     "name": "drop",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "feeAccount",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -488,9 +457,14 @@
             "type": "address"
           },
           {
-            "internalType": "address",
+            "internalType": "contract IERC20",
             "name": "token",
             "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
           },
           {
             "internalType": "bytes",
@@ -498,9 +472,9 @@
             "type": "bytes"
           },
           {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
+            "internalType": "string",
+            "name": "task",
+            "type": "string"
           }
         ],
         "internalType": "struct Handler.DepositInfo",
@@ -538,7 +512,7 @@
         "type": "address"
       }
     ],
-    "name": "getNextActivedTask",
+    "name": "getLastActivedTask",
     "outputs": [
       {
         "internalType": "bytes32",
@@ -567,9 +541,14 @@
             "type": "address"
           },
           {
-            "internalType": "address",
+            "internalType": "contract IERC20",
             "name": "token",
             "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
           },
           {
             "internalType": "bytes",
@@ -577,27 +556,14 @@
             "type": "bytes"
           },
           {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
+            "internalType": "string",
+            "name": "task",
+            "type": "string"
           }
         ],
         "internalType": "struct Handler.DepositInfo",
         "name": "",
         "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "nativeAsset",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -614,13 +580,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "pause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -659,38 +618,12 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_feeAccount",
-        "type": "address"
-      }
-    ],
-    "name": "setFeeAccount",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address[]",
         "name": "workers",
         "type": "address[]"
       }
     ],
     "name": "setMultiWorkers",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "native",
-        "type": "address"
-      }
-    ],
-    "name": "setNative",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -720,16 +653,5 @@
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "unpause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]

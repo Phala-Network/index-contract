@@ -21,7 +21,7 @@ impl WorkerGov {
     ) -> Result<Vec<u8>, &'static str> {
         let transport = Eth::new(PinkHttp::new(endpoint));
         let handler_contract =
-            Contract::from_json(transport, handler, crate::constants::HANDLER_ABI)
+            Contract::from_json(transport, handler, include_bytes!("./abi/handler.json"))
                 .or(Err("ConstructContractFailed"))?;
         let worker = KeyPair::from(worker_key);
 
@@ -33,7 +33,7 @@ impl WorkerGov {
         ))
         .or(Err("GasEstimateFailed"))?;
 
-        // Submit the `drop` transaction
+        // Submit the `approve` transaction
         let tx_id = resolve_ready(handler_contract.signed_call(
             "drop",
             id,

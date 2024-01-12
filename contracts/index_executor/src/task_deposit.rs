@@ -1,4 +1,4 @@
-use crate::step::StepJson;
+use crate::step::MultiStepInput;
 use crate::task::Task;
 use alloc::{string::String, vec::Vec};
 use pink_web3::{
@@ -9,13 +9,16 @@ use pink_web3::{
 use scale::{Decode, Encode};
 use xcm::v3::AssetId as XcmAssetId;
 
+pub type Solution = Vec<MultiStepInput>;
+
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct EvmDepositData {
-    // TODO: use Bytes
     sender: Address,
-    amount: U256,
+    token: Address,
     recipient: Vec<u8>,
-    task: String,
+    amount: U256,
+    pub solution: Option<Vec<u8>>,
 }
 
 impl Detokenize for EvmDepositData {
@@ -23,38 +26,39 @@ impl Detokenize for EvmDepositData {
     where
         Self: Sized,
     {
-        if tokens.len() != 1 {
-            return Err(PinkError::InvalidOutputType(String::from("Invalid length")));
-        }
-
-        let deposit_raw = tokens[0].clone();
-        match deposit_raw {
-            Token::Tuple(deposit_data) => {
-                match (
-                    deposit_data[0].clone(),
-                    deposit_data[2].clone(),
-                    deposit_data[3].clone(),
-                    deposit_data[4].clone(),
-                ) {
-                    (
-                        Token::Address(sender),
-                        Token::Uint(amount),
-                        Token::Bytes(recipient),
-                        Token::String(task),
-                    ) => Ok(EvmDepositData {
-                        sender,
-                        amount,
-                        recipient,
-                        task,
-                    }),
-                    _ => Err(PinkError::InvalidOutputType(String::from(
-                        "Return type dismatch",
-                    ))),
+        if tokens.len() == 1 {
+            let deposit_raw = tokens[0].clone();
+            match deposit_raw {
+                Token::Tuple(deposit_data) => {
+                    match (
+                        deposit_data[0].clone(),
+                        deposit_data[1].clone(),
+                        deposit_data[2].clone(),
+                        deposit_data[3].clone(),
+                    ) {
+                        (
+                            Token::Address(sender),
+                            Token::Address(token),
+                            Token::Bytes(recipient),
+                            Token::Uint(amount),
+                        ) => Ok(EvmDepositData {
+                            sender,
+                            token,
+                            recipient,
+                            amount,
+                            solution: None,
+                        }),
+                        _ => Err(PinkError::InvalidOutputType(String::from(
+                            "Return type mismatch",
+                        ))),
+                    }
                 }
+                _ => Err(PinkError::InvalidOutputType(String::from(
+                    "Unexpected output type",
+                ))),
             }
-            _ => Err(PinkError::InvalidOutputType(String::from(
-                "Unexpected output type",
-            ))),
+        } else {
+            Err(PinkError::InvalidOutputType(String::from("Invalid length")))
         }
     }
 }
@@ -66,28 +70,28 @@ pub struct SubDepositData {
     pub asset: XcmAssetId,
     pub amount: u128,
     pub recipient: Vec<u8>,
-    pub task: Vec<u8>,
+    pub solution: Vec<u8>,
 }
 
 // Define the structures to parse deposit data json
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct DepositData {
-    // TODO: use Bytes
     sender: Vec<u8>,
     amount: u128,
     recipient: Vec<u8>,
-    task: String,
+    solution: Vec<u8>,
 }
 
-impl From<EvmDepositData> for DepositData {
-    fn from(value: EvmDepositData) -> Self {
-        Self {
+impl TryFrom<EvmDepositData> for DepositData {
+    type Error = &'static str;
+    fn try_from(value: EvmDepositData) -> Result<Self, &'static str> {
+        Ok(Self {
             sender: value.sender.as_bytes().into(),
             amount: value.amount.try_into().expect("Amount overflow"),
             recipient: value.recipient,
-            task: value.task,
-        }
+            solution: value.solution.ok_or("MissingSolution")?,
+        })
     }
 }
 
@@ -97,7 +101,7 @@ impl From<SubDepositData> for DepositData {
             sender: value.sender.into(),
             amount: value.amount,
             recipient: value.recipient,
-            task: String::from_utf8_lossy(&value.task).into_owned(),
+            solution: value.solution,
         }
     }
 }
@@ -110,13 +114,14 @@ impl DepositData {
         worker: [u8; 32],
     ) -> Result<Task, &'static str> {
         pink_extension::debug!("Trying to parse task data from json string");
-        let execution_plan_json: ExecutionPlan =
-            pink_json::from_str(&self.task).map_err(|_| "InvalidTask")?;
+
+        let solution: Solution =
+            Decode::decode(&mut self.solution.as_slice()).map_err(|_| "InvalidTask")?;
         pink_extension::debug!(
             "Parse task data successfully, found {:?} operations",
-            execution_plan_json.len()
+            solution.len()
         );
-        if execution_plan_json.is_empty() {
+        if solution.is_empty() {
             return Err("EmptyTask");
         }
         pink_extension::debug!("Trying to convert task data to task");
@@ -131,12 +136,12 @@ impl DepositData {
             ..Default::default()
         };
 
-        for step_json in execution_plan_json.iter() {
-            uninitialized_task.steps.push(step_json.clone().try_into()?);
+        for multi_step_input in solution.iter() {
+            uninitialized_task
+                .merged_steps
+                .push(multi_step_input.clone().try_into()?);
         }
 
         Ok(uninitialized_task)
     }
 }
-
-type ExecutionPlan = Vec<StepJson>;

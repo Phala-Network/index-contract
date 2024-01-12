@@ -24,6 +24,7 @@ primitive-types = { version = "0.12.1", default-features = false, features = ["c
 scale = { package = "parity-scale-codec", version = "3.6.4", default-features = false, features = ["derive"] }
 scale-info = { version = "2.9.0", default-features = false, features = ["derive"], optional = true }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43", default-features = false }
+
 pink-kv-session = { version = "0.2.0", default-features = false }
 pink-extension = { version = "0.4", default-features = false, features = ["dlmalloc"] }
 pink-web3 = { version = "0.20.2", git = "https://github.com/Phala-Network/pink-web3.git", branch = "pink", default-features = false, features = ["pink"]}
@@ -38,7 +39,6 @@ hex-literal = "0.4.1"
 pink-extension-runtime = "0.4.4"
 dotenv = "0.15.0"
 hex = "0.4.3"
-
 sp-runtime = { version = "7.0.0", git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.43", default-features = false }
 
 [profile.release]

@@ -1,7 +1,8 @@
+use crate::actions::ActionExtraInfo;
 use crate::chain::{BalanceFetcher, Chain, ChainType};
 use crate::utils::ToArray;
-use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec, vec::Vec};
-use pink_extension::ResultExt;
+use alloc::vec;
+use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use pink_subrpc::{create_transaction_with_calldata, send_transaction, ExtraParam};
 
 use crate::account::AccountInfo;
@@ -18,30 +19,28 @@ use pink_web3::{
     types::U256,
 };
 use scale::{Decode, Encode};
-use serde::Deserialize;
 
-/// The json object that the execution plan consists of
-#[derive(Deserialize, Clone)]
-pub struct StepJson {
-    pub exe_type: String,
+#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct StepInput {
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
     pub spend_asset: String,
     pub receive_asset: String,
+    pub recipient: String,
 }
 
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct Step {
-    pub exe_type: String,
     pub exe: String,
     pub source_chain: String,
     pub dest_chain: String,
     pub spend_asset: Vec<u8>,
     pub receive_asset: Vec<u8>,
     pub sender: Option<Vec<u8>>,
-    pub recipient: Option<Vec<u8>>,
+    pub recipient: Vec<u8>,
     pub spend_amount: Option<u128>,
     // Used to check balance change
     pub origin_balance: Option<u128>,
@@ -51,14 +50,13 @@ pub struct Step {
 impl sp_std::fmt::Debug for Step {
     fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
         f.debug_struct("Step")
-            .field("exe_type", &self.exe_type)
             .field("exe", &self.exe)
             .field("source_chain", &self.source_chain)
             .field("dest_chain", &self.dest_chain)
             .field("spend_asset", &hex::encode(&self.spend_asset))
             .field("receive_asset", &hex::encode(&self.receive_asset))
             .field("sender", &self.sender.as_ref().map(hex::encode))
-            .field("recipient", &self.recipient.as_ref().map(hex::encode))
+            .field("recipient", &hex::encode(&self.recipient))
             .field("spend_amount", &self.spend_amount)
             .field("origin_balance", &self.origin_balance)
             .field("nonce", &self.nonce)
@@ -66,19 +64,18 @@ impl sp_std::fmt::Debug for Step {
     }
 }
 
-impl TryFrom<StepJson> for Step {
+impl TryFrom<StepInput> for Step {
     type Error = &'static str;
 
-    fn try_from(json: StepJson) -> Result<Self, Self::Error> {
+    fn try_from(input: StepInput) -> Result<Self, Self::Error> {
         Ok(Self {
-            exe_type: json.exe_type,
-            exe: json.exe,
-            source_chain: json.source_chain,
-            dest_chain: json.dest_chain,
-            spend_asset: Self::decode_address(&json.spend_asset)?,
-            receive_asset: Self::decode_address(&json.receive_asset)?,
+            exe: input.exe,
+            source_chain: input.source_chain,
+            dest_chain: input.dest_chain,
+            spend_asset: Self::decode_address(&input.spend_asset)?,
+            receive_asset: Self::decode_address(&input.receive_asset)?,
             sender: None,
-            recipient: None,
+            recipient: Self::decode_address(&input.recipient)?,
             spend_amount: Some(0),
             origin_balance: None,
             nonce: None,
@@ -101,7 +98,17 @@ impl Step {
             "Trying to build calldata for according to step data: {:?}",
             self,
         );
-        action.build_call(self.clone())
+        let source_chain = self.source_chain(context).ok_or("MissingSourceChain")?;
+        let worker_account = AccountInfo::from(context.signer);
+        let sender = match source_chain.chain_type {
+            ChainType::Evm => worker_account.account20.to_vec(),
+            ChainType::Sub => worker_account.account32.to_vec(),
+        };
+
+        let mut step = self.clone();
+        step.sender = Some(sender);
+        let call = action.build_call(step)?;
+        Ok(vec![call])
     }
 
     pub fn is_bridge_step(&self) -> bool {
@@ -123,7 +130,34 @@ impl Step {
             return Err("InvalidAddressInStep");
         }
 
-        hex::decode(&address[2..]).or(Err("DecodeAddressFailed"))
+        hex::decode(&address[2..]).map_err(|_| "DecodeAddressFailed")
+    }
+}
+
+#[derive(Clone, Debug, Decode, Encode, PartialEq)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[allow(clippy::large_enum_variant)]
+pub enum MultiStepInput {
+    Single(StepInput),
+    Batch(Vec<StepInput>),
+}
+
+impl TryFrom<MultiStepInput> for MultiStep {
+    type Error = &'static str;
+
+    fn try_from(input: MultiStepInput) -> Result<Self, Self::Error> {
+        match input {
+            MultiStepInput::Single(step_input) => {
+                Ok(MultiStep::Single(Step::try_from(step_input)?))
+            }
+            MultiStepInput::Batch(vec_step_input) => {
+                let mut vec_step = Vec::new();
+                for step_input in vec_step_input {
+                    vec_step.push(Step::try_from(step_input)?);
+                }
+                Ok(MultiStep::Batch(vec_step))
+            }
+        }
     }
 }
 
@@ -137,12 +171,18 @@ pub enum MultiStep {
 }
 
 impl MultiStep {
-    pub fn derive_calls(&mut self, context: &Context) -> Result<Vec<Call>, &'static str> {
+    pub fn derive_calls(&self, context: &Context) -> Result<Vec<Call>, &'static str> {
         if self.as_single_step().spend_amount.is_none() {
             return Err("MissingSpendAmount");
         }
         let calls = match self {
-            MultiStep::Single(step) => step.derive_calls(context)?,
+            MultiStep::Single(step) => {
+                let mut calls = step.derive_calls(context)?;
+                assert!(calls.len() == 1);
+                calls[0].call_index = Some(0);
+                calls[0].input_call = Some(0);
+                calls
+            }
             MultiStep::Batch(batch_steps) => {
                 if batch_steps.is_empty() {
                     return Err("BatchStepEmpty");
@@ -212,7 +252,7 @@ impl MultiStep {
         let step = self.as_single_step();
         let dest_chain = step.dest_chain(context).ok_or("MissingDestChain")?;
         let origin_balance = step.origin_balance.ok_or("MissingBalance")?;
-        let recipient = step.recipient.clone().ok_or("MissingRecipient")?;
+        let recipient = step.recipient.clone();
         let latest_balance = dest_chain.get_balance(step.receive_asset, recipient.clone())?;
         pink_extension::debug!(
             "Settle info of account {:?}: origin_balance is {:?}, latest_balance is {:?}",
@@ -244,8 +284,7 @@ impl MultiStep {
             .registry
             .get_chain(&dest_chain)
             .ok_or("MissingDestChain")?;
-        let origin_balance =
-            chain.get_balance(receive_asset, recipient.ok_or("MissingRecipient")?)?;
+        let origin_balance = chain.get_balance(receive_asset, recipient)?;
 
         match self {
             MultiStep::Single(step) => {
@@ -300,12 +339,14 @@ impl Runner for MultiStep {
 
     fn run(&mut self, nonce: u64, context: &Context) -> Result<Vec<u8>, &'static str> {
         let as_single_step = self.as_single_step();
+        let spend_amount = as_single_step.spend_amount.ok_or("MissingSpendAmount")?;
         let chain = as_single_step
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
         let signer = context.signer;
         let worker_account = AccountInfo::from(context.signer);
         let calls = self.derive_calls(context)?;
+        pink_extension::debug!("Derived calls to be sumitted: {:?}", &calls);
 
         self.sync_origin_balance(context)?;
 
@@ -313,25 +354,31 @@ impl Runner for MultiStep {
         let tx_id = match chain.chain_type {
             ChainType::Evm => {
                 let handler = Contract::from_json(
-                    Eth::new(PinkHttp::new(chain.endpoint)),
+                    Eth::new(PinkHttp::new(&chain.endpoint)),
                     chain.handler_contract.to_array().into(),
-                    crate::constants::HANDLER_ABI,
+                    include_bytes!("./abi/handler.json"),
                 )
                 .expect("Bad abi data");
 
+                let is_spend_native = chain.is_native(&as_single_step.spend_asset);
                 // Estiamte gas before submission
                 let gas = resolve_ready(handler.estimate_gas(
                     "batchCall",
                     calls.clone(),
                     worker_account.account20.into(),
-                    Options::default(),
+                    Options::with(|opt| {
+                        opt.value = if is_spend_native {
+                            Some(U256::from(spend_amount))
+                        } else {
+                            None
+                        }
+                    }),
                 ))
-                .log_err(&format!(
-                    "Step.run: failed to estimated step gas cost with calls: {:?}",
-                    &calls
-                ))
-                .or(Err("FailedToEstimateGas"))?;
-                pink_extension::debug!("Estimated step gas error: {:?}", gas);
+                .map_err(|e| {
+                    pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
+                    "FailedToEstimateGas"
+                })?;
+                pink_extension::debug!("Estimated step gas: {:?}", gas);
 
                 // Actually submit the tx (no guarantee for success)
                 let tx_id = resolve_ready(handler.signed_call(
@@ -340,14 +387,21 @@ impl Runner for MultiStep {
                     Options::with(|opt| {
                         opt.gas = Some(gas);
                         opt.nonce = Some(U256::from(nonce));
+                        opt.value = if is_spend_native {
+                            Some(U256::from(spend_amount))
+                        } else {
+                            None
+                        }
                     }),
                     KeyPair::from(signer),
                 ))
-                .log_err(&format!(
-                    "Step.run: failed to submit tx with nonce: {:?}",
-                    &nonce
-                ))
-                .or(Err("FailedToSubmitTransaction"))?;
+                .map_err(|e| {
+                    pink_extension::error!(
+                        "Failed to submit step execution tx with error: {:?}",
+                        e
+                    );
+                    "FailedToSubmitTransaction"
+                })?;
 
                 tx_id.as_bytes().to_owned()
             }
@@ -364,18 +418,21 @@ impl Runner for MultiStep {
                             era: None,
                         },
                     )
-                    .log_err(&format!(
-                        "Step.run: failed to create transaction with nonce: {:?}",
-                        hex::encode(&calldata)
-                    ))
-                    .or(Err("FailedToCreateTransaction"))?;
+                    .map_err(|e| {
+                        pink_extension::error!(
+                            "Failed to construct substrate tx with error: {:?}",
+                            e
+                        );
+                        "FailedToCreateTransaction"
+                    })?;
 
-                    send_transaction(&chain.endpoint, &signed_tx)
-                        .log_err(&format!(
-                            "Step.run: failed to submit step execution tx with signed tx: {:?}",
-                            &signed_tx
-                        ))
-                        .or(Err("FailedToSubmitTransaction"))?
+                    send_transaction(&chain.endpoint, &signed_tx).map_err(|e| {
+                        pink_extension::error!(
+                            "Failed to submit step execution tx with error: {:?}",
+                            e
+                        );
+                        "FailedToSubmitTransaction"
+                    })?
                 }
                 _ => return Err("UnexpectedCallType"),
             },
@@ -397,7 +454,7 @@ impl Runner for MultiStep {
             .source_chain(context)
             .ok_or("MissingSourceChain")?;
         let worker_account = AccountInfo::from(context.signer);
-        let recipient = as_single_step.recipient.clone().ok_or("MissingRecipient")?;
+        let recipient = as_single_step.recipient.clone();
 
         // Query off-chain indexer directly get the execution result
         let account = match source_chain.chain_type {
@@ -433,7 +490,172 @@ impl Runner for MultiStep {
     }
 }
 
+#[derive(Clone, Debug, Decode, Encode, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct StepSimulateResult {
+    pub action_extra_info: ActionExtraInfo,
+    // Estimate gas cost for the step on EVM chain
+    pub gas_limit: Option<U256>,
+    // Current suggest gas price on EVM chains
+    pub gas_price: Option<U256>,
+    // Native asset price in USD
+    // the  USD amount is the value / 10000
+    pub native_price_in_usd: u32,
+    // tx fee will be paied in USD, calculated based on `gas_cost` and `gas_limit`
+    // the USD amount is the value / 10000
+    // potentially use Fixed crates here
+    pub tx_fee_in_usd: u32,
+}
+
+pub trait Simulate {
+    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str>;
+}
+
+impl Simulate for MultiStep {
+    #[allow(unused_variables)]
+    fn simulate(&self, context: &Context) -> Result<StepSimulateResult, &'static str> {
+        let action_extra_info = match self {
+            MultiStep::Single(step) => context
+                .get_action_extra_info(&step.source_chain, &step.exe)
+                .ok_or("NoActionFound")?,
+            MultiStep::Batch(batch_steps) => {
+                let mut extra_info = ActionExtraInfo::default();
+                for step in batch_steps.iter() {
+                    let single_extra_step = context
+                        .get_action_extra_info(&step.source_chain, &step.exe)
+                        .ok_or("NoActionFound")?;
+                    extra_info.extra_proto_fee_in_usd += single_extra_step.extra_proto_fee_in_usd;
+                    extra_info.const_proto_fee_in_usd += single_extra_step.const_proto_fee_in_usd;
+                    extra_info.percentage_proto_fee =
+                        extra_info.percentage_proto_fee + single_extra_step.percentage_proto_fee;
+                    // Batch txs will happen within same block, so we don't need to accumulate it
+                    extra_info.confirm_time_in_sec = single_extra_step.confirm_time_in_sec;
+                }
+                extra_info
+            }
+        };
+
+        let calls = self.derive_calls(context)?;
+
+        let as_single_step = self.as_single_step();
+        let chain = as_single_step
+            .source_chain(context)
+            .ok_or("MissingSourceChain")?;
+        let worker_account = AccountInfo::from(context.signer);
+
+        pink_extension::debug!("Start to simulate step with calls: {:?}", &calls);
+        let (gas_limit, gas_price, native_price_in_usd, tx_fee_in_usd) = match chain.chain_type {
+            ChainType::Evm => {
+                let eth = Eth::new(PinkHttp::new(chain.endpoint));
+                let handler = Contract::from_json(
+                    eth.clone(),
+                    chain.handler_contract.to_array().into(),
+                    include_bytes!("./abi/handler.json"),
+                )
+                .expect("Bad abi data");
+                let options = if as_single_step.spend_asset == chain.native_asset {
+                    Options::with(|opt| {
+                        opt.value = Some(U256::from(as_single_step.spend_amount.unwrap()))
+                    })
+                } else {
+                    Options::default()
+                };
+
+                // Estiamte gas before submission
+                let gas = resolve_ready(handler.estimate_gas(
+                    "batchCall",
+                    calls,
+                    worker_account.account20.into(),
+                    options,
+                ))
+                .map_err(|e| {
+                    pink_extension::error!("Failed to estimated step gas cost with error: {:?}", e);
+                    "FailedToEstimateGas"
+                })?;
+
+                let gas_price = resolve_ready(eth.gas_price()).or(Err("FailedToGetGasPrice"))?;
+                let native_asset_price = crate::price::get_price(&chain.name, &chain.native_asset)
+                    .ok_or("MissingPriceData")?;
+                (
+                    Some(gas),
+                    Some(gas_price),
+                    native_asset_price,
+                    // The usd value is the return amount / 10000
+                    // TODO: here we presume the decimals of all EVM native asset is 18, but we should get it from asset info
+                    ((gas * gas_price * native_asset_price) / 10u128.pow(18))
+                        .try_into()
+                        .expect("Tx fee overflow"),
+                )
+            }
+            ChainType::Sub => match calls[0].params.clone() {
+                CallParams::Sub(SubCall { calldata }) => {
+                    let native_asset_price =
+                        crate::price::get_price(&chain.name, &chain.native_asset)
+                            .ok_or("MissingPriceData")?;
+                    (
+                        None,
+                        None,
+                        native_asset_price,
+                        // TODO: estimate tx_fee according to calldata size
+                        // 0.001 USD
+                        100,
+                    )
+                }
+                _ => return Err("UnexpectedCallType"),
+            },
+        };
+
+        Ok(StepSimulateResult {
+            action_extra_info,
+            gas_limit,
+            gas_price,
+            native_price_in_usd,
+            tx_fee_in_usd,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    // use super::*;
+    use super::*;
+    use crate::registry::Registry;
+    use crate::step::StepInput;
+
+    #[test]
+    #[ignore]
+    fn test_batch_call_spend_erc20() {
+        pink_extension_runtime::mock_ext::mock_all_ext();
+
+        let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+        let secret_key = secret_key.unwrap().1;
+        let secret_bytes = hex::decode(secret_key).unwrap();
+        let worker_key: [u8; 32] = secret_bytes.to_array();
+
+        let context = Context {
+            signer: worker_key,
+            registry: &Registry::default(),
+            worker_accounts: vec![],
+        };
+
+        let mut step: MultiStep = MultiStepInput::Batch(vec![StepInput {
+            exe: String::from("astar_evm_arthswap"),
+            source_chain: String::from("AstarEvm"),
+            dest_chain: String::from("AstarEvm"),
+            spend_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+            receive_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+            recipient: String::from("0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20"),
+        }
+        .try_into()
+        .unwrap()])
+        .try_into()
+        .unwrap();
+        // 0.01 GLMR
+        step.set_spend(1_000_000_000_000_000);
+
+        println!("Simulate tx: {:?}", step.simulate(&context));
+        println!(
+            "Submit tx to run step: {:?}",
+            hex::encode(&step.run(2, &context).unwrap())
+        );
+    }
 }

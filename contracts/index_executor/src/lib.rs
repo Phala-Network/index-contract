@@ -10,6 +10,7 @@ mod chain;
 mod constants;
 mod context;
 mod gov;
+mod price;
 mod registry;
 mod step;
 mod storage;
@@ -28,8 +29,10 @@ mod index_executor {
     use crate::context::Context;
     use crate::gov::WorkerGov;
     use crate::registry::Registry;
+    use crate::step::{MultiStep, Simulate as StepSimulate, StepSimulateResult};
     use crate::storage::StorageClient;
     use crate::task::{Task, TaskId, TaskStatus};
+    use crate::task_deposit::Solution;
     use crate::task_fetcher::ActivedTaskFetcher;
     use alloc::{string::String, vec, vec::Vec};
     use ink::storage::traits::StorageLayout;
@@ -55,12 +58,18 @@ mod index_executor {
         FailedToInitTask,
         FailedToDestoryTask,
         FailedToUploadTask,
+        FailedToUploadSolution,
+        FailedToDecodeSolution,
+        InvalidSolutionData,
+        SolutionAlreadyExist,
         FailedToReApplyNonce,
         FailedToReRunTask,
+        FailedToSimulateSolution,
         TaskNotFoundInStorage,
         UnexpectedChainType,
         ExecutorPaused,
         ExecutorNotPaused,
+        MissingAssetInfo,
     }
 
     type Result<T> = core::result::Result<T, Error>;
@@ -87,7 +96,8 @@ mod index_executor {
     pub enum RunningType {
         // [source_chain, worker_sr25519_pub_key]
         Fetch(String, [u8; 32]),
-        Execute,
+        // [worker_sr25519_pub_key]
+        Execute([u8; 32]),
     }
 
     #[ink(storage)]
@@ -128,11 +138,22 @@ mod index_executor {
             Ok(())
         }
 
-        /// TODO: Debug only, remove before release
+        /// Debug only, remove before release
         #[ink(message)]
         pub fn export_worker_keys(&self) -> Result<Vec<[u8; 32]>> {
             self.ensure_owner()?;
             Ok(self.worker_prv_keys.clone())
+        }
+
+        /// Debug only, remove before release
+        #[ink(message)]
+        pub fn import_worker_keys(&mut self, keys: Vec<[u8; 32]>) -> Result<()> {
+            self.ensure_owner()?;
+            self.worker_prv_keys = keys;
+            for key in self.worker_prv_keys.iter() {
+                self.worker_accounts.push(AccountInfo::from(*key))
+            }
+            Ok(())
         }
 
         /// FIXME: Pass the key implicitly
@@ -166,50 +187,28 @@ mod index_executor {
             Ok(())
         }
 
-        /// Save worker account information to remote storage.
         #[ink(message)]
-        pub fn config_storage(&self) -> Result<()> {
-            self.ensure_owner()?;
-
-            let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
-
-            pink_extension::debug!("Start to config storage");
-            let accounts: Vec<[u8; 32]> = self
-                .worker_accounts
-                .clone()
-                .into_iter()
-                .map(|account| account.account32)
-                .collect();
-            client
-                .insert(b"free_accounts", &accounts.encode())
-                .map_err(|_| Error::FailedToSetupStorage)?;
-
-            let empty_tasks: Vec<TaskId> = vec![];
-            client
-                .insert(b"pending_tasks", &empty_tasks.encode())
-                .map_err(|_| Error::FailedToSetupStorage)?;
-            Self::env().emit_event(WorkerSetToStorage {});
-            Ok(())
-        }
-
-        #[ink(message)]
-        pub fn update_registry(
+        pub fn update_chain_info(
             &mut self,
             chain: String,
             endpoint: String,
-            indexer: String,
+            indexer_url: String,
         ) -> Result<()> {
             self.ensure_owner()?;
 
             if let Some(index) = self.registry.chains.iter().position(|x| x.name == chain) {
                 // Update the value at the found index
                 self.registry.chains[index].endpoint = endpoint;
-                self.registry.chains[index].tx_indexer_url = indexer;
-                Ok(())
-            } else {
-                Err(Error::ChainNotFound)
+                self.registry.chains[index].tx_indexer_url = indexer_url;
             }
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn register_asset(&mut self, asset: crate::registry::Asset) -> Result<()> {
+            self.ensure_owner()?;
+            self.registry.assets.push(asset);
+            Ok(())
         }
 
         #[ink(message)]
@@ -291,6 +290,73 @@ mod index_executor {
         }
 
         #[ink(message)]
+        pub fn upload_solution(&self, id: TaskId, solution: Vec<u8>) -> Result<()> {
+            self.ensure_running()?;
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+
+            let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
+            if client
+                .read::<Solution>(&solution_id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .is_some()
+            {
+                return Err(Error::SolutionAlreadyExist);
+            }
+
+            client
+                .insert(&solution_id, &solution)
+                .log_err("failed to upload solution")
+                .or(Err(Error::FailedToUploadSolution))?;
+
+            Ok(())
+        }
+
+        #[ink(message)]
+        pub fn simulate_solution(
+            &self,
+            worker: [u8; 32],
+            solution: Vec<u8>,
+        ) -> Result<Vec<StepSimulateResult>> {
+            let solution: Solution =
+                Decode::decode(&mut solution.as_slice()).or(Err(Error::FailedToDecodeSolution))?;
+
+            let signer: [u8; 32] = self.pub_to_prv(worker).ok_or(Error::WorkerNotFound)?;
+            let context = Context {
+                signer,
+                worker_accounts: self.worker_accounts.clone(),
+                registry: &self.registry,
+            };
+            let mut simulate_results: Vec<StepSimulateResult> = vec![];
+            for multi_step_input in solution.iter() {
+                let mut multi_step: MultiStep = multi_step_input
+                    .clone()
+                    .try_into()
+                    .or(Err(Error::InvalidSolutionData))?;
+                let asset_location = multi_step.as_single_step().spend_asset;
+                let asset_info = context
+                    .registry
+                    .get_asset(&multi_step.as_single_step().source_chain, &asset_location)
+                    .ok_or(Error::MissingAssetInfo)?;
+                // Set spend asset 0.0001
+                multi_step.set_spend(10u128.pow(asset_info.decimals as u32) / 10000);
+                let step_simulate_result = multi_step
+                    .simulate(&Context {
+                        signer,
+                        registry: &self.registry,
+                        worker_accounts: self.worker_accounts.clone(),
+                    })
+                    .map_err(|err| {
+                        pink_extension::error!("Solution simulation failed with error: {}", err);
+                        Error::FailedToSimulateSolution
+                    })?;
+                simulate_results.push(step_simulate_result);
+            }
+
+            Ok(simulate_results)
+        }
+
+        #[ink(message)]
         pub fn run(&self, running_type: RunningType) -> Result<()> {
             self.ensure_running()?;
 
@@ -301,7 +367,7 @@ mod index_executor {
                 RunningType::Fetch(source_chain, worker) => {
                     self.fetch_task(&client, &source_chain, worker)?
                 }
-                RunningType::Execute => self.execute_task(&client)?,
+                RunningType::Execute(worker) => self.execute_task(&client, worker)?,
             };
 
             Ok(())
@@ -326,6 +392,7 @@ mod index_executor {
                     worker_accounts: self.worker_accounts.clone(),
                     registry: &self.registry,
                 };
+                task.retry_counter = 0;
                 task.reapply_nonce(execute_index as u64, &context, &client)
                     .map_err(|_| Error::FailedToReApplyNonce)?;
                 pink_extension::info!(
@@ -361,37 +428,49 @@ mod index_executor {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
 
-            let mut tasks = Vec::new();
-            let Some((ids, _)) = client
-                .read::<Vec<[u8; 32]>>(b"pending_tasks")
-                .map_err(|_| Error::FailedToReadStorage)? else {
-                    return Ok(tasks)
-                };
-
-            for id in ids.iter() {
-                pink_extension::debug!(
-                    "Trying to read pending task data from remote storage, task id: {:?}",
-                    &hex::encode(id)
-                );
-                let (task, _) = client
-                    .read::<Task>(id)
+            let mut tasks: Vec<Task> = Vec::new();
+            for worker_account in self.worker_accounts.iter() {
+                if let Some((task_id, _)) = client
+                    .read::<TaskId>(&worker_account.account32)
                     .map_err(|_| Error::FailedToReadStorage)?
-                    .ok_or(Error::TaskNotFoundInStorage)?;
+                {
+                    pink_extension::debug!(
+                        "Trying to read pending task data from remote storage, task id: {:?}",
+                        &hex::encode(task_id)
+                    );
+                    let (task, _) = client
+                        .read::<Task>(&task_id)
+                        .map_err(|_| Error::FailedToReadStorage)?
+                        .ok_or(Error::TaskNotFoundInStorage)?;
 
-                tasks.push(task);
+                    tasks.push(task);
+                }
             }
 
             Ok(tasks)
         }
 
         #[ink(message)]
-        pub fn get_running_task(&self, id: TaskId) -> Result<Option<Task>> {
+        pub fn get_task(&self, id: TaskId) -> Result<Option<Task>> {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
             Ok(client
                 .read::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .map(|(task, _)| task))
+        }
+
+        #[ink(message)]
+        pub fn get_solution(&self, id: TaskId) -> Result<Option<Vec<u8>>> {
+            self.ensure_running()?;
+            let config = self.ensure_configured()?;
+            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
+
+            let solution_id = [b"solution".to_vec(), id.to_vec()].concat();
+            Ok(client
+                .read::<Solution>(&solution_id)
+                .map_err(|_| Error::FailedToReadStorage)?
+                .map(|(solution, _)| solution.encode()))
         }
 
         /// Returs the interior registry, callable to all
@@ -404,21 +483,6 @@ mod index_executor {
         #[ink(message)]
         pub fn get_worker_accounts(&self) -> Result<Vec<AccountInfo>> {
             Ok(self.worker_accounts.clone())
-        }
-
-        /// Return worker accounts information that is free
-        #[ink(message)]
-        pub fn get_free_worker_account(&self) -> Result<Vec<[u8; 32]>> {
-            let config = self.ensure_configured()?;
-            let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
-            if let Some((accounts, _)) = client
-                .read::<Vec<[u8; 32]>>(b"free_accounts")
-                .map_err(|_| Error::FailedToReadStorage)?
-            {
-                Ok(accounts)
-            } else {
-                Ok(vec![])
-            }
         }
 
         /// Search actived tasks from source chain and upload them to storage
@@ -437,55 +501,53 @@ mod index_executor {
                     .ok_or(Error::ChainNotFound)?,
                 AccountInfo::from(signer),
             )
-            .fetch_task()
+            .fetch_task(client)
             .map_err(|_| Error::FailedToFetchTask)?;
-            if let Some(mut actived_task) = actived_task {
-                // Initialize task, and save it to on-chain storage
-                actived_task
-                    .init(
-                        &Context {
-                            signer,
-                            registry: &self.registry,
-                            worker_accounts: self.worker_accounts.clone(),
-                        },
-                        client,
-                    )
-                    .map_err(|e| {
-                        pink_extension::info!(
-                            "Initial error {:?}, initialized task data: {:?}",
-                            &e,
-                            &actived_task
-                        );
-                        Error::FailedToInitTask
-                    })?;
-                pink_extension::info!(
-                    "An actived task was found on {:?}, initialized task data: {:?}",
-                    &source_chain,
-                    &actived_task
-                );
-            } else {
+            let Some(mut actived_task) = actived_task else {
                 pink_extension::debug!("No actived task found from {:?}", &source_chain);
-            }
+                return Ok(());
+            };
+
+            // Initialize task, and save it to on-chain storage
+            actived_task
+                .init(
+                    &Context {
+                        signer,
+                        registry: &self.registry,
+                        worker_accounts: self.worker_accounts.clone(),
+                    },
+                    client,
+                )
+                .map_err(|e| {
+                    pink_extension::info!(
+                        "Initial error {:?}, initialized task data: {:?}",
+                        &e,
+                        &actived_task
+                    );
+                    Error::FailedToInitTask
+                })?;
+            pink_extension::info!(
+                "An actived task was found on {:?}, initialized task data: {:?}",
+                &source_chain,
+                &actived_task
+            );
 
             Ok(())
         }
 
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
-        pub fn execute_task(&self, client: &StorageClient) -> Result<()> {
-            let Some((ids, _)) = client
-                .read::<Vec<[u8; 32]>>(b"pending_tasks")
-                .map_err(|_| Error::FailedToReadStorage)? else {
-                    return Ok(());
-                };
-
-            for id in ids.iter() {
+        pub fn execute_task(&self, client: &StorageClient, worker: [u8; 32]) -> Result<()> {
+            if let Some((id, _)) = client
+                .read::<TaskId>(&worker)
+                .map_err(|_| Error::FailedToReadStorage)?
+            {
                 pink_extension::debug!(
                     "Trying to read pending task data from remote storage, task id: {:?}",
                     &hex::encode(id)
                 );
                 let (mut task, task_doc) = client
-                    .read::<Task>(id)
+                    .read::<Task>(&id)
                     .map_err(|_| Error::FailedToReadStorage)?
                     .ok_or(Error::TaskNotFoundInStorage)?;
 
@@ -531,12 +593,16 @@ mod index_executor {
                             "Task execution has not finished yet, update data to remote storage: {:?}",
                             hex::encode(task.id)
                         );
-                        client
-                            .update(task.id.as_ref(), &task.encode(), task_doc)
-                            .map_err(|_| Error::FailedToUploadTask)?;
-                        continue;
                     }
                 }
+                client
+                    .update(task.id.as_ref(), &task.encode(), task_doc)
+                    .map_err(|_| Error::FailedToUploadTask)?;
+            } else {
+                pink_extension::debug!(
+                    "No pending task to execute for worker: {:?}, return",
+                    &hex::encode(worker)
+                );
             }
 
             Ok(())
@@ -581,8 +647,10 @@ mod index_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::step::{MultiStepInput, StepInput};
         // use dotenv::dotenv;
         // use pink_extension::PinkEnvironment;
+        use crate::utils::ToArray;
         use xcm::v3::{prelude::*, MultiLocation};
 
         fn deploy_executor() -> Executor {
@@ -617,6 +685,157 @@ mod index_executor {
                     .encode()
                 )
             )
+        }
+
+        #[ink::test]
+        #[ignore]
+        fn simulate_solution_should_work() {
+            pink_extension_runtime::mock_ext::mock_all_ext();
+            let secret_key = std::env::vars().find(|x| x.0 == "SECRET_KEY");
+            let secret_key = secret_key.unwrap().1;
+            let secret_bytes = hex::decode(secret_key).unwrap();
+            let worker_key: [u8; 32] = secret_bytes.to_array();
+            let mut executor = deploy_executor();
+            assert_eq!(executor.import_worker_keys(vec![worker_key]), Ok(()));
+            assert_eq!(
+                executor.config_engine("url".to_string(), "key".to_string(), [0; 32].into(), false),
+                Ok(())
+            );
+            assert_eq!(executor.resume_executor(), Ok(()));
+
+            let solution1: Vec<MultiStepInput> = vec![
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: "ethereum_nativewrapper".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0x0000000000000000000000000000000000000000".to_string(),
+                        // WETH
+                        receive_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_uniswapv2".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Ethereum".to_string(),
+                        spend_asset: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2".to_string(),
+                        // PHA
+                        receive_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        recipient: "0xd693bDC5cb0cF2a31F08744A0Ec135a68C26FE1c".to_string(),
+                    },
+                    StepInput {
+                        exe: "ethereum_sygmabridge_to_phala".to_string(),
+                        source_chain: "Ethereum".to_string(),
+                        dest_chain: "Phala".to_string(),
+                        spend_asset: "0x6c5bA91642F10282b576d91922Ae6448C9d52f4E".to_string(),
+                        // PHA
+                        receive_asset: "0x0000".to_string(),
+                        recipient:
+                            "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                                .to_string(),
+                    },
+                ]),
+                MultiStepInput::Single(StepInput {
+                    exe: "phala_bridge_to_astar".to_string(),
+                    source_chain: "Phala".to_string(),
+                    dest_chain: "Astar".to_string(),
+                    spend_asset: "0x0000".to_string(),
+                    // PHA
+                    receive_asset: "0x010100cd1f".to_string(),
+                    recipient: "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331"
+                        .to_string(),
+                }),
+            ];
+
+            let result1 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution1.encode())
+                .unwrap();
+            println!("simulation result1: {:?}", result1);
+
+            let solution2: Solution = vec![
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: String::from("moonbeam_nativewrapper"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0x0000000000000000000000000000000000000802"),
+                        receive_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_stellaswap"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0xacc15dc74880c9944775448304b263d191c6077f"),
+                        receive_asset: String::from("0xffffffff1fcacbd218edc0eba20fc2308c778080"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_stellaswap"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Moonbeam"),
+                        spend_asset: String::from("0xffffffff1fcacbd218edc0eba20fc2308c778080"),
+                        receive_asset: String::from("0xffffffffa893ad19e540e172c10d78d4d479b5cf"),
+                        recipient: String::from("0x8351BAE38E3D590063544A99A95BF4fe5379110b"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("moonbeam_bridge_to_astar"),
+                        source_chain: String::from("Moonbeam"),
+                        dest_chain: String::from("Astar"),
+                        spend_asset: String::from("0xffffffffa893ad19e540e172c10d78d4d479b5cf"),
+                        receive_asset: String::from("0x010100591f"),
+                        recipient: String::from(
+                            "0x641017970d80738617e4e9b9b01d8d2ed5bc3d881a60e5105620abfbf5cb1331",
+                        ),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ]),
+                MultiStepInput::Single(
+                    StepInput {
+                        exe: String::from("astar_bridge_to_astarevm"),
+                        source_chain: String::from("Astar"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0x010100591f"),
+                        receive_asset: String::from("0x0000000000000000000000000000000000000000"),
+                        recipient: String::from("0x5cddb3ad187065e0122f3f46d13ad6ca486e4644"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ),
+                MultiStepInput::Batch(vec![
+                    StepInput {
+                        exe: String::from("astar_evm_nativewrapper"),
+                        source_chain: String::from("AstarEvm"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0x0000000000000000000000000000000000000000"),
+                        receive_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+                        recipient: String::from("0xAE1Ab0a83de66a545229d39E874237fbaFe05714"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                    StepInput {
+                        exe: String::from("astar_evm_arthswap"),
+                        source_chain: String::from("AstarEvm"),
+                        dest_chain: String::from("AstarEvm"),
+                        spend_asset: String::from("0xAeaaf0e2c81Af264101B9129C00F4440cCF0F720"),
+                        receive_asset: String::from("0xFFFFFFFF00000000000000010000000000000003"),
+                        recipient: String::from("0xA29D4E0F035cb50C0d78c8CeBb56Ca292616Ab20"),
+                    }
+                    .try_into()
+                    .unwrap(),
+                ]),
+            ];
+            let result2 = executor
+                .simulate_solution(executor.worker_accounts[0].account32, solution2.encode())
+                .unwrap();
+            println!("simulation result2: {:?}", result2);
         }
     }
 }

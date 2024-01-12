@@ -2,20 +2,22 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path')
+const { execSync } = require('child_process')
 const { program } = require('commander');
 const { Decimal } = require('decimal.js');
 const BN = require('bn.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const { stringToHex } = require('@polkadot/util');
-const ethers = require('ethers')
-const PhalaSdk = require('@phala/sdk')
-const PhalaSDKTypes = PhalaSdk.types
+const ethers = require('ethers');
+const PhalaSdk = require('@phala/sdk');
+const PhalaSDKTypes = PhalaSdk.types;
 const KhalaTypes = require('@phala/typedefs').khalaDev
 const { loadContractFile, createContract, delay } = require('./utils');
 
-const ERC20ABI = require('../../contracts/index_executor/src/abi/erc20.json')
-const HandlerABI = require('../../contracts/index_executor/src/abi//handler.json')
+// TODO: load from config file
+const SOURCE_CHAINS = ['Moonbeam', 'AstarEvm'];
+const EXE_WORKER = '0x04dba0677fc274ffaccc0fa1030a66b171d1da9226d2bb9d152654e6a746f276';
 
 function run(afn) {
     function runner(...args) {
@@ -66,13 +68,12 @@ async function useApi(endpoint) {
     return api;
 }
 
-async function useCert(uri, api) {
+async function useCert(uri, _api) {
     await cryptoWaitReady();
     const keyring = new Keyring({ type: 'sr25519' })
-    const account = keyring.addFromUri(uri)
+    const pair = keyring.addFromUri(uri)
     return await PhalaSdk.signCertificate({
-        api: api,
-        pair: account,
+        pair
     });
 }
 
@@ -145,7 +146,7 @@ keystore
         let pair = await usePair(uri);
         let keystore = await useKeystore(api, config.pruntine_endpoint, config.key_store_contract_id);
         // costs estimation
-        let { gasRequired, storageDeposit } = await keystore.query.setExecutor(cert, {}, config.executor_contract_id);
+        let { gasRequired, storageDeposit } = await keystore.query.setExecutor(cert.address, {cert}, config.executor_contract_id);
         // transaction / extrinct
         let options = {
             gasLimit: gasRequired.refTime,
@@ -176,7 +177,7 @@ executor
 
         {
             // costs estimation
-            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert, {},
+            let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address, {cert},
                 storageUrl,
                 storageKey,
                 config.key_store_contract_id,
@@ -196,15 +197,9 @@ executor
             console.log(`✅ Config executor`)
         }
 
-        await delay(10*1000);   // 10 seconds
-        {
-            await executor.query.configStorage(cert, {});
-            console.log(`✅ Config storage`)
-        }
-
         if (opt.resume !== false) {
             // costs estimation
-            let { gasRequired, storageDeposit } = await executor.query.resumeExecutor(cert, {});
+            let { gasRequired, storageDeposit } = await executor.query.resumeExecutor(cert.address, {cert});
             // transaction / extrinct
             let options = {
                 gasLimit: gasRequired.refTime,
@@ -345,8 +340,8 @@ worker
         let api = await useApi(config.node_wss_endpoint);
         let executor = await useExecutor(api, config.pruntine_endpoint, config.executor_contract_id);
         let cert = await useCert(uri, api);
-        let ret = (await executor.query.getWorkerAccounts(cert,
-            {},
+        let ret = (await executor.query.getWorkerAccounts(cert.address,
+            {cert},
         ));
         let workers = ret.output.asOk.toJSON().ok;
         if (opt.worker !== null) {
@@ -373,8 +368,8 @@ worker
         let cert = await useCert(uri, api);
 
         console.log(`Call Executor::worker_approve to approve ERC20 for specific asset`);
-        let queryRecipient = await executor.query.workerApprove(cert,
-            {},
+        let queryRecipient = await executor.query.workerApprove(cert.address,
+            {cert},
             opt.worker,
             opt.chain.toLowerCase(),
             opt.token,
@@ -417,5 +412,141 @@ worker
         }
     }));
 
+worker
+    .command('drop-task')
+    .description('drop a task that has not been claimed from handler')
+    .requiredOption('--worker <worker>', 'worker sr25519 public key', null)
+    .requiredOption('--chain <chain>', 'chain name', null)
+    .requiredOption('--id <task_id>', 'task id', null)
+
+    .action(
+      run(async (opt) => {
+        let { uri } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(
+          api,
+          config.pruntine_endpoint,
+          config.executor_contract_id
+        );
+        let cert = await useCert(uri, api);
+
+        console.log(
+          `Call Executor::worker_drop_task...`
+        );
+        let queryRecipient = await executor.query.workerDropTask(cert.address,
+          {cert},
+          opt.worker,
+          opt.chain.charAt(0).toUpperCase() + opt.chain.slice(1).toLowerCase(),
+          opt.id
+        );
+        console.log(
+          `Query recipient: ${JSON.stringify(queryRecipient, null, 2)}`
+        );
+      })
+    );
+
+const scheduler = program
+    .command('scheduler')
+    .description('inDEX scheduler');
+
+scheduler
+    .command('run')
+    .description('Run scheduled tasks periodically [this command never return]')
+    .option('--fetch-interval <fetch-interval>', 'Interval of fetch task from all source chains in millisecond', null)
+    .option('--execute-interval <execute-interval>', 'Interval of execute task in millisecond', null)
+    .option('--token-update-interval <token-update-interval>', 'Interval of update google firbase access token in millisecond', null)
+
+    .action(
+      run(async (opt) => {
+        let { uri, storageUrl } = program.opts();
+        let config = useConfig();
+        let api = await useApi(config.node_wss_endpoint);
+        let executor = await useExecutor(
+          api,
+          config.pruntine_endpoint,
+          config.executor_contract_id
+        );
+        let cert = await useCert(uri, api);
+        let pair = await usePair(uri);
+
+        if ((await executor.query.isRunning(cert.address, {cert})).asOk === false) {
+            throw new Error("Executor not running")
+        }
+
+        console.log(`Start run interval tasks...`)
+
+        async function runIntervalTasks() {
+            return new Promise(async (_resolve, reject) => {
+                // Trigger task lookup
+                setInterval(async () => {
+                    for (const source of SOURCE_CHAINS) {
+                        console.log(`🔍Trigger actived task search from ${source} for worker ${EXE_WORKER}`)
+                        let { output } = await executor.query.run(cert.address,
+                            {cert},
+                            {'Fetch': [source, EXE_WORKER]}
+                        )
+                        console.log(`Task lookup result: ${JSON.stringify(output, null, 2)}`)
+                    }
+                }, Number(opt.fetchInterval | 30000))
+
+                // Trigger task execution
+                setInterval(async () => {
+                    console.log(`🐌Trigger task executing`)
+                    let {output} = await executor.query.run(cert.address,
+                        {cert},
+                        'Execute'
+                    )
+                    console.log(`Task execute result: ${JSON.stringify(output, null, 2)}`)
+                }, Number(opt.executeInterval | 10000))
+
+                // Trigger gcloud access token update
+                setInterval(async () => {
+                    try {
+                        const token = execSync('gcloud auth print-access-token').toString().trim();
+                        console.log(`Generate new token: ${token}`);
+
+                        let { gasRequired, storageDeposit } = await executor.query.configEngine(cert.address,
+                            {cert},
+                            storageUrl,
+                            token,
+                            config.key_store_contract_id,
+                            false,
+                        );
+                        // transaction / extrinct
+                        let options = {
+                            gasLimit: gasRequired.refTime,
+                            storageDepositLimit: storageDeposit.isCharge ? storageDeposit.asCharge : null,
+                        };
+                        await executor.tx.configEngine(options,
+                            storageUrl,
+                            token,
+                            config.key_store_contract_id,
+                            false,
+                        ).signAndSend(pair, { nonce: -1 });
+                        console.log(`✅ Access token updated successfully`);
+                    } catch (error) {
+                        throw new Error(`Failed to generate access token due to error: ${error}`)
+                    }
+                }, Number(opt.tokenUpdateInterval | 60000))
+            })
+        }
+
+        while (true) {
+            try {
+                await runIntervalTasks();
+            } catch (error) {
+                if (
+                    error.message.includes('InkResponse') ||
+                    error.message.includes('inkMessageReturn') ||
+                    error.code == 'ECONNRESET') {
+                    console.warn('Got known exception caused by network traffic, will continue to execute');
+                } else {
+                    throw error;
+                }
+            }
+        }
+      })
+    );
 
 program.parse(process.argv);

@@ -1,5 +1,5 @@
 use super::asset::{AcalaAssets, AggregatedSwapPath, CurrencyId, TokenSymbol};
-use alloc::{format, vec, vec::Vec};
+use alloc::{format, vec};
 use pink_extension::ResultExt;
 use scale::{Compact, Decode, Encode};
 use xcm::v3::prelude::*;
@@ -21,7 +21,7 @@ impl AcalaSwap {
 }
 
 impl CallBuilder for AcalaSwap {
-    fn build_call(&self, step: Step) -> Result<Vec<Call>, &'static str> {
+    fn build_call(&self, step: Step) -> Result<Call, &'static str> {
         let amount_out = Compact(1_u8);
         let amount_in = Compact(step.spend_amount.ok_or("MissingSpendAmount")?);
 
@@ -58,7 +58,7 @@ impl CallBuilder for AcalaSwap {
         ]);
         let path = vec![taiga_path, dex_path];
 
-        Ok(vec![Call {
+        Ok(Call {
             params: CallParams::Sub(SubCall {
                 calldata: SubExtrinsic {
                     // the call index of acala dex module
@@ -72,6 +72,6 @@ impl CallBuilder for AcalaSwap {
             }),
             input_call: None,
             call_index: None,
-        }])
+        })
     }
 }

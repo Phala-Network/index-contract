@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use pink_subrpc::hasher::{Blake2_256, Hasher};
 use xcm::v3::prelude::*;
 
 pub trait ToArray<T, const N: usize> {
@@ -41,4 +42,8 @@ pub fn slice_to_generalkey(key: &[u8]) -> Junction {
             data
         },
     }
+}
+
+pub fn h160_to_sr25519_pub(addr: &[u8]) -> [u8; 32] {
+    Blake2_256::hash(&[b"evm:", addr].concat())
 }
