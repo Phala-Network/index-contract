@@ -32,6 +32,8 @@ pink-json = { version = "0.4.0", git = "https://github.com/Phala-Network/pink-js
 pink-subrpc = { version = "0.4.4", git = "https://github.com/Phala-Network/phala-blockchain.git", branch = "subrpc-0.4.4", default-features = false }
 
 worker_key_store = { package = "key_store", path = "../key_store", default-features = false, features = ["ink-as-dependency"] }
+regex = { version = "1.10.2", default-features = false }
+chrono = { version = "0.4.31", default-features = false, features = ["alloc", "serde"] }
 
 [dev-dependencies]
 env_logger = "0.10.0"
