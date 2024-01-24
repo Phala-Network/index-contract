@@ -4,7 +4,7 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "devphase": "^0.0.34",
+    "@devphase/cli": "^0.6.8",
     "dotenv": "^16.0.3",
     "ts-node": "^10.9.1",
     "tsconfig-paths": "^4.1.0",
