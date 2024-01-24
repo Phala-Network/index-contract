@@ -284,8 +284,8 @@ impl StorageClient {
     }
 
     /// Remove a document from remote storage
-    pub fn delete(&self, _key: &[u8]) -> Result<(), &'static str> {
-        let key: String = hex::encode(_key);
+    pub fn delete(&self, key: &[u8]) -> Result<(), &'static str> {
+        let key: String = hex::encode(key);
         let database: String = self.database.clone();
         let (audit_index, timestamp) = self.fetch_audit_index()?;
         let cmd = format!(
