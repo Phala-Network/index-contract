@@ -89,7 +89,7 @@ impl ActivedTaskFetcher {
 
         // Read solution from db
         let solution_id = [b"solution".to_vec(), task_id.to_vec()].concat();
-        let (solution, _) = client
+        let solution = client
             .read::<Solution>(&solution_id)
             .map_err(|_| "FailedToReadStorage")?
             .ok_or("NoSolutionFound")?;

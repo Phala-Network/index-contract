@@ -381,7 +381,7 @@ mod index_executor {
             self.ensure_running()?;
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
-            let (mut task, task_doc) = client
+            let mut task = client
                 .read::<Task>(&id)
                 .map_err(|_| Error::FailedToReadStorage)?
                 .ok_or(Error::TaskNotFoundInStorage)?;
@@ -405,7 +405,7 @@ mod index_executor {
                     .map_err(|_| Error::FailedToReRunTask)?;
                 // Upload task data to storage
                 client
-                    .update(task.id.as_ref(), &task.encode(), task_doc)
+                    .update(task.id.as_ref(), &task.encode())
                     .map_err(|_| Error::FailedToUploadTask)?;
             }
             Ok(())
@@ -430,7 +430,7 @@ mod index_executor {
 
             let mut tasks: Vec<Task> = Vec::new();
             for worker_account in self.worker_accounts.iter() {
-                if let Some((task_id, _)) = client
+                if let Some(task_id) = client
                     .read::<TaskId>(&worker_account.account32)
                     .map_err(|_| Error::FailedToReadStorage)?
                 {
@@ -438,7 +438,7 @@ mod index_executor {
                         "Trying to read pending task data from remote storage, task id: {:?}",
                         &hex::encode(task_id)
                     );
-                    let (task, _) = client
+                    let task = client
                         .read::<Task>(&task_id)
                         .map_err(|_| Error::FailedToReadStorage)?
                         .ok_or(Error::TaskNotFoundInStorage)?;
@@ -454,10 +454,9 @@ mod index_executor {
         pub fn get_task(&self, id: TaskId) -> Result<Option<Task>> {
             let config = self.ensure_configured()?;
             let client = StorageClient::new(config.db_url.clone(), config.db_token.clone());
-            Ok(client
+            client
                 .read::<Task>(&id)
-                .map_err(|_| Error::FailedToReadStorage)?
-                .map(|(task, _)| task))
+                .map_err(|_| Error::FailedToReadStorage)
         }
 
         #[ink(message)]
@@ -470,7 +469,7 @@ mod index_executor {
             Ok(client
                 .read::<Solution>(&solution_id)
                 .map_err(|_| Error::FailedToReadStorage)?
-                .map(|(solution, _)| solution.encode()))
+                .map(|solution| solution.encode()))
         }
 
         /// Returs the interior registry, callable to all
@@ -538,7 +537,7 @@ mod index_executor {
         /// Execute tasks from all supported blockchains. This is a query operation
         /// that scheduler invokes periodically.
         pub fn execute_task(&self, client: &StorageClient, worker: [u8; 32]) -> Result<()> {
-            if let Some((id, _)) = client
+            if let Some(id) = client
                 .read::<TaskId>(&worker)
                 .map_err(|_| Error::FailedToReadStorage)?
             {
@@ -546,7 +545,7 @@ mod index_executor {
                     "Trying to read pending task data from remote storage, task id: {:?}",
                     &hex::encode(id)
                 );
-                let (mut task, task_doc) = client
+                let mut task = client
                     .read::<Task>(&id)
                     .map_err(|_| Error::FailedToReadStorage)?
                     .ok_or(Error::TaskNotFoundInStorage)?;
@@ -596,7 +595,7 @@ mod index_executor {
                     }
                 }
                 client
-                    .update(task.id.as_ref(), &task.encode(), task_doc)
+                    .update(task.id.as_ref(), &task.encode())
                     .map_err(|_| Error::FailedToUploadTask)?;
             } else {
                 pink_extension::debug!(

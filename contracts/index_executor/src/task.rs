@@ -116,7 +116,7 @@ impl sp_std::fmt::Debug for Task {
 impl Task {
     // Initialize task
     pub fn init(&mut self, context: &Context, client: &StorageClient) -> Result<(), &'static str> {
-        if let Some((task, _)) = client
+        if let Some(task) = client
             .read::<Task>(&self.id)
             .map_err(|_| "FailedToReadStorage")?
         {
@@ -261,10 +261,10 @@ impl Task {
 
     /// Delete task record from on-chain storage
     pub fn destroy(&mut self, client: &StorageClient) -> Result<(), &'static str> {
-        let (_, running_task_doc) = client
+        let _ = client
             .read::<TaskId>(&self.worker)?
             .ok_or("TaskNotBeingExecuted")?;
-        client.delete(&self.worker, running_task_doc)?;
+        client.delete(&self.worker)?;
 
         Ok(())
     }
@@ -833,7 +833,7 @@ mod tests {
         // Now let's query if the task is exist in rollup storage with another rollup client
         let another_client: StorageClient =
             StorageClient::new("another url".to_string(), "key".to_string());
-        let onchain_task = another_client.read::<Task>(&task.id).unwrap().unwrap().0;
+        let onchain_task = another_client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(onchain_task.status, TaskStatus::Initialized);
         assert_eq!(
             onchain_task.worker,

@@ -4,7 +4,9 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use pink_extension::{http_req, ResultExt};
+use chrono::DateTime;
+use pink_extension::{chain_extension::HttpResponse, http_req, ResultExt};
+use regex::Regex;
 use scale::Decode;
 use serde::Deserialize;
 
@@ -18,8 +20,8 @@ struct StringItem {
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[serde(rename_all = "camelCase")]
-struct EmptyData {
-    pub read_time: String,
+struct IntegerItem {
+    pub integer_value: String,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
@@ -27,7 +29,6 @@ struct EmptyData {
 #[serde(rename_all = "camelCase")]
 struct DataFields {
     pub data: StringItem,
-    pub id: StringItem,
 }
 
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
@@ -43,9 +44,18 @@ struct Document {
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 #[serde(rename_all = "camelCase")]
-struct ResponseData {
-    pub document: Document,
-    pub read_time: String,
+struct AuditIndexFields {
+    pub value: IntegerItem,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq, Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+#[serde(rename_all = "camelCase")]
+struct AuditIndex {
+    pub name: String,
+    pub fields: AuditIndexFields,
+    pub create_time: String,
+    pub update_time: String,
 }
 
 /// The client that interacts with cloud storage services.
@@ -59,11 +69,14 @@ struct ResponseData {
 pub struct StorageClient {
     url: String,
     key: String,
+    database: String,
 }
 
 impl StorageClient {
     pub fn new(url: String, key: String) -> Self {
-        StorageClient { url, key }
+        let re = Regex::new(r"projects/[^/]+/databases/[^/]+").unwrap();
+        let database = re.find(&url).unwrap().as_str().to_string();
+        StorageClient { url, key, database }
     }
 
     /// Send a request to the storage service according to the REST API specification
@@ -71,86 +84,77 @@ impl StorageClient {
         &self,
         method: &str,
         api: &str,
-        request: &str,
-    ) -> Result<Vec<u8>, &'static str> {
-        let content_length = format!("{}", request.len());
+        request: Option<&str>,
+    ) -> Result<HttpResponse, &'static str> {
         let access_key = format!("Bearer {}", self.key);
         let headers: Vec<(String, String)> = vec![
             ("Content-Type".into(), "application/json".into()),
             ("Authorization".into(), access_key),
-            ("Content-Length".into(), content_length),
         ];
 
         let response: pink_extension::chain_extension::HttpResponse = http_req!(
             method,
             format!("{}{}", self.url.clone(), api),
-            request.as_bytes().to_vec(),
+            match request {
+                Some(request) => request.as_bytes().to_vec(),
+                None => vec![],
+            },
             headers
         );
-        if response.status_code != 200 {
+        if response.status_code != 200 && response.status_code != 404 {
             return Err("CallServiceFailed");
         }
 
-        Ok(response.body)
+        Ok(response)
     }
 
-    /// Return (data, document_id) if success
-    pub fn read<T: Decode>(&self, key: &[u8]) -> Result<Option<(T, String)>, &'static str> {
+    fn get_timestamp(&self, response: &HttpResponse) -> Result<String, &'static str> {
+        if let Some((_, value)) = response.headers.iter().find(|(key, _)| key == "date") {
+            let timestamp = DateTime::parse_from_rfc2822(value)
+                .map_err(|_| "GetTimestampFailed")?
+                .to_rfc3339();
+            Ok(timestamp)
+        } else {
+            Err("GetTimestampFailed")
+        }
+    }
+
+    fn fetch_audit_index(&self) -> Result<(u64, String), &'static str> {
+        let api = "documents/index-storage/audit-index";
+        let response: HttpResponse = self.send_request("GET", api, None)?;
+        let timestamp: String = self.get_timestamp(&response)?;
+
+        if response.status_code == 404 {
+            Ok((0, timestamp))
+        } else if let Ok(response) = pink_json::from_slice::<AuditIndex>(&response.body) {
+            let current_index: u64 = response.fields.value.integer_value.parse().unwrap();
+            Ok((current_index + 1, timestamp))
+        } else {
+            // Here we can make sure we got unexpected data
+            Err("DecodedAuditIndexFailed")
+        }
+    }
+
+    /// Return data if success
+    pub fn read<T: Decode>(&self, key: &[u8]) -> Result<Option<T>, &'static str> {
         let key = hex::encode(key);
         pink_extension::debug!("read: trying to read storage item, key: {}", key);
-
-        let cmd = format!(
-            r#"{{
-                "structuredQuery": {{
-                    "from": [{{
-                      "collectionId": "index-storage"
-                    }}],
-                    "where": {{
-                      "fieldFilter": {{
-                        "field": {{
-                          "fieldPath": "id"
-                        }},
-                        "op": "EQUAL",
-                        "value": {{
-                          "stringValue": "{key}"
-                        }}
-                      }}
-                    }},
-                    "limit": 1
-                  }}
-            }}"#
-        );
-
-        let response_body: Vec<u8> = self.send_request("POST", "documents:runQuery", &cmd)?;
-        if let Ok(response) = pink_json::from_slice::<Vec<ResponseData>>(&response_body) {
-            Ok(if !response.is_empty() {
-                let data_str = response[0].document.fields.data.string_value.clone();
-                let raw_data = hex::decode(data_str)
-                    .log_err("Get unexpected data format from database")
-                    .or(Err("InvalidDataStr"))?;
-                let data: T = T::decode(&mut raw_data.as_slice())
-                    .log_err("Decode failed from data returned from database")
-                    .or(Err("DecodeDataFailed"))?;
-                let document_id = response[0]
-                    .document
-                    .name
-                    .split('/')
-                    .last()
-                    .ok_or("ParseDocumentFailed")?
-                    .to_string();
-                Some((data, document_id))
-            } else {
-                None
-            })
+        let api = &format!("documents/index-storage/{key}");
+        let response: HttpResponse = self.send_request("GET", api, None)?;
+        if response.status_code == 404 {
+            Ok(None)
+        } else if let Ok(response) = pink_json::from_slice::<Document>(&response.body) {
+            let data_str = response.fields.data.string_value.clone();
+            let raw_data = hex::decode(data_str)
+                .log_err("Get unexpected data format from database")
+                .or(Err("InvalidDataStr"))?;
+            let data: T = T::decode(&mut raw_data.as_slice())
+                .log_err("Decode failed from data returned from database")
+                .or(Err("DecodeDataFailed"))?;
+            Ok(Some(data))
         } else {
-            // Trying decode from EmptyData, this is highly related to the response format of the storage service
-            if pink_json::from_slice::<Vec<EmptyData>>(&response_body).is_ok() {
-                pink_extension::debug!("read_storage: no storage item found: {}", key);
-                Ok(None)
-            } else {
-                // Here we can make sure we got unexpected data
-                Err("DecodedDataFailed")
-            }
+            // Here we can make sure we got unexpected data
+            Err("DecodedDataFailed")
         }
     }
 
@@ -159,52 +163,171 @@ impl StorageClient {
         let key: String = hex::encode(key);
         pink_extension::debug!("insert: trying to create storage item, key: {:?}", key);
         let data_str = hex::encode(data);
+        let database = self.database.clone();
+        let (audit_index, timestamp) = self.fetch_audit_index()?;
         let cmd = format!(
             r#"{{
-                "fields": {{
-                    "id": {{
-                      "stringValue": "{key}"
+                "writes": [
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-storage/{key}",
+                            "fields": {{
+                                "data": {{
+                                    "stringValue": "{data_str}"
+                                }}
+                            }}
+                        }},
+                        "currentDocument": {{
+                            "exists": false
+                        }}
                     }},
-                    "data": {{
-                      "stringValue": "{data_str}"
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-audit/{audit_index}",
+                            "fields": {{
+                                "id": {{
+                                    "stringValue": "{key}"
+                                }},
+                                "action": {{
+                                    "stringValue": "insert"
+                                }},
+                                "data": {{
+                                    "stringValue": "{data_str}"
+                                }},
+                                "timestamp": {{
+                                    "timestampValue": "{timestamp}"
+                                }}
+                            }}
+                        }},
+                        "currentDocument": {{
+                            "exists": false
+                        }}
+                    }},
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-storage/audit-index",
+                            "fields": {{
+                                "value": {{
+                                    "integerValue": {audit_index}
+                                }}
+                            }}
+                        }},
                     }}
-                }}
+                ]
             }}"#
         );
-        let api = "documents/index-storage";
-        let _ = self.send_request("POST", api, &cmd)?;
+        let api = "documents:commit";
+        let _ = self.send_request("POST", api, Some(&cmd))?;
 
         Ok(())
     }
 
     /// Update storage data
-    pub fn update(&self, key: &[u8], data: &[u8], document: String) -> Result<(), &'static str> {
+    pub fn update(&self, key: &[u8], data: &[u8]) -> Result<(), &'static str> {
         let key: String = hex::encode(key);
         pink_extension::debug!("update: trying to update storage item, key: {}", &key);
         let data_str = hex::encode(data);
-
+        let database: String = self.database.clone();
+        let (audit_index, timestamp) = self.fetch_audit_index()?;
         let cmd = format!(
             r#"{{
-                "fields": {{
-                    "id": {{
-                      "stringValue": "{key}"
+                "writes": [
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-storage/{key}",
+                            "fields": {{
+                                "data": {{
+                                    "stringValue": "{data_str}"
+                                }}
+                            }}
+                        }}
                     }},
-                    "data": {{
-                      "stringValue": "{data_str}"
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-audit/{audit_index}",
+                            "fields": {{
+                                "id": {{
+                                    "stringValue": "{key}"
+                                }},
+                                "action": {{
+                                    "stringValue": "update"
+                                }},
+                                "data": {{
+                                    "stringValue": "{data_str}"
+                                }},
+                                "timestamp": {{
+                                    "timestampValue": "{timestamp}"
+                                }}
+                            }}
+                        }},
+                        "currentDocument": {{
+                            "exists": false
+                        }}
+                    }},
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-storage/audit-index",
+                            "fields": {{
+                                "value": {{
+                                    "integerValue": {audit_index}
+                                }}
+                            }}
+                        }},
                     }}
-                }}
+                ]
             }}"#
         );
-        let api = &format!("documents/index-storage/{document}");
-        let _ = self.send_request("PATCH", api, &cmd)?;
+        let api = "documents:commit";
+        let _ = self.send_request("POST", api, Some(&cmd))?;
 
         Ok(())
     }
 
     /// Remove a document from remote storage
-    pub fn delete(&self, _key: &[u8], document: String) -> Result<(), &'static str> {
-        let api = &format!("documents/index-storage/{document}");
-        let _ = self.send_request("DELETE", api, "")?;
+    pub fn delete(&self, key: &[u8]) -> Result<(), &'static str> {
+        let key: String = hex::encode(key);
+        let database: String = self.database.clone();
+        let (audit_index, timestamp) = self.fetch_audit_index()?;
+        let cmd = format!(
+            r#"{{
+                "writes": [
+                    {{
+                        "delete": "{database}/documents/index-storage/{key}"
+                    }},
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-audit/{audit_index}",
+                            "fields": {{
+                                "id": {{
+                                    "stringValue": "{key}"
+                                }},
+                                "action": {{
+                                    "stringValue": "delete"
+                                }},
+                                "timestamp": {{
+                                    "timestampValue": "{timestamp}"
+                                }}
+                            }}
+                        }},
+                        "currentDocument": {{
+                            "exists": false
+                        }}
+                    }},
+                    {{
+                        "update": {{
+                            "name": "{database}/documents/index-storage/audit-index",
+                            "fields": {{
+                                "value": {{
+                                    "integerValue": {audit_index}
+                                }}
+                            }}
+                        }},
+                    }}
+                ]
+            }}"#
+        );
+        let api = "documents:commit";
+        let _ = self.send_request("POST", api, Some(&cmd))?;
         Ok(())
     }
 }
@@ -246,24 +369,20 @@ mod tests {
 
         assert_eq!(client.read::<Task>(&task.id).unwrap(), None);
         // Save task to remote storage
-        assert_eq!(
-            client.insert(b"pending_tasks", &vec![task.id].encode()),
-            Ok(())
-        );
         assert_eq!(client.insert(&task.id, &task.encode()), Ok(()));
         // Query storage for tasks
-        let (storage_task, document_id) = client.read::<Task>(&task.id).unwrap().unwrap();
+        let storage_task = client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(storage_task.encode(), task.encode());
         // Modify task status
         task.status = TaskStatus::Completed;
         // Update task data on remote storage
-        assert_eq!(client.update(&task.id, &task.encode(), document_id), Ok(()));
+        assert_eq!(client.update(&task.id, &task.encode()), Ok(()));
         // Read again
-        let (updated_storage_task, document_id) = client.read::<Task>(&task.id).unwrap().unwrap();
+        let updated_storage_task = client.read::<Task>(&task.id).unwrap().unwrap();
         assert_eq!(updated_storage_task.status, TaskStatus::Completed);
         // Delete task data from remote storage
-        assert_eq!(client.delete(&updated_storage_task.id, document_id), Ok(()));
-        // Veify task existence
+        assert_eq!(client.delete(&updated_storage_task.id), Ok(()));
+        // Verify task existence
         assert_eq!(client.read::<Task>(&task.id).unwrap(), None);
     }
 }
